@@ -1,0 +1,12 @@
+target/
+*.iml
+.idea/
+.DS_Store
+*.log
+log.txt
+*.zip
+.vscode/
+*.log
+log.txt
+*.zip
+.vscode/

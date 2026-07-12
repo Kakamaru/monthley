@@ -1,0 +1,25 @@
+-- Jadual payment (resit rujuk financial_document)
+CREATE TABLE IF NOT EXISTS payment (
+  id                  BIGINT NOT NULL AUTO_INCREMENT,
+  sp_code             VARCHAR(20)  NOT NULL,
+  receipt_document_id BIGINT       NOT NULL,
+  payer_account_id    BIGINT       NULL,
+  payment_date        DATE         NOT NULL,
+  amount              DECIMAL(15,2) NOT NULL DEFAULT 0,
+  allocated_amount    DECIMAL(15,2) NOT NULL DEFAULT 0,
+  deposit_amount      DECIMAL(15,2) NOT NULL DEFAULT 0,
+  method              VARCHAR(15)  NOT NULL,
+  payment_ref_no      VARCHAR(100) NULL,
+  status              VARCHAR(10)  NOT NULL DEFAULT 'ACTIVE',
+  cancelled_at        DATETIME     NULL,
+  journal_entry_id    BIGINT       NULL,
+  uuid                VARCHAR(36)  NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by          VARCHAR(64)  NULL,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by          VARCHAR(64)  NULL,
+  version             BIGINT       NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_payment_sp (sp_code),
+  KEY idx_payment_receipt (receipt_document_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
