@@ -11,7 +11,7 @@ spring:
       hibernate:
         jdbc.time_zone: Asia/Kuala_Lumpur
         # Envers — audit trail untuk data kewangan
-        integration.envers.enabled: true
+        integration.envers.enabled: false
         org.hibernate.envers.audit_table_suffix: _aud
 
   flyway:
