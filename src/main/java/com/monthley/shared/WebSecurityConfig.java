@@ -27,7 +27,8 @@ public class WebSecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(a -> a
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/**").permitAll()   // TODO: .authenticated() bila JWT siap
+                .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/**").permitAll()   // TODO: .authenticated() bila JWT filter siap
                 .anyRequest().permitAll());
         return http.build();
     }

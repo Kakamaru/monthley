@@ -1,5 +1,5 @@
-/** Platform — superadmin: cipta / luluskan / suspend Service Provider. */
+/** Platform — superadmin: onboard SP, urus pelan & entitlement. */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Platform Admin",
-        allowedDependencies = { "shared", "tenancy::api", "identity::api" })
+        allowedDependencies = { "shared", "ledger" })
 package com.monthley.platform;
