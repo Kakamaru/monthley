@@ -10,3 +10,4 @@ log.txt
 log.txt
 *.zip
 .vscode/
+backend.log

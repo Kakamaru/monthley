@@ -90,6 +90,15 @@ public class Product extends BaseEntity {
     public void setSubscriptionCode(String c) { this.subscriptionCode = c; }
     public void setDescription(String d) { this.description = d; }
 
+    public void rename(String name) { this.name = name; }
+    public void setRate(java.math.BigDecimal rate) { this.unitRate = rate; }
+    public void setChargeFrequency(com.monthley.shared.ChargeFrequency f) { this.chargeFrequency = f; }
+    public void setCategoryId(Long id) { this.categoryId = id; }
+    public Long getCategoryId() { return categoryId; }
+    public String getSubscriptionCode() { return subscriptionCode; }
+    public void deactivate() { this.status = Status.INACTIVE; }
+    public void activate() { this.status = Status.ACTIVE; }
+
     public Long getId() { return id; }
     public String getSpCode() { return spCode; }
     public String getCode() { return code; }
