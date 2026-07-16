@@ -27,6 +27,9 @@ public class AppUser extends BaseEntity {
     @Column(name = "status", nullable = false, length = 10)
     private Status status = Status.ACTIVE;
 
+    @Column(name = "email_verified_at")
+    private java.time.LocalDateTime emailVerifiedAt;
+
     @Column(name = "uuid", length = 36)
     private String uuid;
 
@@ -49,4 +52,8 @@ public class AppUser extends BaseEntity {
     public String getPasswordHash() { return passwordHash; }
     public Status getStatus() { return status; }
     public void setPasswordHash(String h) { this.passwordHash = h; }
+
+    public java.time.LocalDateTime getEmailVerifiedAt() { return emailVerifiedAt; }
+    public boolean isEmailVerified() { return emailVerifiedAt != null; }
+    public void markEmailVerified() { this.emailVerifiedAt = java.time.LocalDateTime.now(); }
 }

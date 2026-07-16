@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+cd "$(dirname "$0")" || exit 1
+PORT=8080
+LOG=backend.log
+
+status() {
+  if lsof -ti:$PORT > /dev/null 2>&1; then
+    echo "✓ HIDUP (pid $(lsof -ti:$PORT | tr '\n' ' '))"; return 0
+  else
+    echo "✗ MATI"; return 1
+  fi
+}
+
+stop() {
+  if lsof -ti:$PORT > /dev/null 2>&1; then
+    lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 2; echo "✓ dihentikan"
+  else
+    echo "  (memang tak hidup)"
+  fi
+}
+
+start() {
+  if lsof -ti:$PORT > /dev/null 2>&1; then
+    echo "⚠️  port $PORT sudah diguna — jalankan './mb restart'"; return 1
+  fi
+  [ -z "$MONTHLEY_RESEND_KEY" ] && echo "ℹ️  MONTHLEY_RESEND_KEY tidak ditetapkan — e-mel di-log sahaja."
+  echo "→ menghidupkan…"
+  : > "$LOG"
+  nohup mvn spring-boot:run -Dspring-boot.run.profiles=dev > "$LOG" 2>&1 &
+  for i in $(seq 1 60); do
+    if grep -q "Started MonthleyApplication" "$LOG" 2>/dev/null; then
+      echo "✓ HIDUP di http://localhost:$PORT  (${i}s)"; return 0
+    fi
+    if grep -q "APPLICATION FAILED TO START\|BUILD FAILURE" "$LOG" 2>/dev/null; then
+      echo "✗ GAGAL — punca:"; echo "---"
+      grep -m1 -A 4 "Caused by\|Description:" "$LOG" | head -6
+      echo "---"; return 1
+    fi
+    sleep 1
+  done
+  echo "⚠️  belum hidup selepas 60s — cuba './mb err'"; return 1
+}
+
+case "${1:-status}" in
+  start)   start ;;
+  stop)    stop ;;
+  restart) stop; mvn -q compile || { echo "✗ compile gagal"; exit 1; }; start ;;
+  log)     tail -f "$LOG" ;;
+  status)  status ;;
+  err)     grep -m3 -B2 -A 8 -iE "Caused by|APPLICATION FAILED|ERROR" "$LOG" | head -40 ;;
+  *)       echo "guna: ./mb {start|stop|restart|log|status|err}" ;;
+esac

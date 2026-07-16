@@ -37,17 +37,22 @@ class AuthController {
     private final PlatformAdminRepository admins;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
+    private final VerificationService verification;
+    private final UserTokenRepository tokens;
 
     @PersistenceContext
     private EntityManager em;
 
     AuthController(AppUserRepository users, SpMembershipRepository memberships,
-                   PlatformAdminRepository admins, PasswordEncoder encoder, JwtService jwt) {
+                   PlatformAdminRepository admins, PasswordEncoder encoder, JwtService jwt,
+                   VerificationService verification, UserTokenRepository tokens) {
         this.users = users;
         this.memberships = memberships;
         this.admins = admins;
         this.encoder = encoder;
         this.jwt = jwt;
+        this.verification = verification;
+        this.tokens = tokens;
     }
 
     // ---------- DTO ----------
@@ -72,6 +77,12 @@ class AuthController {
             boolean hasLinkedAccounts) {}
 
     record ErrorResponse(String message) {}
+    record MessageResponse(String message) {}
+    record ForgotRequest(@Email @NotBlank String email) {}
+    record ResetRequest(@NotBlank String token,
+                        @NotBlank @Size(min = 6, message = "Kata laluan minimum 6 aksara") String password) {}
+    record ResendRequest(@Email @NotBlank String email) {}
+    record RegisterResponse(String message, String email) {}
 
     // ---------- Endpoints ----------
 
@@ -86,6 +97,92 @@ class AuthController {
         }
 
         AppUser user = new AppUser(email, r.fullName(), r.mobile(), encoder.encode(r.password()));
+        users.save(user);
+        users.flush();
+
+        verification.sendVerification(user);
+
+        // Sengaja TIDAK pulangkan token — e-mel mesti disahkan dahulu.
+        return ResponseEntity.ok(new RegisterResponse(
+                "Pendaftaran berjaya. Sila semak e-mel anda untuk pautan pengesahan.", email));
+    }
+
+    @PostMapping("/verify")
+    @Transactional
+    ResponseEntity<?> verify(@RequestBody java.util.Map<String, String> body) {
+        String token = body.get("token");
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Token diperlukan."));
+        }
+
+        var maybe = tokens.findByToken(token);
+        if (maybe.isEmpty() || maybe.get().getType() != UserToken.Type.VERIFY_EMAIL) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Pautan tidak sah."));
+        }
+        UserToken t = maybe.get();
+        if (!t.isUsable()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(
+                    "Pautan sudah digunakan atau telah luput. Sila minta pautan baharu."));
+        }
+
+        AppUser user = users.findById(t.getUserId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Pengguna tidak dijumpai."));
+        }
+
+        t.markUsed();
+        user.markEmailVerified();
+        users.save(user);
+
+        verification.sendWelcome(user);
+
+        return ResponseEntity.ok(buildLogin(user));
+    }
+
+    @PostMapping("/resend-verification")
+    @Transactional
+    ResponseEntity<?> resendVerification(@Valid @RequestBody ResendRequest r) {
+        users.findByEmailIgnoreCase(r.email().toLowerCase().trim())
+                .filter(u -> !u.isEmailVerified())
+                .ifPresent(verification::sendVerification);
+        // Sentiasa balasan sama — jangan dedahkan e-mel wujud atau tidak
+        return ResponseEntity.ok(new MessageResponse(
+                "Jika e-mel tersebut berdaftar dan belum disahkan, pautan baharu telah dihantar."));
+    }
+
+    @PostMapping("/forgot-password")
+    @Transactional
+    ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotRequest r) {
+        users.findByEmailIgnoreCase(r.email().toLowerCase().trim())
+                .filter(u -> u.getStatus() == AppUser.Status.ACTIVE)
+                .ifPresent(verification::sendPasswordReset);
+        // Sentiasa balasan sama — elak pengintipan e-mel
+        return ResponseEntity.ok(new MessageResponse(
+                "Jika e-mel tersebut berdaftar, pautan reset telah dihantar."));
+    }
+
+    @PostMapping("/reset-password")
+    @Transactional
+    ResponseEntity<?> resetPassword(@Valid @RequestBody ResetRequest r) {
+        var maybe = tokens.findByToken(r.token());
+        if (maybe.isEmpty() || maybe.get().getType() != UserToken.Type.RESET_PASSWORD) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Pautan tidak sah."));
+        }
+        UserToken t = maybe.get();
+        if (!t.isUsable()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(
+                    "Pautan sudah digunakan atau telah luput. Sila minta pautan baharu."));
+        }
+
+        AppUser user = users.findById(t.getUserId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Pengguna tidak dijumpai."));
+        }
+
+        t.markUsed();
+        user.setPasswordHash(encoder.encode(r.password()));
+        // Reset kata laluan melalui e-mel = bukti milik e-mel → sahkan sekali
+        if (!user.isEmailVerified()) user.markEmailVerified();
         users.save(user);
 
         return ResponseEntity.ok(buildLogin(user));
@@ -124,6 +221,12 @@ class AuthController {
                 || user.getPasswordHash() == null
                 || !encoder.matches(r.password(), user.getPasswordHash())) {
             return unauthorized();
+        }
+
+        // E-mel WAJIB disahkan sebelum masuk portal
+        if (!user.isEmailVerified()) {
+            return ResponseEntity.status(403).body(new ErrorResponse(
+                    "E-mel anda belum disahkan. Sila semak e-mel untuk pautan pengesahan."));
         }
 
         return ResponseEntity.ok(buildLogin(user));

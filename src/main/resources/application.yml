@@ -31,6 +31,18 @@ logging:
   level:
     com.monthley: INFO
 
+
+# ====================== MONTHLEY ======================
+monthley:
+  app-url: ${MONTHLEY_APP_URL:http://localhost:4200}
+  jwt:
+    secret: ${MONTHLEY_JWT_SECRET:monthley-dev-secret-key-change-in-production-min-32-chars}
+    ttl-hours: 12
+  email:
+    # Kunci Resend — dari env sahaja. JANGAN commit kunci sebenar.
+    resend-key: ${MONTHLEY_RESEND_KEY:}
+    from: ${MONTHLEY_EMAIL_FROM:Monthley <onboarding@resend.dev>}
+
 ---
 # ====================== DEV (MySQL 9 local) ======================
 spring:

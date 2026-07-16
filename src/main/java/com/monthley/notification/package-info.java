@@ -1,4 +1,4 @@
-/** Notification — gilir SMS / WhatsApp / e-mel. Dihantar SELEPAS commit. */
+/** Notification — e-mel (Resend), SMS & WhatsApp. */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Notification",
         allowedDependencies = { "shared" })
