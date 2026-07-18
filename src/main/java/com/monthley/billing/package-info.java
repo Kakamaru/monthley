@@ -8,5 +8,6 @@
                 "ledger::api",
                 "catalog::api",
                 "account::api",
-                "document::api" })
+                "document::api",
+                "tenancy::api" })
 package com.monthley.billing;

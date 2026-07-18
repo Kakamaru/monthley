@@ -1,6 +1,7 @@
 package com.monthley.tenancy.internal;
 
 import com.monthley.shared.Access;
+import com.monthley.shared.PeriodIds;
 import com.monthley.shared.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.YearMonth;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -457,12 +459,14 @@ class SettingsController {
     @SuppressWarnings("unchecked")
     List<ExcludeDto> excludePeriods() {
         List<Object[]> rows = em.createNativeQuery(
-                        "SELECT id, period, remarks FROM invoice_exclude_period "
-                        + "WHERE sp_code = :sp ORDER BY period DESC")
+                        "SELECT id, period_id, remarks FROM invoice_exclude_period "
+                        + "WHERE sp_code = :sp ORDER BY period_id DESC")
                 .setParameter("sp", sp()).getResultList();
         List<ExcludeDto> out = new ArrayList<>();
         for (Object[] r : rows) {
-            out.add(new ExcludeDto(((Number) r[0]).longValue(), (String) r[1], (String) r[2]));
+            // period_id -> "YYYY-MM" untuk <input type="month">
+            String ym = PeriodIds.toYearMonth(((Number) r[1]).longValue()).toString();
+            out.add(new ExcludeDto(((Number) r[0]).longValue(), ym, (String) r[2]));
         }
         return out;
     }
@@ -472,10 +476,11 @@ class SettingsController {
     ResponseEntity<?> addExclude(@Valid @RequestBody SaveExcludeRequest r) {
         Access.requireRole("SP_ADMIN", "menambah pengecualian tempoh");
         try {
+            long periodId = PeriodIds.ofMonth(YearMonth.parse(r.period()));
             em.createNativeQuery(
-                            "INSERT INTO invoice_exclude_period (sp_code, period, remarks) "
-                            + "VALUES (:sp, :p, :rm)")
-                    .setParameter("sp", sp()).setParameter("p", r.period())
+                            "INSERT INTO invoice_exclude_period (sp_code, period_id, remarks) "
+                            + "VALUES (:sp, :pid, :rm)")
+                    .setParameter("sp", sp()).setParameter("pid", periodId)
                     .setParameter("rm", r.remarks()).executeUpdate();
         } catch (RuntimeException e) {
             return bad("Tempoh " + r.period() + " sudah dikecualikan.");
