@@ -60,7 +60,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://localhost:3306/monthley_new?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
+    url: jdbc:mysql://127.0.0.1:3306/monthley_new?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
     username: monthley
     password: devpass
     driver-class-name: com.mysql.cj.jdbc.Driver
