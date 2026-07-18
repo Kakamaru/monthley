@@ -87,6 +87,9 @@ public class Product extends BaseEntity {
     public void setIncomeGlAccountId(Long id) { this.incomeGlAccountId = id; }
     public void setSubscriptionCode(String c) { this.subscriptionCode = c; }
     public void setDescription(String d) { this.description = d; }
+    public String getDescription() { return description; }
+    public void setMainProduct(boolean m) { this.mainProduct = m; }
+    public boolean isMainProduct() { return mainProduct; }
 
     public void rename(String name) { this.name = name; }
     public void setRate(java.math.BigDecimal rate) { this.unitRate = rate; }

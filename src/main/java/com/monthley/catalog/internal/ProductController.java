@@ -33,16 +33,16 @@ class ProductController {
 
     record ProductDto(
             Long id, String code, String subscriptionCode, Long categoryId,
-            String name, BigDecimal rate, String chargeFrequency,
+            String name, String description, BigDecimal rate, String chargeFrequency,
             Integer anchorMonth, boolean prorated, boolean latePenalty,
-            boolean mandatory, boolean active) {
+            boolean mandatory, boolean mainProduct, boolean active) {
 
         static ProductDto from(Product p) {
             return new ProductDto(p.getId(), p.getCode(), p.getSubscriptionCode(),
-                    p.getCategoryId(), p.getName(), p.getUnitRate(),
+                    p.getCategoryId(), p.getName(), p.getDescription(), p.getUnitRate(),
                     p.getChargeFrequency().name(), p.getAnchorMonth(),
                     p.isProrated(), p.isLatePenalty(), p.isMandatory(),
-                    p.getStatus() == Product.Status.ACTIVE);
+                    p.isMainProduct(), p.getStatus() == Product.Status.ACTIVE);
         }
     }
 
@@ -51,12 +51,14 @@ class ProductController {
             String subscriptionCode,
             Long categoryId,
             @NotBlank String name,
+            String description,
             BigDecimal rate,
             @NotBlank String chargeFrequency,
             Integer anchorMonth,
             boolean prorated,
             boolean latePenalty,
-            boolean mandatory) {}
+            boolean mandatory,
+            boolean mainProduct) {}
 
     // ---------- Endpoints ----------
 
@@ -112,10 +114,12 @@ class ProductController {
     private void apply(Product p, SaveProductRequest r) {
         p.setSubscriptionCode(r.subscriptionCode());
         p.setCategoryId(r.categoryId());
+        p.setDescription(r.description());
         p.setAnchorMonth(r.anchorMonth());
         p.setProrated(r.prorated());
         p.setLatePenalty(r.latePenalty());
         p.setMandatory(r.mandatory());
+        p.setMainProduct(r.mainProduct());
     }
 
     private String sp() {
