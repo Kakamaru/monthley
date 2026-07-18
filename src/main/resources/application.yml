@@ -4,8 +4,12 @@ spring:
 
   jpa:
     hibernate:
-      # WAJIB 'validate' — Flyway yang memiliki skema, bukan Hibernate.
-      ddl-auto: none
+      # 'validate': Hibernate semak setiap entity lawan skema semasa boot.
+      # Entity yang sebut lajur tak wujud -> boot GAGAL, bukan senyap sampai
+      # ujian. Menangkap kelas bug 'entity menyimpang dari skema' (cth
+      # Product.generationDay selepas V17). Flyway tetap memiliki skema —
+      # validate hanya menyemak, tidak mengubah.
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
