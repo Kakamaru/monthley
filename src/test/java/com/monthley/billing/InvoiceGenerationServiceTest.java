@@ -76,6 +76,35 @@ class InvoiceGenerationServiceTest {
             .executeUpdate();
     }
 
+    /** Tetapkan account.start_date (= Start Charging). null = kosongkan. */
+    private void startCharging(String isoDate) {
+        em.createNativeQuery("UPDATE account SET start_date = :d WHERE id = :acc")
+                .setParameter("d", isoDate)
+                .setParameter("acc", accountId).executeUpdate();
+    }
+
+    private void subscriptionStart(String isoDate) {
+        em.createNativeQuery(
+                "UPDATE account_subscription SET start_date = :d WHERE account_id = :acc")
+                .setParameter("d", isoDate)
+                .setParameter("acc", accountId).executeUpdate();
+    }
+
+    private void prorated(boolean on) {
+        em.createNativeQuery("UPDATE product SET prorated = :p WHERE id = :prod")
+                .setParameter("p", on ? 1 : 0)
+                .setParameter("prod", productId).executeUpdate();
+    }
+
+    /** Amaun baris tunggal yang dijana untuk SPB. */
+    private java.math.BigDecimal singleLineAmount() {
+        return (java.math.BigDecimal) em.createNativeQuery("""
+                SELECT l.amount FROM financial_document_line l
+                JOIN financial_document d ON d.id = l.document_id
+                WHERE d.sp_code = 'SPB'
+                """).getSingleResult();
+    }
+
     private BillingContext ctx() {
         return BillingContext.of("SPB", BigDecimal.ZERO,
                 GlAccounts.ACCOUNTS_RECEIVABLE, GlAccounts.TAX_PAYABLE, GlAccounts.SERVICE_INCOME);
@@ -138,5 +167,85 @@ class InvoiceGenerationServiceTest {
             "SELECT period_id FROM financial_document WHERE sp_code='SPB'")
             .getSingleResult();
         assertThat(docPeriod.longValue()).isEqualTo(2026000000L);
+    }
+
+    // ── Suis proration: account.start_date (Start Charging) ──────────
+    //
+    // Peraturan (docs/domain/billing-rules.md §6):
+    //   effStart   = MAX(account.start_date, sub.start_date)   -> BILA
+    //   canProrate = account.start_date != null && product.prorated  -> BERAPA
+    //
+    // Rasional: tanpa Start Charging, satu-satunya tarikh yang kita ada ialah
+    // bila kerani menaip. Memprorate berdasarkannya bermakna mengenakan caj
+    // berdasarkan kelajuan kemasukan data.
+
+    @Test
+    @DisplayName("Start Charging kosong + masuk 15 Jun -> caj PENUH")
+    void noStartChargingChargesFullCycle() {
+        startCharging(null);
+        subscriptionStart("2026-06-15");
+        prorated(true);                 // walaupun produk prorated
+
+        int posted = billing.generateForSp("SPB", YearMonth.of(2026, 6),
+                GenMode.CURRENT, ctx());
+
+        assertThat(posted).isEqualTo(1);
+        assertThat(singleLineAmount()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    @DisplayName("Start Charging 15 Jun + produk prorated -> prorate 16/30")
+    void startChargingWithProratedProductProrates() {
+        startCharging("2026-06-15");
+        subscriptionStart("2026-06-15");
+        prorated(true);
+
+        int posted = billing.generateForSp("SPB", YearMonth.of(2026, 6),
+                GenMode.CURRENT, ctx());
+
+        assertThat(posted).isEqualTo(1);
+        // 80 x 16/30 = 42.666... -> 42.67   (bukan /30 tetap: Jun MEMANG 30 hari)
+        assertThat(singleLineAmount()).isEqualByComparingTo("42.67");
+    }
+
+    @Test
+    @DisplayName("Start Charging 15 Jun + produk TAK prorated -> caj PENUH")
+    void startChargingWithNonProratedProductChargesFull() {
+        startCharging("2026-06-15");
+        subscriptionStart("2026-06-15");
+        prorated(false);                // 99% produk production
+
+        int posted = billing.generateForSp("SPB", YearMonth.of(2026, 6),
+                GenMode.CURRENT, ctx());
+
+        assertThat(posted).isEqualTo(1);
+        assertThat(singleLineAmount()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    @DisplayName("Julai (31 hari) -> penyebut 31, bukan 30")
+    void actualDaysNotThirty() {
+        startCharging("2026-07-15");
+        subscriptionStart("2026-07-15");
+        prorated(true);
+
+        billing.generateForSp("SPB", YearMonth.of(2026, 7), GenMode.CURRENT, ctx());
+
+        // 80 x 17/31 = 43.87   (kalau /30 -> 45.33, SALAH)
+        assertThat(singleLineAmount()).isEqualByComparingTo("43.87");
+    }
+
+    @Test
+    @DisplayName("PROD: akaun dicipta 17 Jul, POSTPAID -> tiada caj Jun")
+    void noChargeBeforeAccountExists() {
+        // Akaun MY00006000041, dicipta 17 Julai, start_charging NULL.
+        // Legacy caj RM80 untuk Jun — sebelum akaun wujud. Divergensi sengaja.
+        startCharging(null);
+        subscriptionStart("2026-07-17");
+
+        int posted = billing.generateForSp("SPB", YearMonth.of(2026, 7),
+                GenMode.POSTPAID, ctx());   // base = Jun
+
+        assertThat(posted).isZero();
     }
 }

@@ -59,6 +59,19 @@ class InvoiceCalculator {
             LocalDate effStart = later(account.startDate(), sub.startDate());
             LocalDate effEnd = earlier(account.expiryDate(), sub.endDate());
 
+            // account.start_date (= Start Charging) ialah SUIS proration.
+            //
+            // Diisi  -> SP mengisytihar tarikh mula sebenar; prorate dari situ.
+            // Kosong -> sub.start_date (lalai kepada tarikh cipta akaun) hanya
+            //           menentukan BILA. Kitaran berjalan dicaj PENUH.
+            //
+            // Sebab: tanpa isytihar SP, satu-satunya tarikh yang kita ada
+            // ialah bila kerani menaip. Memprorate berdasarkannya bermakna
+            // mengenakan caj berdasarkan kelajuan kemasukan data.
+            //
+            // Rujuk docs/domain/billing-rules.md §6
+            boolean canProrate = account.startDate() != null && product.prorated();
+
             BigDecimal rate = resolveRate(sub, product, ctx);
 
             if (freq == ChargeFrequency.ONE_TIME) {
@@ -70,7 +83,7 @@ class InvoiceCalculator {
             for (Charge charge : PeriodResolver.chargesFor(
                     base, freq, product.anchorMonth(), effStart, effEnd)) {
 
-                recurringLine(account, sub, product, charge, rate, ctx)
+                recurringLine(account, sub, product, charge, rate, canProrate, ctx)
                         .ifPresent(lines::add);
             }
         }
@@ -84,10 +97,11 @@ class InvoiceCalculator {
                                                    ProductView product,
                                                    Charge charge,
                                                    BigDecimal rate,
+                                                   boolean canProrate,
                                                    BillingContext ctx) {
 
         BigDecimal ratio = ProrationCalculator.prorationRatio(
-                product.prorated(), charge, ctx.excludedPeriodIds());
+                canProrate, charge, ctx.excludedPeriodIds());
 
         if (ratio.signum() <= 0) return Optional.empty();   // bulan dikecualikan sepenuhnya
 
