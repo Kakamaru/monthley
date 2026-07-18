@@ -74,9 +74,13 @@
         </dependency>
 
         <!-- ============ Migrasi skema ============ -->
+        <!-- Spring Boot 4 memodularkan auto-configuration: flyway-core sahaja
+             TIDAK mencetuskan migrasi, walaupun spring.flyway.enabled=true.
+             Starter ini yang membawa FlywayAutoConfiguration.
+             Rujuk: https://spring.io/blog/2025/10/28/modularizing-spring-boot/ -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

@@ -21,7 +21,13 @@ spring:
 
   modulith:
     events:
-      republish-outstanding-events-on-restart: true
+      # false: Modulith membaca event_publication semasa startup, SEBELUM
+      # Flyway sempat menciptanya -> boot gagal atas DB kosong. Ia "berjaya"
+      # sebelum ini hanya kerana table sudah wujud dari larian terdahulu.
+      # Kita tidak menggunakan event Modulith buat masa ini (tiada
+      # @ApplicationModuleListener / publishEvent dalam kod). Hidupkan semula
+      # bila event digunakan DAN turutan bean diselesaikan.
+      republish-outstanding-events-on-restart: false
       completion-mode: update   # simpan rekod selesai untuk audit
 
 server:
