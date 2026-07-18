@@ -21,4 +21,10 @@ public interface LedgerPort {
      * Menggunakan amaun TERSIMPAN — tidak mengira semula (elak rounding drift).
      */
     Long reverse(Long journalEntryId, String reason);
+
+    /**
+     * Cipta carta akaun standard untuk SP baru. Idempotent — skip kalau sudah ada.
+     * Dipanggil oleh platform semasa onboarding.
+     */
+    void seedChartOfAccounts(String spCode);
 }

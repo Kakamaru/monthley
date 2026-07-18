@@ -20,10 +20,13 @@ class LedgerService implements LedgerPort {
 
     private final JournalEntryRepository entries;
     private final ChartOfAccountRepository accounts;
+    private final ChartOfAccountSeeder seeder;
 
-    LedgerService(JournalEntryRepository entries, ChartOfAccountRepository accounts) {
+    LedgerService(JournalEntryRepository entries, ChartOfAccountRepository accounts,
+                  ChartOfAccountSeeder seeder) {
         this.entries = entries;
         this.accounts = accounts;
+        this.seeder = seeder;
     }
 
     @Override
@@ -109,5 +112,10 @@ class LedgerService implements LedgerPort {
                         "Akaun GL '" + glAccountCode + "' tak wujud untuk SP " + spCode
                         + ". Seed carta akaun dulu."))
                 .getId();
+    }
+
+    @Override
+    public void seedChartOfAccounts(String spCode) {
+        seeder.seedFor(spCode);
     }
 }

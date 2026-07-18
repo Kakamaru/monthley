@@ -59,8 +59,6 @@ public class Product extends BaseEntity {
     @Column(name = "late_penalty", nullable = false)
     private boolean latePenalty;
 
-    @Column(name = "generation_day")
-    private Integer generationDay;
 
     @Column(name = "term_days")
     private Integer termDays;

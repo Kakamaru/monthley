@@ -11,6 +11,7 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Membuktikan billing engine menyatukan account + catalog + ledger.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 class InvoiceGenerationServiceTest {
 
@@ -110,8 +112,12 @@ class InvoiceGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("Akaun tahunan → 12 journal")
-    void generatesTwelveForYearly() {
+    @DisplayName("Akaun tahunan → SATU invois, 12 baris")
+    void yearlyAccountGivesOneInvoiceTwelveLines() {
+        // Reka bentuk lama: 12 invois (satu per period).
+        // Disahkan lawan production: satu dokumen, doc.period_id = 2026000000,
+        // dengan baris membawa period LIPUTAN sendiri (2026110100..2026241200).
+        // Rujuk docs/domain/billing-rules.md §3
         em.createNativeQuery(
             "UPDATE account SET charge_frequency='YEAR' WHERE id=:acc")
             .setParameter("acc", accountId).executeUpdate();
@@ -119,6 +125,18 @@ class InvoiceGenerationServiceTest {
         int posted = billing.generateForSp("SPB", YearMonth.of(2026, 1),
                 GenMode.CURRENT, ctx());
 
-        assertThat(posted).isEqualTo(12);
+        assertThat(posted).isEqualTo(1);
+
+        Number lines = (Number) em.createNativeQuery("""
+            SELECT COUNT(*) FROM financial_document_line l
+            JOIN financial_document d ON d.id = l.document_id
+            WHERE d.sp_code='SPB'
+            """).getSingleResult();
+        assertThat(lines.intValue()).isEqualTo(12);
+
+        Number docPeriod = (Number) em.createNativeQuery(
+            "SELECT period_id FROM financial_document WHERE sp_code='SPB'")
+            .getSingleResult();
+        assertThat(docPeriod.longValue()).isEqualTo(2026000000L);
     }
 }

@@ -1,6 +1,6 @@
 package com.monthley.platform.internal;
 
-import com.monthley.ledger.internal.ChartOfAccountSeeder;
+import com.monthley.ledger.api.LedgerPort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
@@ -34,13 +34,13 @@ class OnboardingController {
     private static final String KEY_CHARS =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    private final ChartOfAccountSeeder coaSeeder;
+    private final LedgerPort ledger;
 
     @PersistenceContext
     private EntityManager em;
 
-    OnboardingController(ChartOfAccountSeeder coaSeeder) {
-        this.coaSeeder = coaSeeder;
+    OnboardingController(LedgerPort ledger) {
+        this.ledger = ledger;
     }
 
     // ---------- DTO ----------
@@ -212,7 +212,7 @@ class OnboardingController {
 
         // ---- Carta akaun standard ----
         em.flush();
-        coaSeeder.seedFor(spCode);
+        ledger.seedChartOfAccounts(spCode);
 
         return ResponseEntity.ok(new OnboardResult(spCode, r.name(), adminUserId, email));
     }

@@ -50,10 +50,11 @@ class PaymentService implements PaymentPort {
     @SuppressWarnings("unchecked")
     public List<OutstandingInvoice> outstandingFor(Long accountId) {
         List<Object[]> rows = em.createNativeQuery("""
-            SELECT d.id, d.doc_no, d.account_id, d.period, d.doc_date, d.due_date,
+            SELECT d.id, d.doc_no, d.account_id, p.name_, d.doc_date, d.due_date,
                    (d.amount + d.tax_amount) AS total,
                    COALESCE(a.paid, 0) AS paid
             FROM financial_document d
+            LEFT JOIN fi_period p ON p.period_id = d.period_id
             LEFT JOIN (
                 SELECT debit_document_id, SUM(amount) AS paid
                 FROM fi_allocation WHERE status = 'ACTIVE'
@@ -63,7 +64,7 @@ class PaymentService implements PaymentPort {
               AND d.doc_type = 'INVOICE'
               AND d.status <> 'CANCELLED'
               AND (d.amount + d.tax_amount) - COALESCE(a.paid,0) > 0.005
-            ORDER BY d.due_date ASC, d.period ASC, d.doc_no ASC
+            ORDER BY d.due_date ASC, d.period_id ASC, d.doc_no ASC
             """)
             .setParameter("acc", accountId)
             .getResultList();

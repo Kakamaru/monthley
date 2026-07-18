@@ -112,13 +112,14 @@ class ManualPaymentController {
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         String sql = """
-            SELECT d.id, a.account_no, a.account_name, a.id, d.doc_no, d.period,
+            SELECT d.id, a.account_no, a.account_name, a.id, d.doc_no, p.name_,
                    d.doc_date, d.due_date,
                    (d.amount + d.tax_amount) AS total,
                    COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
                              WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) AS paid
             FROM financial_document d
             JOIN account a ON a.id = d.account_id
+            LEFT JOIN fi_period p ON p.period_id = d.period_id
             """ + where + " ORDER BY a.account_no, d.due_date, d.doc_no LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
