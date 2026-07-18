@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InvoiceGenerationServiceTest {
 
     @Autowired InvoiceGenerationService billing;
+    @Autowired com.monthley.ledger.api.LedgerPort ledger;
     @Autowired ChartOfAccountSeeder seeder;
     @PersistenceContext EntityManager em;
 
@@ -247,5 +248,65 @@ class InvoiceGenerationServiceTest {
                 GenMode.POSTPAID, ctx());   // base = Jun
 
         assertThat(posted).isZero();
+    }
+
+    // ── GL income per produk (kod vs id) ─────────────────────────────
+    //
+    // product.income_gl_account_id ialah id chart_of_accounts (bigint), tetapi
+    // PostingLine memerlukan KOD ("4000"). Ledger menterjemah via glCodeFor.
+    //
+    // Ujian sedia ada semua guna income_gl_account_id = NULL, jadi laluan ini
+    // tidak pernah diuji — sebab itu bug id-sebagai-kod terlepas.
+
+    @Test
+    @DisplayName("Produk dengan income_gl_account_id -> kredit ke kod GL betul")
+    void productIncomeGlRoutesToCorrectCode() {
+        // Ambil id akaun PENALTY_INCOME (4100) — beza dari default SERVICE_INCOME (4000)
+        Long penaltyId = ((Number) em.createNativeQuery(
+                "SELECT id FROM chart_of_accounts WHERE sp_code='SPB' AND code='4100'")
+                .getSingleResult()).longValue();
+
+        em.createNativeQuery("UPDATE product SET income_gl_account_id = :gl WHERE id = :prod")
+                .setParameter("gl", penaltyId)
+                .setParameter("prod", productId).executeUpdate();
+
+        billing.generateForSp("SPB", YearMonth.of(2026, 1), GenMode.CURRENT, ctx());
+
+        // Kredit patut ke 4100 (via id->kod), bukan 4000 default
+        BigDecimal credit4100 = glCredit("4100");
+        BigDecimal credit4000 = glCredit("4000");
+        assertThat(credit4100).isEqualByComparingTo("80.00");
+        assertThat(credit4000).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    @DisplayName("income_gl_account_id NULL -> default SERVICE_INCOME")
+    void nullIncomeGlUsesDefault() {
+        // produk ujian sudah NULL — sahkan ia ke 4000
+        billing.generateForSp("SPB", YearMonth.of(2026, 1), GenMode.CURRENT, ctx());
+        assertThat(glCredit("4000")).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    @DisplayName("glCodeFor(id tak wujud) -> campak (jaring; FK sudah halang di DB)")
+    void glCodeForRejectsUnknownId() {
+        // FK fk_product_income menghalang product.income_gl_account_id tergantung,
+        // jadi laluan ini tidak boleh dicapai melalui produk. glCodeFor tetap
+        // campak sebagai jaring — uji terus.
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                ledger.glCodeFor("SPB", 999999L));
+    }
+
+    /** Jumlah kredit ke satu kod GL untuk SPB. */
+    private java.math.BigDecimal glCredit(String code) {
+        return (java.math.BigDecimal) em.createNativeQuery("""
+                SELECT COALESCE(SUM(jl.credit_amount), 0)
+                FROM journal_line jl
+                JOIN journal_entry je ON je.id = jl.journal_entry_id
+                JOIN chart_of_accounts coa ON coa.id = jl.gl_account_id
+                WHERE je.sp_code = 'SPB' AND coa.code = :code
+                """)
+                .setParameter("code", code)
+                .getSingleResult();
     }
 }

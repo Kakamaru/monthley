@@ -27,4 +27,19 @@ public interface LedgerPort {
      * Dipanggil oleh platform semasa onboarding.
      */
     void seedChartOfAccounts(String spCode);
+
+    /**
+     * Kod GL untuk id akaun chart_of_accounts, dalam skop SP.
+     *
+     * Untuk pemanggil yang menyimpan id (cth product.income_gl_account_id) tetapi
+     * perlu kod untuk PostingLine. Campak kalau id tidak wujud — produk yang
+     * menunjuk akaun dipadam ialah data rosak; ia patut menghentikan larian,
+     * bukan jatuh senyap ke akaun lain. Konsisten dengan resolusi kod post().
+     *
+     * NULL bukan urusan method ini — pemanggil putuskan makna null (biasanya
+     * jatuh ke default) sebelum memanggil.
+     *
+     * @throws IllegalStateException jika glAccountId tidak wujud untuk SP ini
+     */
+    String glCodeFor(String spCode, Long glAccountId);
 }

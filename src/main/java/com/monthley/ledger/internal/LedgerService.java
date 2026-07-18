@@ -115,6 +115,16 @@ class LedgerService implements LedgerPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public String glCodeFor(String spCode, Long glAccountId) {
+        return accounts.findByIdAndSpCode(glAccountId, spCode)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Akaun GL id " + glAccountId + " tak wujud untuk SP " + spCode
+                        + ". Betulkan tetapan GL produk."))
+                .getCode();
+    }
+
+    @Override
     public void seedChartOfAccounts(String spCode) {
         seeder.seedFor(spCode);
     }

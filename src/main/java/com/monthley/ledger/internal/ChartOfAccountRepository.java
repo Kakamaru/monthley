@@ -8,5 +8,7 @@ interface ChartOfAccountRepository extends JpaRepository<ChartOfAccount, Long> {
 
     Optional<ChartOfAccount> findBySpCodeAndCode(String spCode, String code);
 
+    Optional<ChartOfAccount> findByIdAndSpCode(Long id, String spCode);
+
     boolean existsBySpCode(String spCode);
 }

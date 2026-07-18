@@ -126,10 +126,12 @@ public class InvoiceGenerationService {
 
         for (CalculatedLine l : lines) {
             if (l.amount().signum() == 0) continue;
-            String gl = l.incomeGlAccountId() != null
-                    ? String.valueOf(l.incomeGlAccountId())
-                    : ctx.defaultIncomeGlCode();
-            pl.add(PostingLine.credit(gl, l.amount(), null));
+            // NULL = SP tak tetapkan GL produk -> default (pilihan sah).
+            // ID tergantung (akaun dipadam) -> glCodeFor campak (data rosak).
+            String gl = (l.incomeGlAccountId() == null)
+                    ? ctx.defaultIncomeGlCode()
+                    : ledger.glCodeFor(account.spCode(), l.incomeGlAccountId());
+            pl.add(PostingLine.credit(gl, l.amount(), l.productId()));
         }
 
         if (tax.signum() > 0) {
