@@ -39,13 +39,18 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V18 dipakai. Terkini:
+V1–V20 dipakai — disahkan hujung-ke-hujung dari DB kosong (18 Julai 2026).
+75 ujian hijau. Flyway berjalan automatik via spring-boot-starter-flyway.
+
+Terkini:
 
 | Ver | Isi |
 |---|---|
 | V16 | `fi_period` (361 baris, 2017–2035); `invoice_exclude_period` dari `varchar(7)` ke `period_id BIGINT` |
 | V17 | `financial_document_line.period_id` + FK; gugurkan `account_subscription.last_charged_at`; gugurkan `product.generation_day` |
 | V18 | `once_only` + `idem_key` bercabang — ONE_TIME sekali seumur hidup |
+| V19 | `financial_document.period_id` dialih dari `accounting_period` ke `fi_period`; `period` varchar digugurkan |
+| V20 | `financial_document_line.proration_ratio` — ratio eksplisit 8 t.p., bukan dibakar ke quantity |
 
 ### Siap
 
@@ -55,6 +60,15 @@ V1–V18 dipakai. Terkini:
 - `idem_key` UNIQUE STORED GENERATED — idempotency di aras DB
 - Auth: register, verify, login, forgot/reset password (Resend)
 - Settings: Profile, Sales Tax, Localization, Invoice, Receipt, Penalty
+
+### Belum hidup (mula di sini sesi depan)
+
+- **BillingContext hardcoded** — allowPriceOverride/termDays/minDenom/excludedPeriodIds
+  perlu dari sp_billing_setting. Perlu V21 (lajur hilang) + tenancy::api port +
+  BillingSettingsPort. INI YANG MENYEKAT tab exclude period.
+- **cached_balance lajur mati** — declared dlm entity, tak dibaca/ditulis. V21 gugurkan.
+- **DocumentService semua-atau-tiada** — satu baris wujud gugurkan seluruh invois.
+- **Belum**: auto-knock kredit, PER_USE, kumpul ralat per akaun, penalti (fasa 2).
 
 ### Sedang berjalan
 
@@ -134,13 +148,13 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] `once_only` (V18)
 
 **Enjin**
-- [ ] Tapis `parent_subscription_id IS NULL`
-- [ ] `ONE_TIME`: caj sekali seumur hidup, period = tahun semasa, tiada proration
+- [x] Tapis `parent_subscription_id IS NULL`
+- [x] `ONE_TIME`: caj sekali seumur hidup, period = tahun semasa, tiada proration
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
 - [ ] Auto-knock kredit semasa jana invois + invariant allocation
-- [ ] Pembundaran denominasi terkecil
-- [ ] Gate price override aras SP
-- [ ] Proration exclude ikut bulan (sentiasa, tidak kira bendera `prorated`)
+- [x] Pembundaran denominasi terkecil (per baris, CEILING)
+- [x] Gate price override aras SP
+- [x] Proration exclude ikut bulan (sentiasa, tidak kira bendera `prorated`)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**
