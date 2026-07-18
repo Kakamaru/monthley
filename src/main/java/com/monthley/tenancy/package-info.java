@@ -1,5 +1,5 @@
-/** Tenancy — service_provider (sp_code = tenant), settings, membership. */
+/** Tenancy — service_provider & semua tetapan SP. */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Tenancy",
-        allowedDependencies = { "shared", "identity::api" })
+        allowedDependencies = { "shared" })
 package com.monthley.tenancy;

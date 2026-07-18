@@ -31,6 +31,15 @@ public class TenantFilter implements Filter {
             throws IOException, ServletException {
         try {
             if (req instanceof HttpServletRequest http && res instanceof HttpServletResponse resp) {
+
+                // Laluan auth berlaku SEBELUM konsep tenant wujud untuk pengguna.
+                // Jangan sekali-kali tenant-scope /api/v1/auth/** — SecurityContext
+                // memang kosong di sini, jadi hasAccess() akan sentiasa tolak.
+                if (http.getRequestURI().startsWith("/api/v1/auth/")) {
+                    chain.doFilter(req, res);
+                    return;
+                }
+
                 String sp = http.getHeader(HEADER);
 
                 if (sp != null && !sp.isBlank()) {

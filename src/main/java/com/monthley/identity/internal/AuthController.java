@@ -264,7 +264,10 @@ class AuthController {
         claims.put("email", user.getEmail());
         claims.put("name", user.getFullName());
         claims.put("superadmin", false);
-        claims.put("sps", access.stream().map(SpAccessDto::spCode).toList());
+        claims.put("sps", access.stream().map(SpAccessDto::spCode).distinct().toList());
+        // Peranan per SP — "SW01:SP_ADMIN", "SW01:CLERK", …
+        claims.put("spRoles", access.stream()
+                .map(a -> a.spCode() + ":" + a.role()).toList());
 
         String token = jwt.generate(String.valueOf(user.getId()), claims);
 
@@ -281,12 +284,14 @@ class AuthController {
 
     @SuppressWarnings("unchecked")
     private List<SpAccessDto> spAccessOf(Long userId) {
+        // Satu baris per (SP, peranan). Pengguna boleh ada beberapa peranan
+        // dalam SP yang sama — cth Admin + Cashier.
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT m.sp_code, sp.name, m.role
                 FROM sp_membership m
                 JOIN service_provider sp ON sp.sp_code = m.sp_code
                 WHERE m.user_id = :uid AND m.status = 'ACTIVE'
-                ORDER BY sp.name
+                ORDER BY sp.name, m.role
                 """).setParameter("uid", userId).getResultList();
 
         List<SpAccessDto> out = new ArrayList<>();

@@ -48,10 +48,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     authorities.add(new SimpleGrantedAuthority("ROLE_SUPERADMIN"));
                 }
 
+                // Akses ke SP
                 Object sps = c.get("sps");
                 if (sps instanceof List<?> list) {
                     for (Object sp : list) {
                         authorities.add(new SimpleGrantedAuthority("SP_" + sp));
+                    }
+                }
+
+                // Peranan dalam SP tertentu — "SW01:CLERK" → SP_SW01_CLERK
+                Object spRoles = c.get("spRoles");
+                if (spRoles instanceof List<?> list) {
+                    for (Object sr : list) {
+                        String[] parts = String.valueOf(sr).split(":", 2);
+                        if (parts.length == 2) {
+                            authorities.add(new SimpleGrantedAuthority(
+                                    "SP_" + parts[0] + "_" + parts[1]));
+                        }
                     }
                 }
 
