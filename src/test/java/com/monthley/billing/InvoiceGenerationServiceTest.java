@@ -5,6 +5,7 @@ import com.monthley.billing.internal.InvoiceGenerationService;
 import com.monthley.billing.internal.PeriodResolver;
 import com.monthley.ledger.api.GlAccounts;
 import com.monthley.ledger.internal.ChartOfAccountSeeder;
+import com.monthley.shared.GenMode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.*;
@@ -82,7 +83,7 @@ class InvoiceGenerationServiceTest {
     @DisplayName("Jana invois bulanan → 1 journal di-post")
     void generatesMonthlyInvoice() {
         int posted = billing.generateForSp("SPB", YearMonth.of(2026, 7),
-                PeriodResolver.GenMode.CURRENT, ctx());
+                GenMode.CURRENT, ctx());
 
         assertThat(posted).isEqualTo(1);
 
@@ -116,7 +117,7 @@ class InvoiceGenerationServiceTest {
             .setParameter("acc", accountId).executeUpdate();
 
         int posted = billing.generateForSp("SPB", YearMonth.of(2026, 1),
-                PeriodResolver.GenMode.CURRENT, ctx());
+                GenMode.CURRENT, ctx());
 
         assertThat(posted).isEqualTo(12);
     }

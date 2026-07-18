@@ -1,0 +1,21 @@
+-- proration_ratio: simpan ratio secara eksplisit, jangan bakar ke dalam quantity.
+--
+-- Cubaan pertama membakar ratio ke quantity: qty = 1 x 2/3 = 0.6667.
+-- Tetapi quantity ialah decimal(15,4), jadi ratio dibundar SEBELUM didarab:
+--   240 x 0.6667 = 160.01   (sepatutnya 160.00)
+--   350 x 0.9167 = 320.85   (sepatutnya 320.83)
+-- Dan quantity hilang makna: "2 unit" jadi 1.3334.
+--
+-- Dengan ratio berasingan pada 8 titik perpuluhan:
+--   amount = ROUND(unit_price x quantity x proration_ratio, 2)
+--   240 x 1 x 0.66666667 = 160.0000008 -> 160.00
+--   350 x 1 x 0.91666667 = 320.8333345 -> 320.83
+--
+-- Ratio TIDAK boleh diterbitkan dari data tersimpan: cycle_start/cycle_end
+-- tidak disimpan (hanya liputan), dan ratio exclude bergantung pada senarai
+-- exclude pada masa penjanaan. Jadi lajur ini perlu untuk jejak audit.
+--
+-- Legacy menyimpan quantity ASAL dengan amaun diprorate, jadi amaun tidak
+-- boleh dikira semula langsung. Rujuk legacy-generator-analysis.md §4.3
+ALTER TABLE financial_document_line
+  ADD COLUMN proration_ratio DECIMAL(9,8) NOT NULL DEFAULT 1 AFTER quantity;

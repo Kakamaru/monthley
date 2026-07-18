@@ -22,6 +22,14 @@ public class AccountSubscription extends BaseEntity {
     @Column(name = "account_id", nullable = false)
     private Long accountId;
 
+    /**
+     * Komponen pakej. Kalau bukan null, langganan ini ialah anak — TIDAK dicaj.
+     * Hanya parent muncul sebagai baris invois.
+     * Rujuk docs/domain/legacy-generator-analysis.md §3.3
+     */
+    @Column(name = "parent_subscription_id")
+    private Long parentSubscriptionId;
+
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
@@ -65,4 +73,6 @@ public class AccountSubscription extends BaseEntity {
     public LocalDate getStartDate() { return startDate; }
     public LocalDate getEndDate() { return endDate; }
     public Status getStatus() { return status; }
+
+    public Long getParentSubscriptionId() { return parentSubscriptionId; }
 }

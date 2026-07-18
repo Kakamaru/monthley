@@ -5,6 +5,8 @@ import com.monthley.account.api.AccountView;
 import com.monthley.account.api.SubscriptionView;
 import com.monthley.document.api.*;
 import com.monthley.ledger.api.*;
+import com.monthley.shared.Charge;
+import com.monthley.shared.GenMode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +20,19 @@ import java.util.Optional;
 /**
  * Orchestrator jana invois. Menyatukan account + catalog + document + ledger.
  *
- * Aliran per akaun/tempoh:
- *   1. kira baris (cycle + proration)
- *   2. cipta dokumen invois (idempotent — skip jika sudah ada)
- *   3. post journal ke ledger (Dr AR / Cr Income + Tax)
- * Semua dalam satu transaction.
+ * Aliran per akaun:
+ *   1. period asas = anjak mod pada aras charge_frequency AKAUN
+ *   2. kira baris — setiap baris bawa period LIPUTAN sendiri (aras produk)
+ *   3. cipta SATU dokumen invois (idempotent via idem_key)
+ *   4. post journal ke ledger
+ *
+ * SATU invois per akaun per larian — bukan satu per period. Akaun tahunan
+ * dengan produk bulanan = 1 invois, 12 baris. Disahkan lawan production.
+ *
+ * Posting ledger SEGERAK dalam transaction yang sama. JANGAN tukar jadi
+ * event Modulith: @ApplicationModuleListener ialah @Async + REQUIRES_NEW,
+ * yang akan mencipta semula bug family 3 sebagai seni bina.
+ * Rujuk docs/domain/accounting-invariants.md §7
  */
 @Service
 public class InvoiceGenerationService {
@@ -42,72 +52,89 @@ public class InvoiceGenerationService {
 
     @Transactional
     public int generateForSp(String spCode, YearMonth runMonth,
-                             PeriodResolver.GenMode mode, BillingContext ctx) {
-
-        YearMonth base = PeriodResolver.basePeriod(runMonth, mode);
+                             GenMode mode, BillingContext ctx) {
         int posted = 0;
 
         for (AccountView account : accounts.activeAccountsFor(spCode)) {
             List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
             if (subs.isEmpty()) continue;
 
-            List<YearMonth> periods = PeriodResolver.periodsFor(
-                    base, account.chargeFrequency(),
-                    ym(account.startDate()), ym(account.expiryDate()));
+            Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
 
-            for (YearMonth period : periods) {
-                List<CalculatedLine> calc = calculator.linesFor(account.id(), subs, period, ctx);
-                if (calc.isEmpty()) continue;
+            List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
+            if (lines.isEmpty()) continue;
 
-                if (createAndPost(spCode, account, period, calc, ctx)) {
-                    posted++;
-                }
+            if (createAndPost(spCode, account, base, lines, ctx)) {
+                posted++;
             }
         }
         return posted;
     }
 
-    /** @return true jika invois dicipta & di-post; false jika diskip (idempotent). */
-    private boolean createAndPost(String spCode, AccountView account, YearMonth period,
-                                  List<CalculatedLine> calc, BillingContext ctx) {
+    /** @return true kalau invois dicipta & di-post; false kalau diskip (idempotent). */
+    private boolean createAndPost(String spCode, AccountView account, Charge base,
+                                  List<CalculatedLine> lines, BillingContext ctx) {
 
-        // 1. Cipta dokumen invois (idempotent)
+        LocalDate docDate = LocalDate.now();
+
         List<NewDocumentLine> docLines = new ArrayList<>();
-        for (CalculatedLine l : calc) {
+        for (CalculatedLine l : lines) {
             docLines.add(new NewDocumentLine(
-                    l.productId(), l.accountId(), l.description(),
-                    l.quantity(), l.unitRate(), l.amount(), l.taxAmount(),
-                    period.atDay(1), period.atEndOfMonth()));
+                    l.productId(), l.accountId(), l.charge().periodId(),
+                    l.description(), l.quantity(), l.unitRate(), l.prorationRatio(),
+                    l.amount(), l.taxAmount(),
+                    l.charge().coverageStart(), l.charge().coverageEnd(),
+                    l.onceOnly()));
         }
 
         NewInvoice inv = new NewInvoice(
-                spCode, account.id(), period.toString(),
-                LocalDate.now(), LocalDate.now().plusDays(14),
-                "Invois " + account.accountNo() + " " + period, docLines);
+                spCode, account.id(), base.periodId(),
+                docDate, docDate.plusDays(ctx.termDays()),
+                "Invois " + account.accountNo(), docLines);
 
         Optional<Long> docId = documents.createInvoice(inv);
         if (docId.isEmpty()) {
-            return false;   // sudah dijana untuk tempoh ni — skip
-        }
-
-        // 2. Post journal ke ledger
-        BigDecimal net = calc.stream().map(CalculatedLine::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal tax = calc.stream().map(CalculatedLine::taxAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal gross = net.add(tax);
-
-        List<PostingLine> pl = new ArrayList<>();
-        pl.add(PostingLine.debit(ctx.arGlCode(), gross, account.id()));
-        pl.add(PostingLine.credit(ctx.defaultIncomeGlCode(), net, null));
-        if (tax.signum() > 0) {
-            pl.add(PostingLine.credit(ctx.taxGlCode(), tax, null));
+            return false;   // sudah dijana — idem_key menolak
         }
 
         ledger.post(new PostingRequest(
-                spCode, LocalDate.now(), SourceType.INVOICE, docId.get(),
-                "Invois " + account.accountNo() + " " + period, pl, null));
+                spCode, docDate, SourceType.INVOICE, docId.get(),
+                "Invois " + account.accountNo(),
+                postingLines(account, lines, ctx), null));
 
         return true;
     }
 
-    private YearMonth ym(LocalDate d) { return d == null ? null : YearMonth.from(d); }
+    /**
+     * Dr AR (gross) / Cr Income per baris / Cr Tax.
+     *
+     * Kredit hasil ikut GL PRODUK, bukan satu GL lalai — kalau tidak, sewa,
+     * maintenance, sinking fund dan insurance semua bercampur dalam satu akaun
+     * dan chart of accounts tidak berfungsi.
+     */
+    private List<PostingLine> postingLines(AccountView account,
+                                           List<CalculatedLine> lines,
+                                           BillingContext ctx) {
+
+        BigDecimal net = lines.stream().map(CalculatedLine::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal tax = lines.stream().map(CalculatedLine::taxAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<PostingLine> pl = new ArrayList<>();
+        pl.add(PostingLine.debit(ctx.arGlCode(), net.add(tax), account.id()));
+
+        for (CalculatedLine l : lines) {
+            if (l.amount().signum() == 0) continue;
+            String gl = l.incomeGlAccountId() != null
+                    ? String.valueOf(l.incomeGlAccountId())
+                    : ctx.defaultIncomeGlCode();
+            pl.add(PostingLine.credit(gl, l.amount(), null));
+        }
+
+        if (tax.signum() > 0) {
+            pl.add(PostingLine.credit(ctx.taxGlCode(), tax, null));
+        }
+        return pl;
+    }
 }

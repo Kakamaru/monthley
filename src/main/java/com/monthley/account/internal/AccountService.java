@@ -39,6 +39,7 @@ class AccountService implements AccountPort {
 
     private SubscriptionView toView(AccountSubscription s) {
         return new SubscriptionView(s.getId(), s.getAccountId(), s.getProductId(),
-                s.getQuantity(), s.getUnitPrice(), s.getStartDate(), s.getEndDate());
+                s.getQuantity(), s.getUnitPrice(), s.getStartDate(), s.getEndDate(),
+                s.getParentSubscriptionId());
     }
 }

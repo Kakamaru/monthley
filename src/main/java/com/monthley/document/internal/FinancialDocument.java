@@ -36,8 +36,9 @@ public class FinancialDocument extends BaseEntity {
     @Column(name = "doc_date", nullable = false)
     private LocalDate docDate;
 
-    @Column(name = "period", length = 7)
-    private String period;
+    /** Period LARIAN — aras charge_frequency AKAUN. Null untuk resit. */
+    @Column(name = "period_id")
+    private Long periodId;
 
     @Column(name = "due_date")
     private LocalDate dueDate;
@@ -72,14 +73,14 @@ public class FinancialDocument extends BaseEntity {
     protected FinancialDocument() {}
 
     public FinancialDocument(String spCode, String docNo, DocumentType docType,
-                             Long accountId, LocalDate docDate, String period,
+                             Long accountId, LocalDate docDate, Long periodId,
                              LocalDate dueDate, String title) {
         this.spCode = spCode;
         this.docNo = docNo;
         this.docType = docType;
         this.accountId = accountId;
         this.docDate = docDate;
-        this.period = period;
+        this.periodId = periodId;
         this.dueDate = dueDate;
         this.title = title;
         this.uuid = java.util.UUID.randomUUID().toString();
@@ -108,6 +109,7 @@ public class FinancialDocument extends BaseEntity {
     }
 
     public Long getId() { return id; }
+    public Long getPeriodId() { return periodId; }
     public String getDocNo() { return docNo; }
     public BigDecimal getAmount() { return amount; }
     public BigDecimal getTaxAmount() { return taxAmount; }

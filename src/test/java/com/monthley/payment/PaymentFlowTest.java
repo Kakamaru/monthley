@@ -4,6 +4,7 @@ import com.monthley.billing.internal.*;
 import com.monthley.ledger.api.GlAccounts;
 import com.monthley.ledger.internal.ChartOfAccountSeeder;
 import com.monthley.payment.api.*;
+import com.monthley.shared.GenMode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.*;
@@ -73,7 +74,7 @@ class PaymentFlowTest {
     @DisplayName("Bayar penuh 1 invois → knock-off, tiada baki")
     void payOneInvoiceFully() {
         billing.generateForSp("SPP", YearMonth.of(2026, 7),
-                PeriodResolver.GenMode.CURRENT, ctx());
+                GenMode.CURRENT, ctx());
         em.flush();
 
         List<OutstandingInvoice> before = payment.outstandingFor(accountId);
@@ -96,7 +97,7 @@ class PaymentFlowTest {
     @DisplayName("Lebihan bayaran → jadi deposit")
     void overpaymentBecomesDeposit() {
         billing.generateForSp("SPP", YearMonth.of(2026, 7),
-                PeriodResolver.GenMode.CURRENT, ctx());
+                GenMode.CURRENT, ctx());
         em.flush();
 
         PaymentResult r = payment.receivePayment(new NewPayment(
@@ -112,7 +113,7 @@ class PaymentFlowTest {
     @DisplayName("Batal resit → invois terbuka semula")
     void cancelReopensInvoice() {
         billing.generateForSp("SPP", YearMonth.of(2026, 7),
-                PeriodResolver.GenMode.CURRENT, ctx());
+                GenMode.CURRENT, ctx());
         em.flush();
 
         PaymentResult r = payment.receivePayment(new NewPayment(

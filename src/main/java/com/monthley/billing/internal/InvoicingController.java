@@ -2,6 +2,7 @@ package com.monthley.billing.internal;
 
 import com.monthley.ledger.api.GlAccounts;
 import com.monthley.shared.TenantContext;
+import com.monthley.shared.GenMode;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -40,14 +41,20 @@ class InvoicingController {
                 ? YearMonth.now()
                 : YearMonth.parse(req.period());
 
-        PeriodResolver.GenMode mode = (req == null || req.mode() == null || req.mode().isBlank())
-                ? PeriodResolver.GenMode.CURRENT
-                : PeriodResolver.GenMode.valueOf(req.mode());
+        GenMode mode = (req == null || req.mode() == null || req.mode().isBlank())
+                ? GenMode.CURRENT
+                : GenMode.valueOf(req.mode());
 
+        // TODO: allowPriceOverride, termDays, minDenom patut datang dari
+        //       sp_billing_setting; excludedPeriodIds dari invoice_exclude_period.
+        //       Perlu port ke modul tenancy. Sekarang: default + dari request.
         BillingContext ctx = new BillingContext(
                 sp,
                 req == null || req.taxRate() == null ? BigDecimal.ZERO : req.taxRate(),
                 req == null ? null : req.minDenom(),
+                true,
+                14,
+                java.util.Set.of(),
                 GlAccounts.ACCOUNTS_RECEIVABLE,
                 GlAccounts.TAX_PAYABLE,
                 GlAccounts.SERVICE_INCOME);

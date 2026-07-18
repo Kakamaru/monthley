@@ -24,22 +24,31 @@ class DocumentService implements DocumentPort {
     @Override
     @Transactional
     public Optional<Long> createInvoice(NewInvoice inv) {
+        // Semua-atau-tiada: satu baris sudah wujud -> gugurkan seluruh invois.
+        // Selamat (dokumen & ledger dua-dua tiada) tetapi terlalu konservatif:
+        // akaun tahunan yang Januarinya sudah dijana akan hilang 11 bulan lain.
+        // TODO: billing patut tapis baris SEBELUM bina dokumen DAN ledger —
+        //       satu senarai, dua penggunaan. Menapis di sini sahaja akan buat
+        //       ledger tak padan dokumen.
         for (NewDocumentLine l : inv.lines()) {
-            boolean exists = lines.existsByAccountIdAndProductIdAndPeriodStartAndActiveTrue(
-                    l.accountId(), l.productId(), l.periodStart());
+            boolean exists = l.onceOnly()
+                    ? lines.existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrue(
+                            l.accountId(), l.productId())
+                    : lines.existsByAccountIdAndProductIdAndPeriodStartAndActiveTrue(
+                            l.accountId(), l.productId(), l.periodStart());
             if (exists) return Optional.empty();
         }
 
         String docNo = numbers.next(inv.spCode(), "INVOICE");
         FinancialDocument doc = new FinancialDocument(
                 inv.spCode(), docNo, DocumentType.INVOICE, inv.accountId(),
-                inv.docDate(), inv.period(), inv.dueDate(), inv.title());
+                inv.docDate(), inv.periodId(), inv.dueDate(), inv.title());
 
         for (NewDocumentLine l : inv.lines()) {
             doc.addLine(new FinancialDocumentLine(
-                    l.productId(), l.accountId(), l.description(),
-                    l.quantity(), l.unitPrice(), l.amount(), l.taxAmount(),
-                    l.periodStart(), l.periodEnd()));
+                    l.productId(), l.accountId(), l.periodId(), l.description(),
+                    l.quantity(), l.unitPrice(), l.prorationRatio(), l.amount(), l.taxAmount(),
+                    l.periodStart(), l.periodEnd(), l.onceOnly()));
         }
         doc.recomputeTotals();
         return Optional.of(documents.save(doc).getId());
