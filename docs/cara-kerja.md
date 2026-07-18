@@ -198,6 +198,59 @@ ls -1 src/main/resources/db/migration/ | sort -V | tail -3
 
 ---
 
+## 4b. Menghalang bug "campur konsep, compile lulus, ujian terlepas"
+
+Tiga bug ditulis dalam satu sesi (18 Julai 2026) berkongsi satu corak:
+kod untuk laluan yang tiada ujian menyentuhnya. Compile hanya semak jenis;
+ujian hanya semak laluan yang datanya cetuskan.
+
+| Bug | Compile lulus sebab | Ujian terlepas sebab |
+|---|---|---|
+| d.period selepas V19 | SQL native — Java tak semak | Query tak dipanggil dalam ujian itu |
+| income_gl id-sebagai-kod | String.valueOf(Long) sah | Produk ujian income_gl = NULL |
+| anchor_month TINYINT vs Integer | Kedua jenis wujud | Tiada ujian semak jenis lajur |
+
+Empat penjaga, dari paling murah:
+
+### 1. ddl-auto: validate (AKTIF)
+
+Hibernate semak setiap entity lawan skema semasa boot. Penyimpangan -> boot
+gagal, bukan senyap sampai ujian. Menangkap generation_day, d.period,
+anchor_month serta-merta. Jangan tukar balik ke none.
+
+### 2. mvn test SEBELUM commit, bukan selepas
+
+Hari itu kita commit dulu, uji kemudian. Terbalik. Bug terkumpul dan kita
+tak tahu patch mana yang pecahkan.
+
+Peraturan: tiada commit tanpa mvn test hijau dahulu.
+
+### 3. Ujian mesti sentuh laluan bukan-default
+
+income_gl bug terlepas kerana semua produk ujian income_gl = NULL — cabang
+bukan-null tak wujud dari sudut ujian.
+
+Peraturan: bila menambah cabang (if null -> A, else -> B), ujian mesti hantar
+KEDUA-DUA nilai. Kalau data ujian hanya cetuskan satu dahang, dahang satu
+lagi tidak diuji.
+
+### 4. Claude isytihar laluan tidak teruji
+
+Ini yang paling penting dan paling rapuh — ia bergantung pada Claude ingat.
+
+Bila Claude menulis cabang yang ujian sedia ada tidak sentuh, Claude MESTI
+kata terus, dalam mesej yang sama:
+
+> "Baris ini kredit ikut income_gl_account_id. Ujian sedia ada semua NULL —
+>  laluan bukan-null TIDAK diuji. Perlu ujian dengan GL sebenar sebelum
+>  percaya ini betul."
+
+Pada 18 Julai, Claude TIDAK berbuat begini. Claude hantar kod dan berkata
+"ini betulkan chart of accounts" — sedangkan ia sebenarnya memecahkannya,
+dan tiada ujian yang akan menangkapnya. Kama yang segar menemuinya.
+
+Penjaga 1-3 struktur; penjaga 4 kejujuran. Keduanya perlu.
+
 ## 5. Persekitaran
 
 ### Backend
