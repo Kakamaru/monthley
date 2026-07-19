@@ -31,9 +31,11 @@ class AccountController {
     private EntityManager em;
 
     private final AccountRepository accounts;
+    private final AccountSubscriptionRepository subscriptions;
 
-    AccountController(AccountRepository accounts) {
+    AccountController(AccountRepository accounts, AccountSubscriptionRepository subscriptions) {
         this.accounts = accounts;
+        this.subscriptions = subscriptions;
     }
 
     record AccountDto(
@@ -126,7 +128,16 @@ class AccountController {
             // Bil kepada
             String billtoName, String billtoEmail, String billtoMobile,
             String billtoAddrLine1, String billtoAddrLine2, String billtoAddrLine3, String billtoAddrLine4,
-            String billtoPostcode, String billtoState, String billtoCountry) {}
+            String billtoPostcode, String billtoState, String billtoCountry,
+            // Tambahan (V25)
+            String billtoEmailSecondary, java.math.BigDecimal depositAmount,
+            java.math.BigDecimal openingAmount, String remarks, String accountType,
+            // Langganan produk (jadual)
+            List<SubLine> subscriptions) {}
+
+    record SubLine(
+            Long productId, java.math.BigDecimal quantity,
+            LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice) {}
 
     @PostMapping
     @Transactional
@@ -146,8 +157,26 @@ class AccountController {
         Account a = new Account(sp, r.accountNo().trim(), r.accountName().trim());
         apply(a, r);
         Account saved = accounts.save(a);
+
+        // Langganan produk: cipta account_subscription untuk setiap baris ditick
+        int subCount = 0;
+        if (r.subscriptions() != null) {
+            for (SubLine line : r.subscriptions()) {
+                if (line.productId() == null) continue;
+                var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
+                var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
+                var sub = new AccountSubscription(sp, saved.getId(), line.productId(), qty, start);
+                if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
+                if (line.endDate() != null) sub.setEndDate(line.endDate());
+                subscriptions.save(sub);
+                subCount++;
+            }
+        }
+
         return ResponseEntity.ok(java.util.Map.of("id", saved.getId(),
-                "message", "Akaun " + saved.getAccountNo() + " dicipta."));
+                "subscriptions", subCount,
+                "message", "Akaun " + saved.getAccountNo() + " dicipta"
+                        + (subCount > 0 ? " dengan " + subCount + " langganan." : ".")));
     }
 
     private void apply(Account a, SaveAccountRequest r) {
@@ -181,6 +210,11 @@ class AccountController {
         a.setBilltoPostcode(r.billtoPostcode());
         a.setBilltoState(r.billtoState());
         a.setBilltoCountry(r.billtoCountry());
+        a.setBilltoEmailSecondary(r.billtoEmailSecondary());
+        a.setDepositAmount(r.depositAmount());
+        a.setOpeningAmount(r.openingAmount());
+        a.setRemarks(r.remarks());
+        a.setAccountType(r.accountType());
     }
 
     private void bind(jakarta.persistence.Query query, String status, Long category,

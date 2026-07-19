@@ -85,6 +85,11 @@ public class Account extends BaseEntity {
     @Column(name = "billto_postcode", length = 10) private String billtoPostcode;
     @Column(name = "billto_state", length = 100)   private String billtoState;
     @Column(name = "billto_country", length = 100) private String billtoCountry;
+    @Column(name = "billto_email_secondary") private String billtoEmailSecondary;
+    @Column(name = "deposit_amount", precision = 15, scale = 2) private java.math.BigDecimal depositAmount;
+    @Column(name = "opening_amount", precision = 15, scale = 2) private java.math.BigDecimal openingAmount;
+    @Column(name = "remarks", length = 500) private String remarks;
+    @Column(name = "account_type", length = 50) private String accountType;
 
     public enum Status { ACTIVE, INACTIVE }
 
@@ -127,6 +132,11 @@ public class Account extends BaseEntity {
     public void setBilltoPostcode(String v) { this.billtoPostcode = v; }
     public void setBilltoState(String v) { this.billtoState = v; }
     public void setBilltoCountry(String v) { this.billtoCountry = v; }
+    public void setBilltoEmailSecondary(String v) { this.billtoEmailSecondary = v; }
+    public void setDepositAmount(java.math.BigDecimal v) { this.depositAmount = v; }
+    public void setOpeningAmount(java.math.BigDecimal v) { this.openingAmount = v; }
+    public void setRemarks(String v) { this.remarks = v; }
+    public void setAccountType(String v) { this.accountType = v; }
 
     public Long getId() { return id; }
     public String getSpCode() { return spCode; }
@@ -163,4 +173,9 @@ public class Account extends BaseEntity {
     public String getBilltoPostcode() { return billtoPostcode; }
     public String getBilltoState() { return billtoState; }
     public String getBilltoCountry() { return billtoCountry; }
+    public String getBilltoEmailSecondary() { return billtoEmailSecondary; }
+    public java.math.BigDecimal getDepositAmount() { return depositAmount; }
+    public java.math.BigDecimal getOpeningAmount() { return openingAmount; }
+    public String getRemarks() { return remarks; }
+    public String getAccountType() { return accountType; }
 }
