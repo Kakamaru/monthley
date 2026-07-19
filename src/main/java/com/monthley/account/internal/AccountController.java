@@ -1,12 +1,18 @@
 package com.monthley.account.internal;
 
+import com.monthley.shared.ChargeFrequency;
 import com.monthley.shared.PageResponse;
 import com.monthley.shared.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +29,12 @@ class AccountController {
 
     @PersistenceContext
     private EntityManager em;
+
+    private final AccountRepository accounts;
+
+    AccountController(AccountRepository accounts) {
+        this.accounts = accounts;
+    }
 
     record AccountDto(
             Long id, String no, String name, String billTo,
@@ -97,6 +109,78 @@ class AccountController {
                     "ACTIVE".equals(r[6])));
         }
         return new PageResponse<>(items, total, page, size);
+    }
+
+    record SaveAccountRequest(
+            @NotBlank String accountNo,
+            @NotBlank String accountName,
+            Long categoryId,
+            String chargeFrequency,
+            LocalDate startDate,
+            LocalDate expiryDate,
+            // Ahli
+            String memberName, String memberIdNo, String memberEmail, String memberMobile,
+            // Alamat akaun
+            String addrLine1, String addrLine2, String addrLine3, String addrLine4,
+            String addrPostcode, String addrState, String addrCountry,
+            // Bil kepada
+            String billtoName, String billtoEmail, String billtoMobile,
+            String billtoAddrLine1, String billtoAddrLine2, String billtoAddrLine3, String billtoAddrLine4,
+            String billtoPostcode, String billtoState, String billtoCountry) {}
+
+    @PostMapping
+    @Transactional
+    ResponseEntity<?> create(@Valid @RequestBody SaveAccountRequest r) {
+        String sp = sp();
+
+        // account_no mesti unik dalam SP
+        Long wujud = ((Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM account WHERE sp_code = :sp AND account_no = :no")
+                .setParameter("sp", sp).setParameter("no", r.accountNo().trim())
+                .getSingleResult()).longValue();
+        if (wujud > 0) {
+            return ResponseEntity.badRequest()
+                    .body(java.util.Map.of("message", "No. akaun " + r.accountNo() + " sudah wujud."));
+        }
+
+        Account a = new Account(sp, r.accountNo().trim(), r.accountName().trim());
+        apply(a, r);
+        Account saved = accounts.save(a);
+        return ResponseEntity.ok(java.util.Map.of("id", saved.getId(),
+                "message", "Akaun " + saved.getAccountNo() + " dicipta."));
+    }
+
+    private void apply(Account a, SaveAccountRequest r) {
+        a.setCategoryId(r.categoryId());
+        if (r.chargeFrequency() != null && !r.chargeFrequency().isBlank()) {
+            a.setChargeFrequency(ChargeFrequency.valueOf(r.chargeFrequency()));
+        }
+        a.setStartDate(r.startDate());
+        a.setExpiryDate(r.expiryDate());
+
+        a.setMemberName(r.memberName());
+        a.setMemberIdNo(r.memberIdNo());
+        a.setMemberEmail(r.memberEmail());
+        a.setMemberMobile(r.memberMobile());
+
+        a.setAddrLine1(r.addrLine1());
+        a.setAddrLine2(r.addrLine2());
+        a.setAddrLine3(r.addrLine3());
+        a.setAddrLine4(r.addrLine4());
+        a.setAddrPostcode(r.addrPostcode());
+        a.setAddrState(r.addrState());
+        a.setAddrCountry(r.addrCountry());
+
+        a.setBilltoName(r.billtoName());
+        a.setBilltoEmail(r.billtoEmail());
+        a.setBilltoMobile(r.billtoMobile());
+        a.setBilltoAddrLine1(r.billtoAddrLine1());
+        a.setBilltoAddrLine2(r.billtoAddrLine2());
+        a.setBilltoAddrLine3(r.billtoAddrLine3());
+        a.setBilltoAddrLine4(r.billtoAddrLine4());
+        a.setBilltoPostcode(r.billtoPostcode());
+        a.setBilltoState(r.billtoState());
+        a.setBilltoCountry(r.billtoCountry());
     }
 
     private void bind(jakarta.persistence.Query query, String status, Long category,
