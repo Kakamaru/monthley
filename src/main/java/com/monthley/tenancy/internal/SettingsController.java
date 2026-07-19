@@ -199,7 +199,7 @@ class SettingsController {
             String invoiceTitle, String invoicePrefix,
             Integer invoiceNoSize, Long invoiceNoStart,
             String invoiceGenMode, String invoiceGenFreq, Integer invoiceGenDay,
-            String invoiceTemplateId, Boolean splitInvoiceByProduct,
+            String invoiceTemplateId, Boolean splitInvoiceByProduct, Boolean allowPriceOverride,
             // Notifikasi — dipapar dalam tab Invoice
             Boolean smsOnInvoice, Boolean smsOnReminder,
             Boolean whatsappOnInvoice, Boolean whatsappOnReminder,
@@ -217,7 +217,7 @@ class SettingsController {
         Object[] r = (Object[]) em.createNativeQuery("""
                 SELECT d.invoice_title, d.invoice_prefix, d.invoice_no_size, d.invoice_no_start,
                        d.invoice_gen_mode, d.invoice_gen_freq, d.invoice_gen_day,
-                       d.invoice_template_id, d.split_invoice_by_product,
+                       d.invoice_template_id, d.split_invoice_by_product, d.allow_price_override,
                        n.sms_on_invoice, n.sms_on_reminder,
                        n.whatsapp_on_invoice, n.whatsapp_on_reminder,
                        d.receipt_title, d.receipt_prefix, d.receipt_no_size, d.receipt_no_start,
@@ -234,13 +234,13 @@ class SettingsController {
                 r[3] == null ? null : ((Number) r[3]).longValue(),
                 (String) r[4], (String) r[5],
                 r[6] == null ? null : ((Number) r[6]).intValue(),
-                (String) r[7], toBool(r[8]),
-                toBool(r[9]), toBool(r[10]), toBool(r[11]), toBool(r[12]),
-                (String) r[13], (String) r[14],
-                r[15] == null ? null : ((Number) r[15]).intValue(),
-                r[16] == null ? null : ((Number) r[16]).longValue(),
-                (String) r[17], toBool(r[18]),
-                (String) r[19], (String) r[20]);
+                (String) r[7], toBool(r[8]), toBool(r[9]),
+                toBool(r[10]), toBool(r[11]), toBool(r[12]), toBool(r[13]),
+                (String) r[14], (String) r[15],
+                r[16] == null ? null : ((Number) r[16]).intValue(),
+                r[17] == null ? null : ((Number) r[17]).longValue(),
+                (String) r[18], toBool(r[19]),
+                (String) r[20], (String) r[21]);
     }
 
     @PutMapping("/document")
@@ -257,6 +257,7 @@ class SettingsController {
                   invoice_no_size = :inz, invoice_no_start = :ins,
                   invoice_gen_mode = :igm, invoice_gen_freq = :igf, invoice_gen_day = :igd,
                   invoice_template_id = :itp, split_invoice_by_product = :split,
+                  allow_price_override = :apo,
                   receipt_title = :rt, receipt_prefix = :rp,
                   receipt_no_size = :rnz, receipt_no_start = :rns,
                   receipt_template_id = :rtp, enable_manual_payment = :emp,
@@ -271,6 +272,7 @@ class SettingsController {
                 .setParameter("igd", d.invoiceGenDay() == null ? 1 : d.invoiceGenDay())
                 .setParameter("itp", d.invoiceTemplateId())
                 .setParameter("split", bit(d.splitInvoiceByProduct()))
+                .setParameter("apo", bit(d.allowPriceOverride()))
                 .setParameter("rt", d.receiptTitle()).setParameter("rp", d.receiptPrefix())
                 .setParameter("rnz", d.receiptNoSize() == null ? 6 : d.receiptNoSize())
                 .setParameter("rns", d.receiptNoStart() == null ? 1L : d.receiptNoStart())

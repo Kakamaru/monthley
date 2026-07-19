@@ -1,6 +1,7 @@
 package com.monthley.account.internal;
 
 import com.monthley.shared.ChargeFrequency;
+import com.monthley.tenancy.api.BillingSettingsPort;
 import com.monthley.shared.PageResponse;
 import com.monthley.shared.TenantContext;
 import jakarta.persistence.EntityManager;
@@ -32,10 +33,13 @@ class AccountController {
 
     private final AccountRepository accounts;
     private final AccountSubscriptionRepository subscriptions;
+    private final BillingSettingsPort settings;
 
-    AccountController(AccountRepository accounts, AccountSubscriptionRepository subscriptions) {
+    AccountController(AccountRepository accounts, AccountSubscriptionRepository subscriptions,
+                      BillingSettingsPort settings) {
         this.accounts = accounts;
         this.subscriptions = subscriptions;
+        this.settings = settings;
     }
 
     record AccountDto(
@@ -138,6 +142,12 @@ class AccountController {
     record SubLine(
             Long productId, java.math.BigDecimal quantity,
             LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice) {}
+
+    @GetMapping("/config")
+    java.util.Map<String, Object> config() {
+        var cfg = settings.forSp(sp());
+        return java.util.Map.of("allowPriceOverride", cfg.allowPriceOverride());
+    }
 
     @PostMapping
     @Transactional
