@@ -19,6 +19,8 @@ import java.util.List;
  * Keselamatan API.
  *
  *   /api/v1/auth/**       — terbuka (daftar, log masuk, sahkan, reset)
+ *   /api/v1/lookup/**     — terbuka (poskod, reference data)
+ *   /api/v1/lookup/**     — terbuka (poskod, reference data)
  *   /api/v1/platform/**   — SUPERADMIN sahaja
  *   /api/**               — mesti log masuk
  */
@@ -44,6 +46,8 @@ class SecurityConfig {
 
                 // terbuka — daftar, log masuk, sahkan e-mel, reset kata laluan
                 .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/v1/lookup/**").permitAll()
+                .requestMatchers("/api/v1/lookup/**").permitAll()
 
                 // platform — superadmin sahaja
                 .requestMatchers("/api/v1/platform/**").hasRole("SUPERADMIN")
