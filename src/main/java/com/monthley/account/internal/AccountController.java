@@ -479,6 +479,36 @@ class AccountController {
         return ResponseEntity.ok(java.util.Map.of("message", "Pautan akaun dibatalkan."));
     }
 
+    // ── Tambah subscription ke akaun sedia ada (More > Add Subscription) ──
+    record AddSubLine(Long productId, java.math.BigDecimal quantity,
+                      LocalDate startDate, LocalDate endDate,
+                      java.math.BigDecimal unitPrice) {}
+    record AddSubscriptionsRequest(List<AddSubLine> subscriptions) {}
+
+    @PostMapping("/{id}/subscriptions")
+    @Transactional
+    ResponseEntity<?> addSubscriptions(@PathVariable Long id, @RequestBody AddSubscriptionsRequest r) {
+        String sp = sp();
+        Account a = accounts.findById(id).orElse(null);
+        if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
+        if (r.subscriptions() == null || r.subscriptions().isEmpty()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "Tiada produk dipilih."));
+        }
+        int added = 0;
+        for (AddSubLine line : r.subscriptions()) {
+            if (line.productId() == null) continue;
+            var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
+            var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
+            var sub = new AccountSubscription(sp, id, line.productId(), qty, start);
+            if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
+            if (line.endDate() != null) sub.setEndDate(line.endDate());
+            subscriptions.save(sub);
+            added++;
+        }
+        return ResponseEntity.ok(java.util.Map.of("added", added,
+                "message", added + " langganan ditambah ke akaun " + a.getAccountNo() + "."));
+    }
+
     private void sendInvite(String sp, String toEmail) {
         // Nama SP untuk email
         String spName = sp;
