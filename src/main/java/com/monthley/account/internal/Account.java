@@ -35,6 +35,9 @@ public class Account extends BaseEntity {
     @Column(name = "payer_user_id")
     private Long payerUserId;
 
+    @Column(name = "link_date")
+    private java.time.LocalDateTime linkDate;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "charge_frequency", length = 20)
     private ChargeFrequency chargeFrequency;
@@ -108,6 +111,8 @@ public class Account extends BaseEntity {
     public void setCategoryId(Long id) { this.categoryId = id; }
     public void setBranchId(Long id) { this.branchId = id; }
     public void setPayerUserId(Long id) { this.payerUserId = id; }
+    public void setLinkDate(java.time.LocalDateTime d) { this.linkDate = d; }
+    public java.time.LocalDateTime getLinkDate() { return linkDate; }
 
     public void setMemberName(String v) { this.memberName = v; }
     public void setMemberIdNo(String v) { this.memberIdNo = v; }

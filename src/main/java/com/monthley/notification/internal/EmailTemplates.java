@@ -97,6 +97,16 @@ final class EmailTemplates {
             "Ada soalan? Balas e-mel ini dan kami akan bantu.");
     }
 
+    static String invitation(String spName, String registerUrl) {
+        return shell(
+            "Jemputan ke Monthley",
+            "<p>Anda telah dijemput oleh <b>" + esc(spName) + "</b> untuk mengurus akaun bil anda di Monthley.</p>"
+            + "<p>Daftar dengan e-mel ini untuk memaut akaun anda secara automatik.</p>",
+            "Daftar Sekarang",
+            registerUrl,
+            "Jika anda tidak mengenali jemputan ini, abaikan e-mel ini.");
+    }
+
     private static String esc(String s) {
         return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }

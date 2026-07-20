@@ -48,6 +48,11 @@ class ResendEmailService implements EmailPort {
         send(to, "Selamat datang ke Monthley 🎉", EmailTemplates.welcome(name, portalUrl));
     }
 
+    @Override
+    public void sendInvitation(String to, String spName, String registerUrl) {
+        send(to, "Jemputan ke Monthley — " + spName, EmailTemplates.invitation(spName, registerUrl));
+    }
+
     private void send(String to, String subject, String html) {
         if (apiKey == null || apiKey.isBlank()) {
             // Mod dev — tiada kunci. Log sahaja supaya pembangunan boleh diteruskan.

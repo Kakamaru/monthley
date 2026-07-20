@@ -2,6 +2,7 @@ package com.monthley.account.internal;
 
 import com.monthley.shared.ChargeFrequency;
 import com.monthley.tenancy.api.BillingSettingsPort;
+import com.monthley.notification.api.EmailPort;
 import com.monthley.shared.PageResponse;
 import com.monthley.shared.TenantContext;
 import jakarta.persistence.EntityManager;
@@ -34,12 +35,17 @@ class AccountController {
     private final AccountRepository accounts;
     private final AccountSubscriptionRepository subscriptions;
     private final BillingSettingsPort settings;
+    private final AccountInvitationRepository invitations;
+    private final EmailPort email;
 
     AccountController(AccountRepository accounts, AccountSubscriptionRepository subscriptions,
-                      BillingSettingsPort settings) {
+                      BillingSettingsPort settings, AccountInvitationRepository invitations,
+                      EmailPort email) {
         this.accounts = accounts;
         this.subscriptions = subscriptions;
         this.settings = settings;
+        this.invitations = invitations;
+        this.email = email;
     }
 
     record AccountDto(
@@ -247,10 +253,32 @@ class AccountController {
             }
         }
 
+        // Auto-link: cek billto email berdaftar & aktif
+        String bemail = r.billtoEmail() == null ? "" : r.billtoEmail().trim().toLowerCase();
+        boolean autoLinked = false, autoInvited = false;
+        if (!bemail.isEmpty()) {
+            List<Object[]> u = em.createNativeQuery(
+                    "SELECT id FROM app_user WHERE LOWER(email) = :e AND status='ACTIVE' AND email_verified_at IS NOT NULL")
+                    .setParameter("e", bemail).getResultList();
+            if (!u.isEmpty()) {
+                saved.setPayerUserId(((Number) u.get(0)[0]).longValue());
+                saved.setLinkDate(java.time.LocalDateTime.now());
+                accounts.save(saved);
+                autoLinked = true;
+            } else {
+                invitations.save(new AccountInvitation(sp, saved.getId(), bemail, sp));
+                sendInvite(sp, bemail);
+                autoInvited = true;
+            }
+        }
+
         return ResponseEntity.ok(java.util.Map.of("id", saved.getId(),
                 "subscriptions", subCount,
+                "linked", autoLinked, "invited", autoInvited,
                 "message", "Akaun " + saved.getAccountNo() + " dicipta"
-                        + (subCount > 0 ? " dengan " + subCount + " langganan." : ".")));
+                        + (subCount > 0 ? " dengan " + subCount + " langganan." : ".")
+                        + (autoLinked ? " Dipautkan ke " + bemail + "." : "")
+                        + (autoInvited ? " Jemputan dihantar ke " + bemail + "." : "")));
     }
 
     // ── Kemas kini akaun (Edit) ──
@@ -373,6 +401,88 @@ class AccountController {
         a.setOpeningAmount(r.openingAmount());
         a.setRemarks(r.remarks());
         a.setAccountType(r.accountType());
+    }
+
+    // ── Cari pengguna berdaftar (untuk confirmation sebelum link) ──
+    @GetMapping("/search-user")
+    @Transactional(readOnly = true)
+    ResponseEntity<?> searchUser(@RequestParam String email) {
+        sp();  // pastikan tenant
+        String e = email == null ? "" : email.trim().toLowerCase();
+        if (e.isEmpty()) return ResponseEntity.badRequest().body(java.util.Map.of("message", "Email diperlukan."));
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT id, full_name FROM app_user WHERE LOWER(email) = :e AND status = 'ACTIVE' AND email_verified_at IS NOT NULL")
+                .setParameter("e", e).getResultList();
+        if (rows.isEmpty()) {
+            return ResponseEntity.ok(java.util.Map.of("found", false));
+        }
+        Object[] r = rows.get(0);
+        return ResponseEntity.ok(java.util.Map.of(
+                "found", true,
+                "userId", ((Number) r[0]).longValue(),
+                "fullName", r[1] == null ? "" : r[1]));
+    }
+
+    // ── Link / Invite akaun kepada pengguna ──
+    record LinkRequest(@jakarta.validation.constraints.Email @NotBlank String email) {}
+
+    @PostMapping("/{id}/link")
+    @Transactional
+    ResponseEntity<?> link(@PathVariable Long id, @Valid @RequestBody LinkRequest r) {
+        String sp = sp();
+        Account a = accounts.findById(id).orElse(null);
+        if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
+        String email = r.email().trim().toLowerCase();
+
+        // Cari pengguna aktif
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT id FROM app_user WHERE LOWER(email) = :e AND status = 'ACTIVE' AND email_verified_at IS NOT NULL")
+                .setParameter("e", email).getResultList();
+
+        if (!rows.isEmpty()) {
+            // Berdaftar & aktif -> link terus
+            Long userId = ((Number) rows.get(0)[0]).longValue();
+            a.setPayerUserId(userId);
+            a.setLinkDate(java.time.LocalDateTime.now());
+            accounts.save(a);
+            return ResponseEntity.ok(java.util.Map.of("linked", true,
+                    "message", "Akaun dipautkan kepada " + email + "."));
+        } else {
+            // Belum berdaftar -> jemputan PENDING + (email dihantar di lapisan email)
+            var inv = new AccountInvitation(sp, id, email, sp);
+            invitations.save(inv);
+            sendInvite(sp, email);
+            return ResponseEntity.ok(java.util.Map.of("linked", false, "invited", true,
+                    "message", "Jemputan dihantar ke " + email + ". Akaun akan dipautkan selepas pendaftaran."));
+        }
+    }
+
+    @DeleteMapping("/{id}/link")
+    @Transactional
+    ResponseEntity<?> unlink(@PathVariable Long id) {
+        String sp = sp();
+        Account a = accounts.findById(id).orElse(null);
+        if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
+        a.setPayerUserId(null);
+        a.setLinkDate(null);
+        accounts.save(a);
+        return ResponseEntity.ok(java.util.Map.of("message", "Pautan akaun dibatalkan."));
+    }
+
+    private void sendInvite(String sp, String toEmail) {
+        // Nama SP untuk email
+        String spName = sp;
+        try {
+            Object n = em.createNativeQuery("SELECT name FROM service_provider WHERE sp_code = :sp")
+                    .setParameter("sp", sp).getSingleResult();
+            if (n != null) spName = n.toString();
+        } catch (Exception ignore) {}
+        String registerUrl = "https://monthley.my/register?email=" + toEmail;
+        try {
+            email.sendInvitation(toEmail, spName, registerUrl);
+        } catch (Exception ignore) {
+            // email gagal — jemputan tetap PENDING, boleh hantar semula
+        }
     }
 
     private void bind(jakarta.persistence.Query query, String status, Long category,

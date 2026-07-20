@@ -134,6 +134,24 @@ class AuthController {
         user.markEmailVerified();
         users.save(user);
 
+        // Auto-link: padan jemputan PENDING untuk email ini -> pautkan akaun
+        String uemail = user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase();
+        if (!uemail.isEmpty()) {
+            List<Object[]> pend = em.createNativeQuery(
+                    "SELECT id, account_id FROM account_invitation WHERE LOWER(email) = :e AND status = 'PENDING'")
+                    .setParameter("e", uemail).getResultList();
+            for (Object[] row : pend) {
+                Long invId = ((Number) row[0]).longValue();
+                Long accId = ((Number) row[1]).longValue();
+                em.createNativeQuery(
+                        "UPDATE account SET payer_user_id = :uid, link_date = NOW() WHERE id = :aid")
+                        .setParameter("uid", user.getId()).setParameter("aid", accId).executeUpdate();
+                em.createNativeQuery(
+                        "UPDATE account_invitation SET status = 'ACCEPTED', accepted_at = NOW() WHERE id = :iid")
+                        .setParameter("iid", invId).executeUpdate();
+            }
+        }
+
         verification.sendWelcome(user);
 
         return ResponseEntity.ok(buildLogin(user));

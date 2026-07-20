@@ -14,4 +14,7 @@ public interface EmailPort {
 
     /** Selamat datang selepas e-mel disahkan. */
     void sendWelcome(String to, String name, String portalUrl);
+
+    /** Jemputan pautkan akaun (SP link akaun ke email belum berdaftar). */
+    void sendInvitation(String to, String spName, String registerUrl);
 }
