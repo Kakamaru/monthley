@@ -215,6 +215,16 @@ class AccountController {
         out.put("billtoCountry", a.getBilltoCountry());
         out.put("remarks", a.getRemarks());
         out.put("payerUserId", a.getPayerUserId());
+        // Email pengguna yang dipaut (untuk papar di UI)
+        if (a.getPayerUserId() != null) {
+            try {
+                Object em2 = em.createNativeQuery("SELECT email FROM app_user WHERE id = :uid")
+                        .setParameter("uid", a.getPayerUserId()).getSingleResult();
+                out.put("linkedEmail", em2 == null ? null : em2.toString());
+            } catch (Exception ignore) { out.put("linkedEmail", null); }
+        } else {
+            out.put("linkedEmail", null);
+        }
         out.put("subscriptions", subs);
         return ResponseEntity.ok(out);
     }
@@ -257,11 +267,11 @@ class AccountController {
         String bemail = r.billtoEmail() == null ? "" : r.billtoEmail().trim().toLowerCase();
         boolean autoLinked = false, autoInvited = false;
         if (!bemail.isEmpty()) {
-            List<Object[]> u = em.createNativeQuery(
+            List<?> u = em.createNativeQuery(
                     "SELECT id FROM app_user WHERE LOWER(email) = :e AND status='ACTIVE' AND email_verified_at IS NOT NULL")
                     .setParameter("e", bemail).getResultList();
             if (!u.isEmpty()) {
-                saved.setPayerUserId(((Number) u.get(0)[0]).longValue());
+                saved.setPayerUserId(((Number) u.get(0)).longValue());
                 saved.setLinkDate(java.time.LocalDateTime.now());
                 accounts.save(saved);
                 autoLinked = true;
@@ -434,14 +444,14 @@ class AccountController {
         if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
         String email = r.email().trim().toLowerCase();
 
-        // Cari pengguna aktif
-        List<Object[]> rows = em.createNativeQuery(
+        // Cari pengguna aktif (SELECT satu kolum -> senarai Number)
+        List<?> rows = em.createNativeQuery(
                 "SELECT id FROM app_user WHERE LOWER(email) = :e AND status = 'ACTIVE' AND email_verified_at IS NOT NULL")
                 .setParameter("e", email).getResultList();
 
         if (!rows.isEmpty()) {
             // Berdaftar & aktif -> link terus
-            Long userId = ((Number) rows.get(0)[0]).longValue();
+            Long userId = ((Number) rows.get(0)).longValue();
             a.setPayerUserId(userId);
             a.setLinkDate(java.time.LocalDateTime.now());
             accounts.save(a);
