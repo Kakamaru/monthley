@@ -1,5 +1,5 @@
 /** Account — akaun pelanggan + langganan produk. */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Account",
-        allowedDependencies = { "shared" })
+        allowedDependencies = { "shared", "tenancy::api" })
 package com.monthley.account;

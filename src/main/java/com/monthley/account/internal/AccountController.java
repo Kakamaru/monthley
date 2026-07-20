@@ -149,7 +149,71 @@ class AccountController {
         return java.util.Map.of("allowPriceOverride", cfg.allowPriceOverride());
     }
 
-    @PostMapping
+    @GetMapping("/{id}")
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    ResponseEntity<?> getOne(@PathVariable Long id) {
+        String sp = sp();
+        Account a = accounts.findById(id).orElse(null);
+        if (a == null || !sp.equals(a.getSpCode())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT s.id, s.product_id, p.code, p.name, s.quantity,
+                       s.start_date, s.end_date, s.unit_price, p.charge_frequency, p.unit_rate
+                FROM account_subscription s
+                JOIN product p ON p.id = s.product_id
+                WHERE s.account_id = :aid AND s.status <> 'ENDED'
+                ORDER BY s.id
+                """).setParameter("aid", id).getResultList();
+
+        List<java.util.Map<String, Object>> subs = new ArrayList<>();
+        for (Object[] r : rows) {
+            var m = new java.util.HashMap<String, Object>();
+            m.put("id", ((Number) r[0]).longValue());
+            m.put("productId", ((Number) r[1]).longValue());
+            m.put("code", r[2]);
+            m.put("name", r[3]);
+            m.put("quantity", r[4]);
+            m.put("startDate", r[5] == null ? null : r[5].toString());
+            m.put("endDate", r[6] == null ? null : r[6].toString());
+            m.put("unitPrice", r[7]);
+            m.put("frequency", r[8]);
+            m.put("rate", r[9]);
+            subs.add(m);
+        }
+
+        var out = new java.util.HashMap<String, Object>();
+        out.put("id", a.getId());
+        out.put("accountNo", a.getAccountNo());
+        out.put("accountName", a.getAccountName());
+        out.put("categoryId", a.getCategoryId());
+        out.put("status", a.getStatus().name());
+        out.put("chargeFrequency", a.getChargeFrequency() == null ? null : a.getChargeFrequency().name());
+        out.put("startDate", a.getStartDate() == null ? null : a.getStartDate().toString());
+        out.put("depositAmount", a.getDepositAmount());
+        out.put("openingAmount", a.getOpeningAmount());
+        out.put("accountType", a.getAccountType());
+        out.put("memberIdNo", a.getMemberIdNo());
+        out.put("addrLine1", a.getAddrLine1()); out.put("addrLine2", a.getAddrLine2());
+        out.put("addrLine3", a.getAddrLine3()); out.put("addrLine4", a.getAddrLine4());
+        out.put("addrPostcode", a.getAddrPostcode()); out.put("addrState", a.getAddrState());
+        out.put("addrCountry", a.getAddrCountry());
+        out.put("billtoName", a.getBilltoName()); out.put("billtoEmail", a.getBilltoEmail());
+        out.put("billtoEmailSecondary", a.getBilltoEmailSecondary());
+        out.put("billtoMobile", a.getBilltoMobile());
+        out.put("billtoAddrLine1", a.getBilltoAddrLine1()); out.put("billtoAddrLine2", a.getBilltoAddrLine2());
+        out.put("billtoAddrLine3", a.getBilltoAddrLine3()); out.put("billtoAddrLine4", a.getBilltoAddrLine4());
+        out.put("billtoPostcode", a.getBilltoPostcode()); out.put("billtoState", a.getBilltoState());
+        out.put("billtoCountry", a.getBilltoCountry());
+        out.put("remarks", a.getRemarks());
+        out.put("payerUserId", a.getPayerUserId());
+        out.put("subscriptions", subs);
+        return ResponseEntity.ok(out);
+    }
+
+        @PostMapping
     @Transactional
     ResponseEntity<?> create(@Valid @RequestBody SaveAccountRequest r) {
         String sp = sp();
@@ -187,6 +251,90 @@ class AccountController {
                 "subscriptions", subCount,
                 "message", "Akaun " + saved.getAccountNo() + " dicipta"
                         + (subCount > 0 ? " dengan " + subCount + " langganan." : ".")));
+    }
+
+    // ── Kemas kini akaun (Edit) ──
+    record EditSubLine(
+            Long id, Long productId, java.math.BigDecimal quantity,
+            LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice,
+            boolean deleted) {}
+
+    record EditAccountRequest(
+            @NotBlank String accountName, Long categoryId, String status,
+            String chargeFrequency, LocalDate startDate,
+            String memberIdNo, String accountType, String remarks,
+            // alamat akaun
+            String addrLine1, String addrLine2, String addrLine3, String addrLine4,
+            String addrPostcode, String addrState, String addrCountry,
+            // billing
+            String billtoName, String billtoEmail, String billtoEmailSecondary, String billtoMobile,
+            String billtoAddrLine1, String billtoAddrLine2, String billtoAddrLine3, String billtoAddrLine4,
+            String billtoPostcode, String billtoState, String billtoCountry,
+            List<EditSubLine> subscriptions) {}
+
+    @PutMapping("/{id}")
+    @Transactional
+    ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody EditAccountRequest r) {
+        String sp = sp();
+        Account a = accounts.findById(id).orElse(null);
+        if (a == null || !sp.equals(a.getSpCode())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Field boleh ubah (account_no, balance, opening, deposit KEKAL — tak disentuh)
+        a.setAccountName(r.accountName().trim());
+        a.setCategoryId(r.categoryId());
+        if (r.status() != null) {
+            a.setStatus(Account.Status.valueOf(r.status()));
+        }
+        if (r.chargeFrequency() != null && !r.chargeFrequency().isBlank()) {
+            a.setChargeFrequency(ChargeFrequency.valueOf(r.chargeFrequency()));
+        }
+        a.setStartDate(r.startDate());
+        a.setMemberIdNo(r.memberIdNo());
+        a.setAccountType(r.accountType());
+        a.setRemarks(r.remarks());
+        a.setAddrLine1(r.addrLine1()); a.setAddrLine2(r.addrLine2());
+        a.setAddrLine3(r.addrLine3()); a.setAddrLine4(r.addrLine4());
+        a.setAddrPostcode(r.addrPostcode()); a.setAddrState(r.addrState());
+        a.setAddrCountry(r.addrCountry());
+        a.setBilltoName(r.billtoName()); a.setBilltoEmail(r.billtoEmail());
+        a.setBilltoEmailSecondary(r.billtoEmailSecondary());
+        a.setBilltoMobile(r.billtoMobile());
+        a.setBilltoAddrLine1(r.billtoAddrLine1()); a.setBilltoAddrLine2(r.billtoAddrLine2());
+        a.setBilltoAddrLine3(r.billtoAddrLine3()); a.setBilltoAddrLine4(r.billtoAddrLine4());
+        a.setBilltoPostcode(r.billtoPostcode()); a.setBilltoState(r.billtoState());
+        a.setBilltoCountry(r.billtoCountry());
+        accounts.save(a);
+
+        // Subscription: id ada + deleted -> ENDED; id ada -> kemas kini; id null -> cipta
+        if (r.subscriptions() != null) {
+            for (EditSubLine line : r.subscriptions()) {
+                if (line.id() != null) {
+                    var sub = subscriptions.findById(line.id()).orElse(null);
+                    if (sub == null || !sp.equals(sub.getSpCode())) continue;
+                    if (line.deleted()) {
+                        sub.setStatus(AccountSubscription.Status.ENDED);   // rekod kekal
+                    } else {
+                        if (line.quantity() != null) sub.setQuantity(line.quantity());
+                        if (line.startDate() != null) sub.setStartDate(line.startDate());
+                        sub.setEndDate(line.endDate());
+                        sub.setUnitPrice(line.unitPrice());
+                    }
+                    subscriptions.save(sub);
+                } else if (!line.deleted() && line.productId() != null) {
+                    var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
+                    var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
+                    var sub = new AccountSubscription(sp, a.getId(), line.productId(), qty, start);
+                    if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
+                    if (line.endDate() != null) sub.setEndDate(line.endDate());
+                    subscriptions.save(sub);
+                }
+            }
+        }
+
+        return ResponseEntity.ok(java.util.Map.of("id", a.getId(),
+                "message", "Akaun " + a.getAccountNo() + " dikemas kini."));
     }
 
     private void apply(Account a, SaveAccountRequest r) {

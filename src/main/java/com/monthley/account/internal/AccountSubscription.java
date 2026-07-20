@@ -63,6 +63,9 @@ public class AccountSubscription extends BaseEntity {
     }
 
     public void setUnitPrice(BigDecimal p) { this.unitPrice = p; }
+    public void setStatus(Status s) { this.status = s; }
+    public void setQuantity(BigDecimal q) { this.quantity = q; }
+    public void setStartDate(LocalDate d) { this.startDate = d; }
     public void setEndDate(LocalDate d) { this.endDate = d; }
 
     public Long getId() { return id; }
@@ -73,6 +76,7 @@ public class AccountSubscription extends BaseEntity {
     public LocalDate getStartDate() { return startDate; }
     public LocalDate getEndDate() { return endDate; }
     public Status getStatus() { return status; }
+    public String getSpCode() { return spCode; }
 
     public Long getParentSubscriptionId() { return parentSubscriptionId; }
 }

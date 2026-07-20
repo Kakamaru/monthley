@@ -137,6 +137,8 @@ public class Account extends BaseEntity {
     public void setOpeningAmount(java.math.BigDecimal v) { this.openingAmount = v; }
     public void setRemarks(String v) { this.remarks = v; }
     public void setAccountType(String v) { this.accountType = v; }
+    public void setStatus(Status s) { this.status = s; }
+    public void setAccountName(String v) { this.accountName = v; }
 
     public Long getId() { return id; }
     public String getSpCode() { return spCode; }

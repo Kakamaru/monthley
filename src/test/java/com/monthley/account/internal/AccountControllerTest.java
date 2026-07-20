@@ -134,4 +134,80 @@ class AccountControllerTest {
         var dup = controller.create(req);
         assertThat(dup.getStatusCode().is4xxClientError()).isTrue();
     }
+
+    @Test
+    @DisplayName("update() ubah field + status INACTIVE, account_no/opening kekal")
+    void updatesAccount() {
+        // Cipta akaun dulu
+        var create = new AccountController.SaveAccountRequest(
+                "EDIT-1", "Nama Asal", null, "MONTHLY", null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                "Billto Asal", null, null, null, null, null, null, null, null, null,
+                null, null, java.math.BigDecimal.valueOf(500), null, null, java.util.List.of());
+        Long accId = (Long) ((java.util.Map<?,?>) controller.create(create).getBody()).get("id");
+
+        // Edit: tukar nama + status INACTIVE
+        var edit = new AccountController.EditAccountRequest(
+                "Nama Baru", null, "INACTIVE", "MONTHLY", null,
+                null, null, "catatan",
+                null, null, null, null, null, null, null,
+                "Billto Baru", null, null, null, null, null, null, null, null, null, null,
+                java.util.List.of());
+        var resp = controller.update(accId, edit);
+        assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
+
+        Object[] row = (Object[]) em.createNativeQuery("""
+                SELECT account_name, status, billto_name, opening_amount, account_no
+                FROM account WHERE id = :id
+                """).setParameter("id", accId).getSingleResult();
+        assertThat(row[0]).isEqualTo("Nama Baru");
+        assertThat(row[1]).isEqualTo("INACTIVE");
+        assertThat(row[2]).isEqualTo("Billto Baru");
+        assertThat(((Number) row[3]).intValue()).isEqualTo(500);   // opening KEKAL
+        assertThat(row[4]).isEqualTo("EDIT-1");                     // account_no KEKAL
+    }
+
+    @Test
+    @DisplayName("update() delete subscription -> status ENDED (row kekal)")
+    void endsSubscriptionOnDelete() {
+        // Produk + akaun + subscription
+        em.createNativeQuery("""
+            INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
+                                 main_product, mandatory, prorated, late_penalty, status,
+                                 created_at, updated_at, version)
+            VALUES ('SPX', 'EP1', 'Prod Edit', 'MONTHLY', 100.00, 0,0,0,0,'ACTIVE',NOW(),NOW(),0)
+            """).executeUpdate();
+        Long prodId = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPX' AND code='EP1'").getSingleResult()).longValue();
+
+        var create = new AccountController.SaveAccountRequest(
+                "EDIT-2", "Akaun Sub", null, "MONTHLY", null, null,
+                null,null,null,null, null,null,null,null,null,null,null,
+                "Billto", null,null,null,null,null,null,null,null,null,
+                null,null,null,null,null,
+                java.util.List.of(new AccountController.SubLine(
+                        prodId, java.math.BigDecimal.ONE,
+                        java.time.LocalDate.of(2026,1,1), null, null)));
+        Long accId = (Long) ((java.util.Map<?,?>) controller.create(create).getBody()).get("id");
+        Long subId = ((Number) em.createNativeQuery(
+                "SELECT id FROM account_subscription WHERE account_id = :a")
+                .setParameter("a", accId).getSingleResult()).longValue();
+
+        // Delete subscription (deleted=true)
+        var edit = new AccountController.EditAccountRequest(
+                "Akaun Sub", null, "ACTIVE", "MONTHLY", null,
+                null,null,null, null,null,null,null,null,null,null,
+                "Billto", null,null,null,null,null,null,null,null,null,null,
+                java.util.List.of(new AccountController.EditSubLine(
+                        subId, prodId, java.math.BigDecimal.ONE,
+                        java.time.LocalDate.of(2026,1,1), null, null, true)));
+        controller.update(accId, edit);
+
+        // Row MASIH ada, status ENDED
+        String status = (String) em.createNativeQuery(
+                "SELECT status FROM account_subscription WHERE id = :id")
+                .setParameter("id", subId).getSingleResult();
+        assertThat(status).isEqualTo("ENDED");
+    }
 }
