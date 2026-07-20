@@ -84,6 +84,47 @@ class InvoicingController {
         return new GenerateResult(sp, runMonth.toString(), mode.name(), posted);
     }
 
+    record GenerateSingleRequest(Long accountId, String period, String mode) {}
+    record GenerateSingleResult(Long accountId, String period, String mode, int invoicesPosted) {}
+
+    @PostMapping("/generate-single")
+    GenerateSingleResult generateSingle(@RequestBody GenerateSingleRequest req) {
+        String sp = sp();
+        if (req == null || req.accountId() == null) {
+            throw new IllegalArgumentException("accountId diperlukan.");
+        }
+
+        YearMonth runMonth = (req.period() == null || req.period().isBlank())
+                ? YearMonth.now()
+                : YearMonth.parse(req.period());
+
+        BillingSettings cfg = settings.forSp(sp);
+        GenMode mode = (req.mode() == null || req.mode().isBlank())
+                ? GenMode.valueOf(cfg.genMode())
+                : GenMode.valueOf(req.mode());
+
+        String arGl = cfg.arGlAccountId() == null
+                ? GlAccounts.ACCOUNTS_RECEIVABLE
+                : ledger.glCodeFor(sp, cfg.arGlAccountId());
+        String incomeGl = cfg.incomeGlAccountId() == null
+                ? GlAccounts.SERVICE_INCOME
+                : ledger.glCodeFor(sp, cfg.incomeGlAccountId());
+
+        BillingContext ctx = new BillingContext(
+                sp,
+                cfg.taxRate(),
+                cfg.smallestDenomination().signum() == 0 ? null : cfg.smallestDenomination(),
+                cfg.allowPriceOverride(),
+                cfg.termDays(),
+                excludedPeriodIds(sp),
+                arGl,
+                GlAccounts.TAX_PAYABLE,
+                incomeGl);
+
+        int posted = billing.generateForAccount(sp, req.accountId(), runMonth, mode, ctx);
+        return new GenerateSingleResult(req.accountId(), runMonth.toString(), mode.name(), posted);
+    }
+
     /** period_id BULAN yang dikecualikan untuk SP ini (invoice_exclude_period). */
     @SuppressWarnings("unchecked")
     private Set<Long> excludedPeriodIds(String spCode) {

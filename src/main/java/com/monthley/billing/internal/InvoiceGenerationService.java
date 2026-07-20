@@ -71,6 +71,28 @@ public class InvoiceGenerationService {
         return posted;
     }
 
+    /**
+     * Jana invois untuk SATU akaun sahaja (Generate Single Invoice).
+     * Logik sama dengan generateForSp — cuma tapis satu akaun (WHERE), bukan loop semua.
+     * createAndPost kekal idempotent (skip kalau period sudah dijana).
+     */
+    public int generateForAccount(String spCode, Long accountId, YearMonth runMonth,
+                                  GenMode mode, BillingContext ctx) {
+        AccountView account = accounts.activeAccountsFor(spCode).stream()
+                .filter(a -> a.id().equals(accountId))
+                .findFirst().orElse(null);
+        if (account == null) return 0;
+
+        List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
+        if (subs.isEmpty()) return 0;
+
+        Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
+        List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
+        if (lines.isEmpty()) return 0;
+
+        return createAndPost(spCode, account, base, lines, ctx) ? 1 : 0;
+    }
+
     /** @return true kalau invois dicipta & di-post; false kalau diskip (idempotent). */
     private boolean createAndPost(String spCode, AccountView account, Charge base,
                                   List<CalculatedLine> lines, BillingContext ctx) {
