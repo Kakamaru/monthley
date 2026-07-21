@@ -455,9 +455,20 @@ class AccountController {
                   WHERE d.account_id = :id AND d.sp_code = :sp
                     AND d.doc_type = 'INVOICE' AND d.status <> 'CANCELLED' AND l.active = 1
                   UNION ALL
+                  SELECT COALESCE(dn.created_at, dn.doc_date) AS ts, 0 AS kind, dn.id AS seq,
+                         dn.doc_no AS doc_no, 'Debit Note' AS doc_label,
+                         dn.title AS item, NULL AS period,
+                         (dn.amount + dn.tax_amount) AS debit, 0 AS credit
+                  FROM financial_document dn
+                  WHERE dn.account_id = :id AND dn.sp_code = :sp
+                    AND dn.doc_type = 'DEBIT_NOTE' AND dn.status <> 'CANCELLED'
+                  UNION ALL
                   SELECT COALESCE(rc.created_at, rc.doc_date) AS ts, 1 AS kind, a.id AS seq,
-                         rc.doc_no AS doc_no, 'Receipt' AS doc_label,
-                         CONCAT('Bayaran \u2192 ', inv.doc_no) AS item, NULL AS period,
+                         rc.doc_no AS doc_no,
+                         CASE WHEN rc.doc_type = 'CREDIT_NOTE' THEN 'Credit Note' ELSE 'Receipt' END AS doc_label,
+                         CASE WHEN rc.doc_type = 'CREDIT_NOTE'
+                              THEN CONCAT('Kredit Nota \u2192 ', inv.doc_no)
+                              ELSE CONCAT('Bayaran \u2192 ', inv.doc_no) END AS item, NULL AS period,
                          0 AS debit, a.amount AS credit
                   FROM fi_allocation a
                   JOIN financial_document rc ON rc.id = a.credit_document_id
