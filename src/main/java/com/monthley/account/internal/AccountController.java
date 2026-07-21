@@ -654,7 +654,8 @@ class AccountController {
     // payer_user_id (dari JWT subject), BUKAN TenantContext — merentas semua SP.
     // Baki diterbitkan SUM (invois - alokasi ACTIVE), bukan cached_balance (§9).
     record MyAccountRow(Long id, String spCode, String spName,
-                        String accountNo, String accountName, java.math.BigDecimal balance) {}
+                        String accountNo, String accountName, java.math.BigDecimal balance,
+                        java.math.BigDecimal latestInvoiceAmount, java.time.LocalDate dueDate) {}
 
     @GetMapping("/my")
     @SuppressWarnings("unchecked")
@@ -669,7 +670,15 @@ class AccountController {
                                    WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0))
                          FROM financial_document d
                          WHERE d.account_id = a.id AND d.doc_type = 'INVOICE'
-                           AND d.status <> 'CANCELLED'), 0) AS balance
+                           AND d.status <> 'CANCELLED'), 0) AS balance,
+                       (SELECT (d2.amount + d2.tax_amount) FROM financial_document d2
+                         WHERE d2.account_id = a.id AND d2.doc_type = 'INVOICE'
+                           AND d2.status <> 'CANCELLED'
+                         ORDER BY d2.doc_date DESC, d2.id DESC LIMIT 1) AS latest_amt,
+                       (SELECT d3.due_date FROM financial_document d3
+                         WHERE d3.account_id = a.id AND d3.doc_type = 'INVOICE'
+                           AND d3.status <> 'CANCELLED'
+                         ORDER BY d3.doc_date DESC, d3.id DESC LIMIT 1) AS due_dt
                 FROM account a
                 JOIN service_provider sp ON sp.sp_code = a.sp_code
                 WHERE a.payer_user_id = :uid AND a.status = 'ACTIVE'
@@ -682,7 +691,9 @@ class AccountController {
         for (Object[] r : rows) {
             out.add(new MyAccountRow(
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    (String) r[3], (String) r[4], (java.math.BigDecimal) r[5]));
+                    (String) r[3], (String) r[4], (java.math.BigDecimal) r[5],
+                    (java.math.BigDecimal) r[6],
+                    (java.time.LocalDate) r[7]));
         }
         return out;
     }

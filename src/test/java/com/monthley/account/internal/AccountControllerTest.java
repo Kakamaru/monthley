@@ -337,6 +337,9 @@ class AccountControllerTest {
             assertThat(mine.get(0).accountNo()).isEqualTo("MINE");
             assertThat(mine.get(0).spName()).isEqualTo("Akaun Test");   // nama SPX dari setup
             assertThat(mine.get(0).balance()).isEqualByComparingTo("0.00");
+            // Akaun tanpa invois: latest + due null.
+            assertThat(mine.get(0).latestInvoiceAmount()).isNull();
+            assertThat(mine.get(0).dueDate()).isNull();
         } finally {
             SecurityContextHolder.clearContext();
         }
