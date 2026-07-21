@@ -89,7 +89,7 @@ class AccountController {
                    COALESCE((
                      SELECT SUM(d.amount + d.tax_amount)
                      FROM financial_document d
-                     WHERE d.account_id = a.id AND d.doc_type = 'INVOICE'
+                     WHERE d.account_id = a.id AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
                        AND d.status <> 'CANCELLED'
                    ), 0)
                    -
@@ -669,7 +669,7 @@ class AccountController {
                                    SELECT SUM(al.amount) FROM fi_allocation al
                                    WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0))
                          FROM financial_document d
-                         WHERE d.account_id = a.id AND d.doc_type = 'INVOICE'
+                         WHERE d.account_id = a.id AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
                            AND d.status <> 'CANCELLED'), 0) AS balance,
                        (SELECT (d2.amount + d2.tax_amount) FROM financial_document d2
                          WHERE d2.account_id = a.id AND d2.doc_type = 'INVOICE'

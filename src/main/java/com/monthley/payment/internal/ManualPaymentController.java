@@ -92,7 +92,7 @@ class ManualPaymentController {
             FROM financial_document d
             JOIN account a ON a.id = d.account_id
             WHERE d.sp_code = :sp
-              AND d.doc_type = 'INVOICE'
+              AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
               AND d.status <> 'CANCELLED'
               AND (:acc IS NULL OR LOWER(a.account_no) LIKE :acc)
               AND (:nm  IS NULL OR LOWER(a.account_name) LIKE :nm)

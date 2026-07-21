@@ -328,6 +328,17 @@ class AccountControllerTest {
                    ('SPX', 'OTHER', 'Akaun Orang', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :uo, NOW(), NOW(), 0)
             """).setParameter("um", uMine).setParameter("uo", uOther).executeUpdate();
 
+        // Invois RM100 + DEBIT_NOTE RM20 pada akaun MINE -> baki patut 120.
+        Long mineAccId = ((Number) em.createNativeQuery(
+                "SELECT id FROM account WHERE sp_code='SPX' AND account_no='MINE'").getSingleResult()).longValue();
+        em.createNativeQuery("""
+            INSERT INTO financial_document (sp_code, doc_no, doc_type, doc_date, account_id,
+                                            currency, amount, tax_amount, status, created_at, updated_at, version)
+            VALUES ('SPX', 'INV-MINE', 'INVOICE', '2026-01-01', :acc, 'MYR', 100.00, 0.00, 'ACTIVE', NOW(), NOW(), 0),
+                   ('SPX', 'DN-MINE', 'DEBIT_NOTE', '2026-01-02', :acc, 'MYR', 20.00, 0.00, 'ACTIVE', NOW(), NOW(), 0)
+            """).setParameter("acc", mineAccId).executeUpdate();
+        em.flush();
+
         // Set auth: principal name = userId (macam JwtAuthFilter set subject).
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(String.valueOf(uMine), "n/a", java.util.List.of()));
@@ -336,10 +347,10 @@ class AccountControllerTest {
             assertThat(mine).hasSize(1);
             assertThat(mine.get(0).accountNo()).isEqualTo("MINE");
             assertThat(mine.get(0).spName()).isEqualTo("Akaun Test");   // nama SPX dari setup
-            assertThat(mine.get(0).balance()).isEqualByComparingTo("0.00");
-            // Akaun tanpa invois: latest + due null.
-            assertThat(mine.get(0).latestInvoiceAmount()).isNull();
-            assertThat(mine.get(0).dueDate()).isNull();
+            // Baki = INVOICE 100 + DEBIT_NOTE 20 = 120 (DEBIT_NOTE naik baki, ADR 0003).
+            assertThat(mine.get(0).balance()).isEqualByComparingTo("120.00");
+            // Ada invois -> latest = 100 (DEBIT_NOTE tak dikira sbg "invois terkini").
+            assertThat(mine.get(0).latestInvoiceAmount()).isEqualByComparingTo("100.00");
         } finally {
             SecurityContextHolder.clearContext();
         }
