@@ -132,4 +132,5 @@ class PaymentFlowTest {
         assertThat(after).hasSize(1);
         assertThat(after.get(0).outstanding()).isEqualByComparingTo("80.00");
     }
+
 }

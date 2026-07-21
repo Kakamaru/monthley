@@ -251,6 +251,69 @@ class ManualPaymentController {
         q.setParameter("product", product);
     }
 
+    // ---------- Invoice Vs Receipt (report payment per akaun, tapis tahun period) ----------
+    // Grain = per invois (doc-level). Tapis ikut TAHUN PERIOD BILLING (bukan doc_date):
+    //   invois period 2025 dijana tahun 2026 -> muncul bila pilih 2025.
+    // Kolum Receipt = senarai resit yang knock invois (fi_allocation ACTIVE),
+    //   'RCP.. : amt / RCP.. : amt' bila >1; kosong bila belum bayar.
+    // Advance (lebihan tanpa invois) SKIP — view ni invois-vs-resit sahaja.
+    // Descending: period_id DESC (period terkini atas), doc_no DESC.
+    record PaymentReportRow(String period, String invoice,
+                            java.math.BigDecimal invAmount, String receipts) {}
+
+    @GetMapping("/payment-report")
+    @SuppressWarnings("unchecked")
+    PageResponse<PaymentReportRow> paymentReport(
+            @RequestParam Long accountId,
+            @RequestParam String year,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+
+        Access.requireRole("CLERK", "melihat laporan bayaran");
+
+        String base = """
+            FROM financial_document d
+            LEFT JOIN fi_period fp ON fp.period_id = d.period_id
+            WHERE d.sp_code = :sp
+              AND d.account_id = :acc
+              AND d.doc_type = 'INVOICE'
+              AND d.status <> 'CANCELLED'
+              AND LEFT(d.period_id, 4) = :yr
+            """;
+
+        var countQ = em.createNativeQuery("SELECT COUNT(*) " + base);
+        countQ.setParameter("sp", sp());
+        countQ.setParameter("acc", accountId);
+        countQ.setParameter("yr", year);
+        long total = ((Number) countQ.getSingleResult()).longValue();
+
+        String sql = "SELECT fp.name_ AS period, d.doc_no AS invoice, "
+                + "(d.amount + d.tax_amount) AS inv_amt, "
+                + "(SELECT GROUP_CONCAT(CONCAT(rc.doc_no, ' : ', FORMAT(a.amount, 2)) "
+                + "          ORDER BY rc.doc_no SEPARATOR ' / ') "
+                + "   FROM fi_allocation a "
+                + "   JOIN financial_document rc ON rc.id = a.credit_document_id "
+                + "  WHERE a.debit_document_id = d.id AND a.status = 'ACTIVE') AS receipts "
+                + base
+                + " ORDER BY d.period_id DESC, d.doc_no DESC LIMIT :lim OFFSET :off";
+
+        var q = em.createNativeQuery(sql);
+        q.setParameter("sp", sp());
+        q.setParameter("acc", accountId);
+        q.setParameter("yr", year);
+        q.setParameter("lim", size);
+        q.setParameter("off", page * size);
+
+        List<Object[]> rows = q.getResultList();
+        List<PaymentReportRow> items = new ArrayList<>();
+        for (Object[] r : rows) {
+            items.add(new PaymentReportRow(
+                    (String) r[0], (String) r[1],
+                    (java.math.BigDecimal) r[2], (String) r[3]));
+        }
+        return new PageResponse<>(items, total, page, size);
+    }
+
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
