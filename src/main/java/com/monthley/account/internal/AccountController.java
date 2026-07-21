@@ -10,6 +10,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -647,4 +648,52 @@ class AccountController {
         }
         return sp;
     }
+
+    // ── Akaun Saya (portal pelanggan) — RENTAS SP ──
+    // Pelanggan boleh ada akaun dalam banyak organisasi. Filter ikut
+    // payer_user_id (dari JWT subject), BUKAN TenantContext — merentas semua SP.
+    // Baki diterbitkan SUM (invois - alokasi ACTIVE), bukan cached_balance (§9).
+    record MyAccountRow(Long id, String spCode, String spName,
+                        String accountNo, String accountName, java.math.BigDecimal balance) {}
+
+    @GetMapping("/my")
+    @SuppressWarnings("unchecked")
+    List<MyAccountRow> myAccounts() {
+        Long uid = currentUserId();
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT a.id, a.sp_code, sp.name, a.account_no, a.account_name,
+                       COALESCE((
+                         SELECT SUM((d.amount + d.tax_amount) - COALESCE((
+                                   SELECT SUM(al.amount) FROM fi_allocation al
+                                   WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0))
+                         FROM financial_document d
+                         WHERE d.account_id = a.id AND d.doc_type = 'INVOICE'
+                           AND d.status <> 'CANCELLED'), 0) AS balance
+                FROM account a
+                JOIN service_provider sp ON sp.sp_code = a.sp_code
+                WHERE a.payer_user_id = :uid AND a.status = 'ACTIVE'
+                ORDER BY sp.name, a.account_no
+                """)
+                .setParameter("uid", uid)
+                .getResultList();
+
+        List<MyAccountRow> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new MyAccountRow(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (String) r[3], (String) r[4], (java.math.BigDecimal) r[5]));
+        }
+        return out;
+    }
+
+    /** User id dari JWT subject (JwtAuthFilter set principal = subject). */
+    private Long currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new IllegalStateException("Tiada pengguna dalam konteks.");
+        }
+        return Long.valueOf(auth.getName());
+    }
+
 }

@@ -1,6 +1,8 @@
 package com.monthley.account.internal;
 
 import com.monthley.shared.TenantContext;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.monthley.shared.GenMode;
 import com.monthley.payment.api.*;
 import com.monthley.billing.internal.InvoiceGenerationService;
@@ -299,5 +301,55 @@ class AccountControllerTest {
 
         long invLines = resp.lines().stream().filter(l -> "Invoice".equals(l.docType())).count();
         assertThat(invLines).isEqualTo(3); // 3 baris invois
+    }
+
+    @Test
+    @DisplayName("myAccounts() — akaun linked ikut payer_user_id, rentas SP, isolation")
+    void myAccountsListsLinkedOnly() {
+        seeder.seedFor("SPX");   // SPX di-seed dalam @BeforeEach setup()
+
+        // Seed dua pengguna (FK payer_user_id -> app_user).
+        em.createNativeQuery("""
+            INSERT INTO app_user (email, full_name, status, created_at, updated_at, version)
+            VALUES ('mine@test.com', 'User Mine', 'ACTIVE', NOW(), NOW(), 0),
+                   ('other@test.com', 'User Other', 'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        Long uMine  = ((Number) em.createNativeQuery(
+                "SELECT id FROM app_user WHERE email='mine@test.com'").getSingleResult()).longValue();
+        Long uOther = ((Number) em.createNativeQuery(
+                "SELECT id FROM app_user WHERE email='other@test.com'").getSingleResult()).longValue();
+
+        // Dua akaun: satu milik uMine, satu milik uOther.
+        em.createNativeQuery("""
+            INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
+                                 start_date, status, cached_balance, payer_user_id,
+                                 created_at, updated_at, version)
+            VALUES ('SPX', 'MINE', 'Akaun Saya', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :um, NOW(), NOW(), 0),
+                   ('SPX', 'OTHER', 'Akaun Orang', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :uo, NOW(), NOW(), 0)
+            """).setParameter("um", uMine).setParameter("uo", uOther).executeUpdate();
+
+        // Set auth: principal name = userId (macam JwtAuthFilter set subject).
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(String.valueOf(uMine), "n/a", java.util.List.of()));
+        try {
+            var mine = controller.myAccounts();
+            assertThat(mine).hasSize(1);
+            assertThat(mine.get(0).accountNo()).isEqualTo("MINE");
+            assertThat(mine.get(0).spName()).isEqualTo("Akaun Test");   // nama SPX dari setup
+            assertThat(mine.get(0).balance()).isEqualByComparingTo("0.00");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        // User 888 nampak akaun dia sahaja (isolation).
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(String.valueOf(uOther), "n/a", java.util.List.of()));
+        try {
+            var other = controller.myAccounts();
+            assertThat(other).hasSize(1);
+            assertThat(other.get(0).accountNo()).isEqualTo("OTHER");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
