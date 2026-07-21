@@ -30,6 +30,10 @@ public class FinancialDocument extends BaseEntity {
     @Column(name = "doc_type", nullable = false, length = 20)
     private DocumentType docType;
 
+    /** Token idempotency dari klien (adjustment) — unik per SP. Null untuk doc lain. */
+    @Column(name = "source_ref", length = 64)
+    private String sourceRef;
+
     @Column(name = "account_id")
     private Long accountId;
 
@@ -111,6 +115,8 @@ public class FinancialDocument extends BaseEntity {
     public Long getId() { return id; }
     public Long getPeriodId() { return periodId; }
     public String getDocNo() { return docNo; }
+    public String getSourceRef() { return sourceRef; }
+    public void setSourceRef(String v) { this.sourceRef = v; }
     public BigDecimal getAmount() { return amount; }
     public BigDecimal getTaxAmount() { return taxAmount; }
     public BigDecimal getTotal() { return amount.add(taxAmount); }
