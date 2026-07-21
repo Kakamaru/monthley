@@ -93,10 +93,10 @@ class AccountController {
                    ), 0)
                    -
                    COALESCE((
-                     SELECT SUM(al.amount)
-                     FROM fi_allocation al
-                     JOIN financial_document d2 ON d2.id = al.debit_document_id
-                     WHERE d2.account_id = a.id AND al.status = 'ACTIVE'
+                     SELECT SUM(d2.amount + d2.tax_amount)
+                     FROM financial_document d2
+                     WHERE d2.account_id = a.id AND d2.doc_type = 'RECEIPT'
+                       AND d2.status <> 'CANCELLED'
                    ), 0) AS balance
             FROM account a
             """ + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
@@ -414,6 +414,110 @@ class AccountController {
     }
 
     // ── Cari pengguna berdaftar (untuk confirmation sebelum link) ──
+    // ── Penyata akaun (ARAS TRANSAKSI / ITEM) ──
+    // Setiap baris invois (financial_document_line) = 1 baris debit.
+    // Setiap knock resit (fi_allocation ACTIVE) = 1 baris kredit, rujuk invois dibayar.
+    // Advance = lebihan resit (resit - SUM alokasi ACTIVE) = baris kredit asing.
+    //   Nota: advance ni matematik = Cr gl 2273 (balanced-entry invariant,
+    //   accounting-invariants.md) — tak perlu join ledger, angka sama.
+    // Baki berjalan on-the-fly (SUM kumulatif) — TIDAK disimpan, elak drift (§9).
+    // Descending untuk paparan; pagination di hujung.
+    record StatementLine(String date, String docNo, String docType, String item,
+                         String period, java.math.BigDecimal debit, java.math.BigDecimal credit,
+                         java.math.BigDecimal balance) {}
+    record StatementResponse(Long accountId, String accountNo, String accountName,
+                             java.math.BigDecimal openingBalance,
+                             java.math.BigDecimal closingBalance,
+                             int total, int page, int size,
+                             List<StatementLine> lines) {}
+
+    @GetMapping("/{id}/statement")
+    @SuppressWarnings("unchecked")
+    StatementResponse statement(@PathVariable Long id,
+                                @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+                                @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") int size) {
+        var acc = accounts.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Akaun tak wujud: " + id));
+
+        // UNION 3 sumber -> tertib menaik (ts, kind, seq):
+        //   kind 0 = baris invois, 1 = knock resit, 2 = advance (selepas knock)
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT ts, kind, seq, doc_no, doc_label, item, period, debit, credit FROM (
+                  SELECT COALESCE(d.created_at, d.doc_date) AS ts, 0 AS kind, l.id AS seq,
+                         d.doc_no AS doc_no, 'Invoice' AS doc_label,
+                         l.description AS item,
+                         COALESCE(fp.name_, DATE_FORMAT(l.period_start, '%b %Y')) AS period,
+                         (l.amount + l.tax_amount) AS debit, 0 AS credit
+                  FROM financial_document_line l
+                  JOIN financial_document d ON d.id = l.document_id
+                  LEFT JOIN fi_period fp ON fp.period_id = l.period_id
+                  WHERE d.account_id = :id AND d.sp_code = :sp
+                    AND d.doc_type = 'INVOICE' AND d.status <> 'CANCELLED' AND l.active = 1
+                  UNION ALL
+                  SELECT COALESCE(rc.created_at, rc.doc_date) AS ts, 1 AS kind, a.id AS seq,
+                         rc.doc_no AS doc_no, 'Receipt' AS doc_label,
+                         CONCAT('Bayaran \u2192 ', inv.doc_no) AS item, NULL AS period,
+                         0 AS debit, a.amount AS credit
+                  FROM fi_allocation a
+                  JOIN financial_document rc ON rc.id = a.credit_document_id
+                  JOIN financial_document inv ON inv.id = a.debit_document_id
+                  WHERE a.account_id = :id AND a.status = 'ACTIVE'
+                    AND rc.sp_code = :sp AND rc.status <> 'CANCELLED'
+                  UNION ALL
+                  SELECT COALESCE(rc.created_at, rc.doc_date) AS ts, 2 AS kind, rc.id AS seq,
+                         rc.doc_no AS doc_no, 'Receipt' AS doc_label,
+                         'Bayaran pendahuluan (advance)' AS item, NULL AS period,
+                         0 AS debit,
+                         (rc.amount - COALESCE(
+                            (SELECT SUM(a2.amount) FROM fi_allocation a2
+                             WHERE a2.credit_document_id = rc.id AND a2.status = 'ACTIVE'), 0)) AS credit
+                  FROM financial_document rc
+                  WHERE rc.account_id = :id AND rc.sp_code = :sp
+                    AND rc.doc_type = 'RECEIPT' AND rc.status <> 'CANCELLED'
+                    AND (rc.amount - COALESCE(
+                            (SELECT SUM(a2.amount) FROM fi_allocation a2
+                             WHERE a2.credit_document_id = rc.id AND a2.status = 'ACTIVE'), 0)) > 0
+                ) u
+                ORDER BY ts, kind, seq
+                """)
+                .setParameter("id", id)
+                .setParameter("sp", acc.getSpCode())
+                .getResultList();
+
+        // Baki berjalan (menaik) -> reverse ke descending -> paginate.
+        List<StatementLine> asc = new ArrayList<>();
+        java.math.BigDecimal balance = java.math.BigDecimal.ZERO;
+        for (Object[] r : rows) {
+            String ts     = r[0] == null ? null : r[0].toString();
+            String docNo  = (String) r[3];
+            String label  = (String) r[4];
+            String item   = (String) r[5];
+            String period = (String) r[6];
+            java.math.BigDecimal debit  = toBig(r[7]);
+            java.math.BigDecimal credit = toBig(r[8]);
+            balance = balance.add(debit).subtract(credit);
+            asc.add(new StatementLine(ts, docNo, label, item, period, debit, credit, balance));
+        }
+        java.math.BigDecimal closing = balance;
+
+        java.util.Collections.reverse(asc);
+        int total = asc.size();
+        int from = Math.max(0, Math.min(page * size, total));
+        int to   = Math.max(from, Math.min(from + size, total));
+        List<StatementLine> pageLines = new ArrayList<>(asc.subList(from, to));
+
+        return new StatementResponse(
+                acc.getId(), acc.getAccountNo(), acc.getAccountName(),
+                java.math.BigDecimal.ZERO, closing, total, page, size, pageLines);
+    }
+
+    /** Native numeric -> BigDecimal selamat (elak float drift). */
+    private static java.math.BigDecimal toBig(Object o) {
+        if (o == null) return java.math.BigDecimal.ZERO;
+        if (o instanceof java.math.BigDecimal b) return b;
+        return new java.math.BigDecimal(o.toString());
+    }
+
     @GetMapping("/search-user")
     @Transactional(readOnly = true)
     ResponseEntity<?> searchUser(@RequestParam String email) {
