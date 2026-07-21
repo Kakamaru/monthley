@@ -92,3 +92,16 @@ skop ADR ini (accounting-invariants: "Data lama = cleanup. Berasingan").
 - `evidence/CASE-001-balance-mismatch-A0124.md` (bukti drift production)
 - `billing-rules.md` §9 (baki diterbitkan)
 - `frontend-contract.md` §Adjustment (soalan terbuka — kini dijawab: doc baru)
+
+---
+
+## Tertunggak (sesi depan)
+
+- **DEBIT_NOTE sebagai target bayaran**: query outstanding (PaymentService
+  `outstandingFor`, ManualPaymentController `/outstanding`) kekal `doc_type =
+  'INVOICE'` — DEBIT_NOTE naik baki tapi BELUM boleh dibayar via FIFO/manual.
+  Untuk benarkan pelanggan bayar debit note, tukar ke IN('INVOICE','DEBIT_NOTE)
+  di dua laluan tersebut. Perhatian: DEBIT_NOTE takde due_date/period — tertib
+  FIFO perlu fallback (guna created_at atau doc_date).
+- Update docs/README.md ke V28 (sekarang sebut V27).
+- Statement UNION advance kekal hadkan RECEIPT (betul — CN takde advance).
