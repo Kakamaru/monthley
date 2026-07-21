@@ -355,4 +355,76 @@ class AccountControllerTest {
             SecurityContextHolder.clearContext();
         }
     }
+
+    @Test
+    @DisplayName("myHistory() — toggle resit/invois + carian, rentas akaun pelanggan")
+    void myHistoryFiltersByType() {
+        seeder.seedFor("SPX");   // SPX di-seed @BeforeEach
+
+        // User + akaun (linked payer_user_id).
+        em.createNativeQuery("""
+            INSERT INTO app_user (email, full_name, status, created_at, updated_at, version)
+            VALUES ('hist@test.com', 'Hist User', 'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        Long uHist = ((Number) em.createNativeQuery(
+                "SELECT id FROM app_user WHERE email='hist@test.com'").getSingleResult()).longValue();
+
+        em.createNativeQuery("""
+            INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
+                                 main_product, mandatory, prorated, late_penalty, status,
+                                 created_at, updated_at, version)
+            VALUES ('SPX', 'MFH', 'Maintenance', 'MONTHLY', 80.00, 0,0,0,0,'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        Long prodId = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPX' AND code='MFH'").getSingleResult()).longValue();
+
+        em.createNativeQuery("""
+            INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
+                                 start_date, status, cached_balance, payer_user_id,
+                                 created_at, updated_at, version)
+            VALUES ('SPX', 'HACC', 'Hist Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :u, NOW(), NOW(), 0)
+            """).setParameter("u", uHist).executeUpdate();
+        Long accId = ((Number) em.createNativeQuery(
+                "SELECT id FROM account WHERE sp_code='SPX' AND account_no='HACC'").getSingleResult()).longValue();
+
+        em.createNativeQuery("""
+            INSERT INTO account_subscription (sp_code, account_id, product_id, quantity,
+                                              start_date, status, created_at, updated_at, version)
+            VALUES ('SPX', :acc, :prod, 1, '2026-01-01', 'ACTIVE', NOW(), NOW(), 0)
+            """).setParameter("acc", accId).setParameter("prod", prodId).executeUpdate();
+
+        // Jana 2 invois (Jan + Feb) + bayar 1 resit.
+        BillingContext ctx = BillingContext.of("SPX", BigDecimal.ZERO,
+                GlAccounts.ACCOUNTS_RECEIVABLE, GlAccounts.TAX_PAYABLE, GlAccounts.SERVICE_INCOME);
+        billing.generateForSp("SPX", YearMonth.of(2026, 1), GenMode.CURRENT, ctx);
+        billing.generateForSp("SPX", YearMonth.of(2026, 2), GenMode.CURRENT, ctx);
+        em.flush();
+        payment.receivePayment(new NewPayment("SPX", accId, new BigDecimal("80.00"),
+                PaymentMethod.FPX, "MP-H", List.of()));
+        em.flush();
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(String.valueOf(uHist), "n/a", java.util.List.of()));
+        try {
+            // INVOICE: 2 baris.
+            var inv = controller.myHistory("INVOICE", null, null, null, 0, 10);
+            assertThat(inv.total()).isEqualTo(2);
+            assertThat(inv.items()).allMatch(h -> "INVOICE".equals(h.docType()));
+
+            // RECEIPT: 1 baris.
+            var rec = controller.myHistory("RECEIPT", null, null, null, 0, 10);
+            assertThat(rec.total()).isEqualTo(1);
+            assertThat(rec.items().get(0).docType()).isEqualTo("RECEIPT");
+            assertThat(rec.items().get(0).amount()).isEqualByComparingTo("80.00");
+            assertThat(rec.items().get(0).spName()).isEqualTo("Akaun Test");
+            assertThat(rec.items().get(0).accountNo()).isEqualTo("HACC");
+
+            // Carian: doc_no resit.
+            String rcpNo = rec.items().get(0).docNo();
+            var found = controller.myHistory("RECEIPT", null, null, rcpNo, 0, 10);
+            assertThat(found.total()).isEqualTo(1);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
 }

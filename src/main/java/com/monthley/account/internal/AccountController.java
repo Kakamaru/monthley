@@ -698,6 +698,69 @@ class AccountController {
         return out;
     }
 
+    // ── Sejarah resit/invois pelanggan (rentas akaun + SP) ──
+    // Toggle type (RECEIPT/INVOICE), filter tarikh (from/to), carian (doc_no / SP).
+    // Descending by doc_date. Pagination.
+    record HistoryRow(java.time.LocalDate date, String docType, String spName,
+                      String accountNo, String docNo, java.math.BigDecimal amount) {}
+
+    @GetMapping("/my/history")
+    @SuppressWarnings("unchecked")
+    PageResponse<HistoryRow> myHistory(
+            @RequestParam(defaultValue = "RECEIPT") String type,
+            @RequestParam(required = false) java.time.LocalDate from,
+            @RequestParam(required = false) java.time.LocalDate to,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Long uid = currentUserId();
+        String docType = "INVOICE".equalsIgnoreCase(type) ? "INVOICE" : "RECEIPT";
+        String qq = (q == null || q.isBlank()) ? null : "%" + q.toLowerCase() + "%";
+
+        String base = """
+            FROM financial_document d
+            JOIN account a ON a.id = d.account_id
+            JOIN service_provider sp ON sp.sp_code = d.sp_code
+            WHERE a.payer_user_id = :uid
+              AND d.doc_type = :dt
+              AND d.status <> 'CANCELLED'
+              AND (:from IS NULL OR d.doc_date >= :from)
+              AND (:to IS NULL OR d.doc_date <= :to)
+              AND (:q IS NULL OR LOWER(d.doc_no) LIKE :q OR LOWER(sp.name) LIKE :q)
+            """;
+
+        var countQ = em.createNativeQuery("SELECT COUNT(*) " + base);
+        countQ.setParameter("uid", uid);
+        countQ.setParameter("dt", docType);
+        countQ.setParameter("from", from);
+        countQ.setParameter("to", to);
+        countQ.setParameter("q", qq);
+        long total = ((Number) countQ.getSingleResult()).longValue();
+
+        String sql = "SELECT d.doc_date, d.doc_type, sp.name, a.account_no, d.doc_no, "
+                + "(d.amount + d.tax_amount) AS amt "
+                + base
+                + " ORDER BY d.doc_date DESC, d.id DESC LIMIT :lim OFFSET :off";
+        var dataQ = em.createNativeQuery(sql);
+        dataQ.setParameter("uid", uid);
+        dataQ.setParameter("dt", docType);
+        dataQ.setParameter("from", from);
+        dataQ.setParameter("to", to);
+        dataQ.setParameter("q", qq);
+        dataQ.setParameter("lim", size);
+        dataQ.setParameter("off", page * size);
+
+        List<Object[]> rows = dataQ.getResultList();
+        List<HistoryRow> items = new ArrayList<>();
+        for (Object[] r : rows) {
+            items.add(new HistoryRow(
+                    (java.time.LocalDate) r[0], (String) r[1], (String) r[2],
+                    (String) r[3], (String) r[4], (java.math.BigDecimal) r[5]));
+        }
+        return new PageResponse<>(items, total, page, size);
+    }
+
     /** User id dari JWT subject (JwtAuthFilter set principal = subject). */
     private Long currentUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
