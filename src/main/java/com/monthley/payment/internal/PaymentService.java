@@ -33,16 +33,18 @@ class PaymentService implements PaymentPort {
     private final AllocationRepository allocations;
     private final DocumentPort documents;
     private final LedgerPort ledger;
+    private final AllocationGuard guard;
 
     @PersistenceContext
     private EntityManager em;
 
     PaymentService(PaymentRepository payments, AllocationRepository allocations,
-                   DocumentPort documents, LedgerPort ledger) {
+                   DocumentPort documents, LedgerPort ledger, AllocationGuard guard) {
         this.payments = payments;
         this.allocations = allocations;
         this.documents = documents;
         this.ledger = ledger;
+        this.guard = guard;
     }
 
     @Override
@@ -134,6 +136,8 @@ class PaymentService implements PaymentPort {
 
         // 4. fi_allocation setiap agihan (debit=invois, credit=resit)
         for (FifoAllocator.Allocation a : alloc.allocations()) {
+            // Invariant + kunci pesimis SATU tempat (elak drift family 1/2).
+            guard.checkAndLock(a.documentId(), a.amount());
             PaymentAllocation pa = new PaymentAllocation(
                     req.spCode(), req.payerAccountId(),
                     a.documentId(), receiptDocId, a.amount());
