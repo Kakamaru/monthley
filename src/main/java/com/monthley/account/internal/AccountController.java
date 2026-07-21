@@ -498,8 +498,10 @@ class AccountController {
         for (AddSubLine line : r.subscriptions()) {
             if (line.productId() == null) continue;
             var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
-            var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
-            var sub = new AccountSubscription(sp, id, line.productId(), qty, start);
+            // start_date NULL = biar engine guna logik default (start_charging NULL
+            // = jana untuk mana-mana period dalam ufuk). JANGAN auto-isi now() —
+            // itu mengehadkan caj kepada tarikh kemasukan data. Rujuk billing-rules §5.
+            var sub = new AccountSubscription(sp, id, line.productId(), qty, line.startDate());
             if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
             if (line.endDate() != null) sub.setEndDate(line.endDate());
             subscriptions.save(sub);

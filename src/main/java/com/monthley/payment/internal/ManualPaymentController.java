@@ -48,7 +48,7 @@ class ManualPaymentController {
             BigDecimal total, BigDecimal paid, BigDecimal outstanding) {}
 
     record ManualPaymentRequest(
-            @NotNull Long documentId,
+            java.util.List<Long> documentIds,  // invois dipilih; kosong = auto FIFO semua
             @NotNull Long accountId,
             @NotBlank String paymentType,      // CASH | CHEQUE | TRANSFER | FPX | ADJUSTMENT
             String paymentRefNo,
@@ -69,6 +69,94 @@ class ManualPaymentController {
                 new PaymentTypeDto("TRANSFER", "Pindahan Bank"),
                 new PaymentTypeDto("FPX",      "FPX / Online"),
                 new PaymentTypeDto("ADJUSTMENT", "Penyelarasan"));
+    }
+
+    // Tab Account: satu baris per akaun, jumlah tertunggak (SUM baki semua invois akaun).
+    record OutstandingAccountRow(Long accountId, String accountNo, String accountName, BigDecimal balance) {}
+
+    @GetMapping("/outstanding-accounts")
+    @SuppressWarnings("unchecked")
+    PageResponse<OutstandingAccountRow> outstandingAccounts(
+            @RequestParam(required = false) String account,
+            @RequestParam(required = false) String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Access.requireRole("CLERK", "melihat akaun untuk bayaran");
+
+        String acc = blankToNull(account);
+        String nm = blankToNull(name);
+
+        // Baki per invois (aktif, belum lunas), kemudian group by akaun.
+        String base = """
+            FROM financial_document d
+            JOIN account a ON a.id = d.account_id
+            WHERE d.sp_code = :sp
+              AND d.doc_type = 'INVOICE'
+              AND d.status <> 'CANCELLED'
+              AND (:acc IS NULL OR LOWER(a.account_no) LIKE :acc)
+              AND (:nm  IS NULL OR LOWER(a.account_name) LIKE :nm)
+              AND (d.amount + d.tax_amount) - COALESCE((
+                    SELECT SUM(al.amount) FROM fi_allocation al
+                    WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) > 0.005
+            """;
+
+        var countQ = em.createNativeQuery(
+                "SELECT COUNT(DISTINCT a.id) " + base);
+        countQ.setParameter("sp", sp());
+        countQ.setParameter("acc", acc == null ? null : "%" + acc.toLowerCase() + "%");
+        countQ.setParameter("nm", nm == null ? null : "%" + nm.toLowerCase() + "%");
+        long total = ((Number) countQ.getSingleResult()).longValue();
+
+        String sql = "SELECT a.id, a.account_no, a.account_name, "
+                + "SUM((d.amount + d.tax_amount) - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al "
+                + "WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0)) AS balance "
+                + base
+                + " GROUP BY a.id, a.account_no, a.account_name "
+                + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
+
+        var dataQ = em.createNativeQuery(sql);
+        dataQ.setParameter("sp", sp());
+        dataQ.setParameter("acc", acc == null ? null : "%" + acc.toLowerCase() + "%");
+        dataQ.setParameter("nm", nm == null ? null : "%" + nm.toLowerCase() + "%");
+        dataQ.setParameter("lim", size);
+        dataQ.setParameter("off", page * size);
+
+        List<Object[]> rows = dataQ.getResultList();
+        List<OutstandingAccountRow> items = new ArrayList<>();
+        for (Object[] r : rows) {
+            items.add(new OutstandingAccountRow(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (BigDecimal) r[3]));
+        }
+        return new PageResponse<>(items, total, page, size);
+    }
+
+    // Baris (txn) satu dokumen — untuk expand di page bayaran.
+    record DocumentLineRow(Long lineId, String description, java.math.BigDecimal amount,
+                           LocalDate periodStart, LocalDate periodEnd) {}
+
+    @GetMapping("/documents/{id}/lines")
+    @SuppressWarnings("unchecked")
+    List<DocumentLineRow> documentLines(@PathVariable Long id) {
+        Access.requireRole("CLERK", "melihat pecahan invois");
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT l.id, l.description, l.amount, l.period_start, l.period_end
+                FROM financial_document_line l
+                JOIN financial_document d ON d.id = l.document_id
+                WHERE l.document_id = :id AND d.sp_code = :sp AND l.active = 1
+                ORDER BY l.period_start, l.id
+                """)
+                .setParameter("id", id)
+                .setParameter("sp", sp())
+                .getResultList();
+        List<DocumentLineRow> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new DocumentLineRow(
+                    ((Number) r[0]).longValue(), (String) r[1], (java.math.BigDecimal) r[2],
+                    toLocalDate(r[3]), toLocalDate(r[4])));
+        }
+        return out;
     }
 
     @GetMapping("/outstanding")
@@ -148,7 +236,7 @@ class ManualPaymentController {
                 sp(), r.accountId(), r.amount(),
                 PaymentMethod.valueOf(r.paymentType()),
                 r.paymentRefNo(),
-                List.of(r.documentId())));   // knock-off invois yang dipilih
+                r.documentIds() == null ? java.util.List.of() : r.documentIds()));   // invois dipilih (multi)
 
         return ResponseEntity.ok(result);
     }
