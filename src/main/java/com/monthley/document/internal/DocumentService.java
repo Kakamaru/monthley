@@ -67,6 +67,26 @@ class DocumentService implements DocumentPort {
 
     @Override
     @Transactional
+    public Long createAdjustment(NewAdjustmentDoc adj) {
+        // Idempotency: kalau sourceRef sudah wujud utk SP ni, pulang id sedia ada.
+        if (adj.sourceRef() != null) {
+            Optional<FinancialDocument> existing =
+                    documents.findBySpCodeAndSourceRef(adj.spCode(), adj.sourceRef());
+            if (existing.isPresent()) return existing.get().getId();
+        }
+
+        String type = adj.docType() == DocumentType.CREDIT_NOTE ? "CREDIT_NOTE" : "DEBIT_NOTE";
+        String docNo = numbers.next(adj.spCode(), type);
+        FinancialDocument doc = new FinancialDocument(
+                adj.spCode(), docNo, adj.docType(), adj.accountId(),
+                adj.docDate(), null, null, adj.title());
+        doc.setReceiptAmount(adj.amount());   // set amount, tax 0
+        doc.setSourceRef(adj.sourceRef());
+        return documents.save(doc).getId();
+    }
+
+    @Override
+    @Transactional
     public void cancelDocument(Long documentId) {
         documents.findById(documentId).ifPresent(FinancialDocument::markCancelled);
     }

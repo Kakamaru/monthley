@@ -17,6 +17,13 @@ public interface DocumentPort {
      */
     Long createReceipt(NewReceipt receipt);
 
+    /**
+     * Cipta dokumen adjustment (CREDIT_NOTE / DEBIT_NOTE).
+     * Idempotent per (sp, sourceRef) — submit kedua ditolak, return id sedia ada.
+     * @return id dokumen adjustment.
+     */
+    Long createAdjustment(NewAdjustmentDoc adj);
+
     /** Tandakan dokumen sebagai dibatalkan. */
     void cancelDocument(Long documentId);
 }

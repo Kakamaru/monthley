@@ -38,7 +38,7 @@ class DocumentNumberService {
                 """)
                 .setParameter("sp", spCode)
                 .setParameter("type", seqType)
-                .setParameter("prefix", switch (seqType) { case "INVOICE" -> "INV"; case "RECEIPT" -> "RCP"; default -> "DOC"; })
+                .setParameter("prefix", switch (seqType) { case "INVOICE" -> "INV"; case "RECEIPT" -> "RCP"; case "CREDIT_NOTE" -> "CN"; case "DEBIT_NOTE" -> "DN"; default -> "DOC"; })
                 .executeUpdate();
             return next(spCode, seqType);
         }
