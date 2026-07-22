@@ -46,6 +46,10 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_ref_no", length = 100)
     private String paymentRefNo;
 
+    /** Token idempotency dari klien — unik per SP. Null utk bayaran lama/tanpa key. */
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private Status status = Status.ACTIVE;
@@ -88,6 +92,8 @@ public class Payment extends BaseEntity {
 
     public Long getId() { return id; }
     public Long getReceiptDocumentId() { return receiptDocumentId; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
     public BigDecimal getAmount() { return amount; }
     public Long getJournalEntryId() { return journalEntryId; }
     public Status getStatus() { return status; }
