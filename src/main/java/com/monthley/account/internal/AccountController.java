@@ -467,8 +467,14 @@ class AccountController {
                          rc.doc_no AS doc_no,
                          CASE WHEN rc.doc_type = 'CREDIT_NOTE' THEN 'Credit Note' ELSE 'Receipt' END AS doc_label,
                          CASE WHEN rc.doc_type = 'CREDIT_NOTE'
-                              THEN CONCAT('Kredit Nota \u2192 ', inv.doc_no)
-                              ELSE CONCAT('Bayaran \u2192 ', inv.doc_no) END AS item, NULL AS period,
+                              THEN CONCAT('Kredit Nota \u2192 ', inv.doc_no,
+                                     CASE WHEN inv.doc_type IN ('DEBIT_NOTE','CREDIT_NOTE')
+                                          THEN CONCAT(' (', TRIM(SUBSTRING_INDEX(inv.title, '\u2014', -1)), ')')
+                                          ELSE '' END)
+                              ELSE CONCAT('Bayaran \u2192 ', inv.doc_no,
+                                     CASE WHEN inv.doc_type IN ('DEBIT_NOTE','CREDIT_NOTE')
+                                          THEN CONCAT(' (', TRIM(SUBSTRING_INDEX(inv.title, '\u2014', -1)), ')')
+                                          ELSE '' END) END AS item, NULL AS period,
                          0 AS debit, a.amount AS credit
                   FROM fi_allocation a
                   JOIN financial_document rc ON rc.id = a.credit_document_id

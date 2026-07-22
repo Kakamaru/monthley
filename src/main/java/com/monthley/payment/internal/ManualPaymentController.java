@@ -176,7 +176,7 @@ class ManualPaymentController {
 
         String where = """
             WHERE d.sp_code = :sp
-              AND d.doc_type = 'INVOICE'
+              AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
               AND d.status <> 'CANCELLED'
               AND (:acc IS NULL OR LOWER(a.account_no) LIKE :acc OR LOWER(a.account_name) LIKE :acc)
               AND (:inv IS NULL OR LOWER(d.doc_no) LIKE :inv)
@@ -200,7 +200,8 @@ class ManualPaymentController {
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         String sql = """
-            SELECT d.id, a.account_no, a.account_name, a.id, d.doc_no, p.name_,
+            SELECT d.id, a.account_no, a.account_name, a.id, d.doc_no,
+                   COALESCE(p.name_, d.title) AS descr,
                    d.doc_date, d.due_date,
                    (d.amount + d.tax_amount) AS total,
                    COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
@@ -208,7 +209,7 @@ class ManualPaymentController {
             FROM financial_document d
             JOIN account a ON a.id = d.account_id
             LEFT JOIN fi_period p ON p.period_id = d.period_id
-            """ + where + " ORDER BY a.account_no, d.due_date, d.doc_no LIMIT :lim OFFSET :off";
+            """ + where + " ORDER BY a.account_no, COALESCE(d.due_date, d.doc_date), d.doc_no LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
         bind(dataQ, acc, inv, category, product);

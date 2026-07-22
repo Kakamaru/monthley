@@ -63,10 +63,10 @@ class PaymentService implements PaymentPort {
                 GROUP BY debit_document_id
             ) a ON a.debit_document_id = d.id
             WHERE d.account_id = :acc
-              AND d.doc_type = 'INVOICE'
+              AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
               AND d.status <> 'CANCELLED'
               AND (d.amount + d.tax_amount) - COALESCE(a.paid,0) > 0.005
-            ORDER BY d.due_date ASC, d.period_id ASC, d.doc_no ASC
+            ORDER BY COALESCE(d.due_date, d.doc_date) ASC, d.period_id ASC, d.doc_no ASC
             """)
             .setParameter("acc", accountId)
             .getResultList();
