@@ -98,6 +98,102 @@ class DashboardController {
         return out;
     }
 
+    // ---------- P2: Produk Utama ----------
+    record MainProduct(String name, BigDecimal rate, String frequency,
+                       long subscribers, long paid, long unpaid, int collectionRate) {}
+
+    @GetMapping("/main-product")
+    MainProduct mainProduct() {
+        String sp = sp();
+        // Produk utama (main_product=1, ambil pertama).
+        List<Object[]> prods = em.createNativeQuery("""
+                SELECT id, name, unit_rate, charge_frequency FROM product
+                WHERE sp_code = :sp AND main_product = 1 AND status = 'ACTIVE'
+                ORDER BY id LIMIT 1
+                """).setParameter("sp", sp).getResultList();
+        if (prods.isEmpty()) {
+            return new MainProduct(null, BigDecimal.ZERO, null, 0, 0, 0, 0);
+        }
+        Object[] pr = prods.get(0);
+        Long prodId = ((Number) pr[0]).longValue();
+        String name = (String) pr[1];
+        BigDecimal rate = num(pr[2]);
+        String freq = (String) pr[3];
+
+        // Berapa akaun langgan produk ni (subscription aktif).
+        long subs = ((Number) em.createNativeQuery("""
+                SELECT COUNT(DISTINCT account_id) FROM account_subscription
+                WHERE sp_code = :sp AND product_id = :pid AND status = 'ACTIVE'
+                """).setParameter("sp", sp).setParameter("pid", prodId).getSingleResult()).longValue();
+
+        // Berapa dah bayar bulan ni — invois produk ni bulan semasa yg dah lunas (baki=0).
+        long paid = ((Number) em.createNativeQuery("""
+                SELECT COUNT(*) FROM financial_document d
+                WHERE d.sp_code = :sp AND d.doc_type = 'INVOICE' AND d.status <> 'CANCELLED'
+                  AND YEAR(d.doc_date) = YEAR(CURDATE()) AND MONTH(d.doc_date) = MONTH(CURDATE())
+                  AND EXISTS (SELECT 1 FROM financial_document_line l
+                              WHERE l.document_id = d.id AND l.product_id = :pid)
+                  AND (d.amount + d.tax_amount) <= COALESCE(
+                      (SELECT SUM(a.amount) FROM fi_allocation a
+                       WHERE a.debit_document_id = d.id AND a.status = 'ACTIVE'), 0)
+                """).setParameter("sp", sp).setParameter("pid", prodId).getSingleResult()).longValue();
+
+        long unpaid = Math.max(0, subs - paid);
+        int cRate = subs > 0 ? (int) Math.round(paid * 100.0 / subs) : 0;
+        return new MainProduct(name, rate, freq, subs, paid, unpaid, cRate);
+    }
+
+    // ---------- P2: Transaksi Terkini ----------
+    record RecentTxn(String name, String accountNo, BigDecimal amount, String date) {}
+
+    @GetMapping("/recent-transactions")
+    @SuppressWarnings("unchecked")
+    List<RecentTxn> recentTransactions() {
+        String sp = sp();
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT a.account_name, a.account_no, p.amount, p.payment_date
+                FROM payment p JOIN account a ON p.payer_account_id = a.id
+                WHERE p.sp_code = :sp AND p.cancelled_at IS NULL
+                ORDER BY p.payment_date DESC, p.id DESC LIMIT 6
+                """).setParameter("sp", sp).getResultList();
+        List<RecentTxn> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new RecentTxn((String) r[0], (String) r[1], num(r[2]), r[3].toString()));
+        }
+        return out;
+    }
+
+    // ---------- P2: Tunggakan Perlu Tindakan ----------
+    record ArrearRow(String name, String accountNo, BigDecimal outstanding) {}
+
+    @GetMapping("/top-arrears")
+    @SuppressWarnings("unchecked")
+    List<ArrearRow> topArrears() {
+        String sp = sp();
+        // Baki per akaun = SUM(INVOICE+DEBIT_NOTE) - SUM(alokasi aktif), > 0, tertinggi.
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT a.account_name, a.account_no,
+                       COALESCE(SUM(d.amount + d.tax_amount), 0)
+                       - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
+                                   WHERE al.debit_document_id IN (
+                                     SELECT d2.id FROM financial_document d2
+                                     WHERE d2.account_id = a.id AND d2.doc_type IN ('INVOICE','DEBIT_NOTE'))
+                                   AND al.status = 'ACTIVE'), 0) AS baki
+                FROM account a
+                JOIN financial_document d ON d.account_id = a.id
+                  AND d.doc_type IN ('INVOICE','DEBIT_NOTE') AND d.status <> 'CANCELLED'
+                WHERE a.sp_code = :sp
+                GROUP BY a.id, a.account_name, a.account_no
+                HAVING baki > 0
+                ORDER BY baki DESC LIMIT 6
+                """).setParameter("sp", sp).getResultList();
+        List<ArrearRow> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new ArrearRow((String) r[0], (String) r[1], num(r[2])));
+        }
+        return out;
+    }
+
     private static BigDecimal num(Object o) {
         return o == null ? BigDecimal.ZERO : new BigDecimal(o.toString());
     }
