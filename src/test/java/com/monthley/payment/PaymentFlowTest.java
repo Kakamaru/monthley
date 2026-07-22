@@ -85,7 +85,7 @@ class PaymentFlowTest {
 
         PaymentResult r = payment.receivePayment(new NewPayment(
                 "SPP", accountId, new BigDecimal("80.00"),
-                PaymentMethod.FPX, "MP-REF-001", List.of()));
+                PaymentMethod.FPX, "MP-REF-001", List.of(), null));
         em.flush();
 
         assertThat(r.allocated()).isEqualByComparingTo("80.00");
@@ -104,7 +104,7 @@ class PaymentFlowTest {
 
         PaymentResult r = payment.receivePayment(new NewPayment(
                 "SPP", accountId, new BigDecimal("100.00"),
-                PaymentMethod.FPX, "MP-REF-002", List.of()));
+                PaymentMethod.FPX, "MP-REF-002", List.of(), null));
         em.flush();
 
         assertThat(r.allocated()).isEqualByComparingTo("80.00");
@@ -120,7 +120,7 @@ class PaymentFlowTest {
 
         PaymentResult r = payment.receivePayment(new NewPayment(
                 "SPP", accountId, new BigDecimal("80.00"),
-                PaymentMethod.FPX, "MP-REF-003", List.of()));
+                PaymentMethod.FPX, "MP-REF-003", List.of(), null));
         em.flush();
         assertThat(payment.outstandingFor(accountId)).isEmpty();
 

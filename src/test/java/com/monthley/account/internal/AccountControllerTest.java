@@ -270,7 +270,7 @@ class AccountControllerTest {
         // Bayar RM300 -> knock 3x80=240, advance 60.
         PaymentResult r = payment.receivePayment(new NewPayment(
                 "SPS", accId, new BigDecimal("300.00"),
-                PaymentMethod.FPX, "MP-STMT-1", List.of()));
+                PaymentMethod.FPX, "MP-STMT-1", List.of(), null));
         em.flush();
         assertThat(r.allocated()).isEqualByComparingTo("240.00");
         assertThat(r.deposit()).isEqualByComparingTo("60.00");   // advance (rename tertunggak)
@@ -411,7 +411,7 @@ class AccountControllerTest {
         billing.generateForSp("SPX", YearMonth.of(2026, 2), GenMode.CURRENT, ctx);
         em.flush();
         payment.receivePayment(new NewPayment("SPX", accId, new BigDecimal("80.00"),
-                PaymentMethod.FPX, "MP-H", List.of()));
+                PaymentMethod.FPX, "MP-H", List.of(), null));
         em.flush();
 
         SecurityContextHolder.getContext().setAuthentication(

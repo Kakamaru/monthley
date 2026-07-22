@@ -54,7 +54,8 @@ class ManualPaymentController {
             String paymentRefNo,
             String paymentDate,                // 'YYYY-MM-DD'
             @NotNull @Positive BigDecimal amount,
-            String remarks) {}
+            String remarks,
+            String idempotencyKey) {}   // token elak double-entry (ADR 0004)
 
     record PaymentTypeDto(String code, String label) {}
     record MessageResponse(String message) {}
@@ -237,7 +238,8 @@ class ManualPaymentController {
                 sp(), r.accountId(), r.amount(),
                 PaymentMethod.valueOf(r.paymentType()),
                 r.paymentRefNo(),
-                r.documentIds() == null ? java.util.List.of() : r.documentIds()));   // invois dipilih (multi)
+                r.documentIds() == null ? java.util.List.of() : r.documentIds(),   // invois dipilih (multi)
+                r.idempotencyKey()));
 
         return ResponseEntity.ok(result);
     }

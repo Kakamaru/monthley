@@ -95,9 +95,9 @@ class PaymentReportTest {
         Long janInvId = out.get(0).documentId();
 
         payment.receivePayment(new NewPayment("SPR", accountId, new BigDecimal("40.00"),
-                PaymentMethod.FPX, "MP-A", List.of(janInvId)));
+                PaymentMethod.FPX, "MP-A", List.of(janInvId), null));
         payment.receivePayment(new NewPayment("SPR", accountId, new BigDecimal("40.00"),
-                PaymentMethod.CASH, "MP-B", List.of(janInvId)));
+                PaymentMethod.CASH, "MP-B", List.of(janInvId), null));
         em.flush();
 
         TenantContext.set("SPR");

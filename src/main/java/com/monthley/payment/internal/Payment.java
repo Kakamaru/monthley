@@ -93,6 +93,8 @@ public class Payment extends BaseEntity {
     public Long getId() { return id; }
     public Long getReceiptDocumentId() { return receiptDocumentId; }
     public String getIdempotencyKey() { return idempotencyKey; }
+    public BigDecimal getAllocatedAmount() { return allocatedAmount; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
     public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
     public BigDecimal getAmount() { return amount; }
     public Long getJournalEntryId() { return journalEntryId; }

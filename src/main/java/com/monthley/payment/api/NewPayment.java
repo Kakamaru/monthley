@@ -13,5 +13,6 @@ public record NewPayment(
         BigDecimal amount,
         PaymentMethod method,
         String paymentRefNo,       // rujukan mpay/FPX
-        List<Long> targetDocumentIds) {
+        List<Long> targetDocumentIds,
+        String idempotencyKey) {   // token elak double-entry (ADR 0004); null = tanpa
 }

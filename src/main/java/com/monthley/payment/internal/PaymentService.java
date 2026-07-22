@@ -94,6 +94,17 @@ class PaymentService implements PaymentPort {
             throw new PaymentBelowMinimumException(req.amount(), min);
         }
 
+        // Idempotency (ADR 0004): kalau key ni sudah diproses, pulang resit sedia
+        // ada — JANGAN proses lagi (elak double-entry).
+        if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
+            var existing = payments.findBySpCodeAndIdempotencyKey(req.spCode(), req.idempotencyKey());
+            if (existing.isPresent()) {
+                Payment pmt = existing.get();
+                return new PaymentResult(pmt.getId(), "RCP-" + pmt.getReceiptDocumentId(),
+                        pmt.getAllocatedAmount(), pmt.getDepositAmount());
+            }
+        }
+
         // Calon invois (hormati selective gate)
         List<OutstandingInvoice> candidates = outstandingFor(req.payerAccountId());
         if (allowSelective(req.spCode())
@@ -132,7 +143,21 @@ class PaymentService implements PaymentPort {
                 req.spCode(), LocalDate.now(), SourceType.PAYMENT, receiptDocId,
                 "Resit doc " + receiptDocId, pl, null));
         payment.setJournalEntryId(journalId);
-        payments.save(payment);
+        payment.setIdempotencyKey(req.idempotencyKey());
+        try {
+            payments.saveAndFlush(payment);
+        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+            // Race: request lain menang dgn key sama. Pulang resit yang berjaya.
+            if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
+                var won = payments.findBySpCodeAndIdempotencyKey(req.spCode(), req.idempotencyKey());
+                if (won.isPresent()) {
+                    Payment w = won.get();
+                    return new PaymentResult(w.getId(), "RCP-" + w.getReceiptDocumentId(),
+                            w.getAllocatedAmount(), w.getDepositAmount());
+                }
+            }
+            throw dup;
+        }
 
         // 4. fi_allocation setiap agihan (debit=invois, credit=resit)
         for (FifoAllocator.Allocation a : alloc.allocations()) {
