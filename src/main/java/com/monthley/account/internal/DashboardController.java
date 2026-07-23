@@ -194,6 +194,53 @@ class DashboardController {
         return out;
     }
 
+    // ---------- Kutipan Ikut Produk (ADR 0006 P7) ----------
+    record ProductSlice(String name, BigDecimal amount, int pct) {}
+
+    /**
+     * Kutipan dipecah ikut produk — bulan semasa.
+     *
+     * Join pada {@code debit_document_line_id} (peringkat line), BUKAN
+     * {@code debit_document_id}. Join lama menggandakan setiap alokasi dengan
+     * setiap line invois: kutipan sebenar RM1,350 dilaporkan RM13,377.
+     *
+     * Alokasi peringkat dokumen (DEBIT_NOTE, tiada line) tidak muncul di sini
+     * kerana ia tiada produk untuk dikaitkan.
+     */
+    @GetMapping("/collection-by-product")
+    @SuppressWarnings("unchecked")
+    List<ProductSlice> collectionByProduct() {
+        String sp = sp();
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT pr.name, COALESCE(SUM(al.amount), 0) amt
+                FROM fi_allocation al
+                JOIN financial_document_line l ON al.debit_document_line_id = l.id
+                JOIN product pr ON l.product_id = pr.id
+                JOIN financial_document rcp ON al.credit_document_id = rcp.id
+                WHERE al.sp_code = :sp AND al.status = 'ACTIVE'
+                  AND rcp.doc_type = 'RECEIPT'
+                  AND YEAR(rcp.doc_date) = YEAR(CURDATE())
+                  AND MONTH(rcp.doc_date) = MONTH(CURDATE())
+                GROUP BY pr.id, pr.name
+                ORDER BY amt DESC LIMIT 6
+                """).setParameter("sp", sp).getResultList();
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (Object[] r : rows) total = total.add(num(r[1]));
+
+        List<ProductSlice> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            BigDecimal amt = num(r[1]);
+            int pct = total.signum() > 0
+                    ? amt.multiply(new BigDecimal(100))
+                         .divide(total, 0, java.math.RoundingMode.HALF_UP).intValue()
+                    : 0;
+            out.add(new ProductSlice((String) r[0], amt, pct));
+        }
+        return out;
+    }
+
     private static BigDecimal num(Object o) {
         return o == null ? BigDecimal.ZERO : new BigDecimal(o.toString());
     }

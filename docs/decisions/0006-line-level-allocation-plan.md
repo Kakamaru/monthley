@@ -91,6 +91,11 @@ Alokasi ke dokumen tanpa line (DEBIT_NOTE) kekal `line_id = NULL`.
 | P5 | Backfill + sahkan jumlah tak berubah | query perbandingan |
 | P6 | Laporan kutipan ikut produk (guna line_id) | sahkan lawan data |
 
+**SEMUA FASA SELESAI** (23 Julai 2026). Backfill dijalankan pada SP0002:
+8 alokasi diproses, 15 baris baharu, jumlah kekal RM1,440.59. Laporan
+kutipan ikut produk berkira dengan ledger (1,180.59 line-level + 170.00
+peringkat dokumen = 1,350.59 alokasi resit bulan semasa).
+
 Setiap fasa: `mvn test` hijau + commit berasingan. Boleh berhenti di
 mana-mana fasa tanpa merosakkan sistem.
 

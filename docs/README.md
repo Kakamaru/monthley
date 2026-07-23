@@ -63,8 +63,9 @@ Terkini:
 - `AllocationGuard` — invariant + kunci pesimis, satu tempat untuk semua laluan
 - Idempotency bayaran manual (ADR 0004) — token klien + UNIQUE constraint
 - Adjustment: kredit nota (kurang baki) + debit nota (tambah baki), boleh dibayar
-- **Alokasi peringkat line (ADR 0006)** — sistem tahu bayaran untuk produk mana.
-  Legacy tidak dapat menjawab soalan ini.
+- **Alokasi peringkat line (ADR 0006, P1-P7 SELESAI)** — sistem tahu bayaran
+  untuk produk mana. Legacy tidak dapat menjawab soalan ini. Backfill
+  dijalankan pada SP0002; laporan kutipan ikut produk berkira dengan ledger.
 
 **Enjin bil**
 - `fi_period` + `PeriodIds` (fungsi tulen, disahkan lawan 228 baris MO prod)
@@ -83,10 +84,10 @@ Ujian: 18 kelas, regresi penuh hijau.
 
 ### Sedang berjalan
 
-- **P7 — laporan line-level.** Query "Kutipan Ikut Produk" perlu ditukar dari
-  `JOIN ON debit_document_id = line.document_id` (berganda) kepada
-  `JOIN ON debit_document_line_id = line.id` (tepat). Endpoint dashboard v2
-  ditangguh sehingga ini siap.
+- **Dashboard v2 (frontend).** Reka bentuk baharu: kad Terkumpul dengan
+  sasaran, donut kadar bayar, Invois vs Kutipan (bar berganda), Kutipan Ikut
+  Produk (donut). Endpoint `collection-by-product` sudah sedia; selebihnya
+  perlu dibina.
 
 ### Belum hidup (mula di sini sesi depan)
 
