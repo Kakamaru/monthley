@@ -54,6 +54,33 @@ public class AllocationGuard {
         }
     }
 
+    /**
+     * Invariant peringkat line (ADR 0006): SUM(alokasi ACTIVE line) + amt
+     * <= (line.amount + line.tax_amount).
+     *
+     * Race sudah tertutup oleh kunci dokumen dalam {@link #checkAndLock} —
+     * semua alokasi ke dokumen yang sama bersiri. Semakan ini menangkap
+     * PEPIJAT LOGIK (resolver tersalah kira), bukan keadaan perlumbaan.
+     *
+     * @throws OverAllocationException jika line akan terlebih alokasi
+     */
+    public void checkLine(Long lineId, BigDecimal amount) {
+        Object[] r = (Object[]) em.createNativeQuery("""
+                SELECT (l.amount + l.tax_amount),
+                       COALESCE((SELECT SUM(a.amount) FROM fi_allocation a
+                                 WHERE a.debit_document_line_id = l.id
+                                   AND a.status = 'ACTIVE'), 0)
+                FROM financial_document_line l WHERE l.id = :line
+                """).setParameter("line", lineId).getSingleResult();
+
+        BigDecimal cap = new BigDecimal(r[0].toString());
+        BigDecimal allocated = new BigDecimal(r[1].toString());
+
+        if (allocated.add(amount).compareTo(cap) > 0) {
+            throw new OverAllocationException(lineId, cap, allocated, amount);
+        }
+    }
+
     /** SUM alokasi ACTIVE menyasar dokumen (sebagai debit_document). */
     public BigDecimal sumActive(Long documentId) {
         Object v = em.createNativeQuery("""

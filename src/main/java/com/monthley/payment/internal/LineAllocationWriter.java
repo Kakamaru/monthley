@@ -23,10 +23,13 @@ class LineAllocationWriter {
 
     private final LineAllocationResolver resolver;
     private final AllocationRepository allocations;
+    private final AllocationGuard guard;
 
-    LineAllocationWriter(LineAllocationResolver resolver, AllocationRepository allocations) {
+    LineAllocationWriter(LineAllocationResolver resolver, AllocationRepository allocations,
+                         AllocationGuard guard) {
         this.resolver = resolver;
         this.allocations = allocations;
+        this.guard = guard;
     }
 
     /**
@@ -48,6 +51,9 @@ class LineAllocationWriter {
         int rows = 0;
 
         for (LineFifoAllocator.LineAllocation la : r.allocations()) {
+            // Invariant line — menangkap pepijat logik resolver (race sudah
+            // tertutup oleh kunci dokumen dalam checkAndLock).
+            guard.checkLine(la.lineId(), la.amount());
             allocations.save(new PaymentAllocation(
                     spCode, accountId, debitDocumentId, creditDocumentId,
                     la.amount(), la.lineId()));
