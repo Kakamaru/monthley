@@ -175,3 +175,21 @@ alokasi menyebabkan hanyutan yang tidak dapat direkonsiliasi.
 susut setiap bulan) tetapi **bukan mekanismenya**. Sistem baharu mesti guna
 alokasi eksplisit yang boleh dijejaki — selaras prinsip "ledger sumber
 kebenaran".
+
+---
+
+## Hutang ditemui semasa P4 (bukan disebabkan kerja ini)
+
+`ModularityTests.verifiesModuleStructure` GAGAL pada kod sedia ada:
+`AllocationGuard` mengunci dokumen menggunakan `em.find(FinancialDocument
+.class, ...)` — kelas DALAMAN modul document, sedangkan Modulith hanya
+membenarkan `document::api`.
+
+Disahkan hutang sedia ada: ujian juga gagal tanpa perubahan P4 (disemak
+dengan git stash), dan AllocationGuard tidak diusik sesi ini.
+
+**Tidak dibetulkan sekarang** kerana ia mengubah AllocationGuard di tengah
+kerja alokasi. Perlu keputusan berasingan: dedahkan operasi kunci melalui
+`document::api` (cth `DocumentPort.lockForUpdate`), atau longgarkan aturan
+Modulith. Cadangan: dedahkan melalui port — sempadan modul ialah disiplin
+yang menghalang gandingan merebak.
