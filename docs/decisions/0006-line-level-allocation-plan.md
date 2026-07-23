@@ -178,7 +178,7 @@ kebenaran".
 
 ---
 
-## Hutang ditemui semasa P4 (bukan disebabkan kerja ini)
+## Hutang ditemui semasa P4 — DIBETULKAN dalam P4.5
 
 `ModularityTests.verifiesModuleStructure` GAGAL pada kod sedia ada:
 `AllocationGuard` mengunci dokumen menggunakan `em.find(FinancialDocument
@@ -188,8 +188,20 @@ membenarkan `document::api`.
 Disahkan hutang sedia ada: ujian juga gagal tanpa perubahan P4 (disemak
 dengan git stash), dan AllocationGuard tidak diusik sesi ini.
 
-**Tidak dibetulkan sekarang** kerana ia mengubah AllocationGuard di tengah
-kerja alokasi. Perlu keputusan berasingan: dedahkan operasi kunci melalui
-`document::api` (cth `DocumentPort.lockForUpdate`), atau longgarkan aturan
-Modulith. Cadangan: dedahkan melalui port — sempadan modul ialah disiplin
-yang menghalang gandingan merebak.
+### Penyelesaian (P4.5, commit 8d66cf2)
+
+Asalnya dicatat sebagai "betulkan berasingan". Diubah kerana dua sebab:
+P5 (wiring laluan duit) memerlukan regresi penuh HIJAU sebagai jaring
+keselamatan — masuk fasa berisiko tanpa jaring tidak berbaloi. Dan
+membiarkan lubang sempadan dalam sistem yang dibina khusus untuk
+menghapuskan lubang legacy adalah bertentangan dengan tujuannya.
+
+`document::api` += `lockAndGetTotal(documentId)` — kunci pesimis dan
+bacaan jumlah dalam SATU operasi (memisahkannya memusnahkan tujuan kunci).
+Dilaksana melalui repository `@Lock(PESSIMISTIC_WRITE)` mengikut gaya modul
+document. Kunci kekal di modul pemilik data.
+
+`AllocationGuard` kekal pemilik invariant (pengajaran CASE-001: satu tempat
+dikongsi, bukan disalin) — hanya cara mendapat kunci yang berubah.
+
+**Status: SELESAI.** ModularityTests hijau, AllocationGuardTest 3/3.
