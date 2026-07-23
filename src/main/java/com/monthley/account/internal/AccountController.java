@@ -255,7 +255,7 @@ class AccountController {
             for (SubLine line : r.subscriptions()) {
                 if (line.productId() == null) continue;
                 var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
-                var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
+                var start = line.startDate();
                 var sub = new AccountSubscription(sp, saved.getId(), line.productId(), qty, start);
                 if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
                 if (line.endDate() != null) sub.setEndDate(line.endDate());
@@ -356,14 +356,14 @@ class AccountController {
                         sub.setStatus(AccountSubscription.Status.ENDED);   // rekod kekal
                     } else {
                         if (line.quantity() != null) sub.setQuantity(line.quantity());
-                        if (line.startDate() != null) sub.setStartDate(line.startDate());
+                        sub.setStartDate(line.startDate());   // null = kosongkan (V27 nullable)
                         sub.setEndDate(line.endDate());
                         sub.setUnitPrice(line.unitPrice());
                     }
                     subscriptions.save(sub);
                 } else if (!line.deleted() && line.productId() != null) {
                     var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
-                    var start = line.startDate() == null ? java.time.LocalDate.now() : line.startDate();
+                    var start = line.startDate();
                     var sub = new AccountSubscription(sp, a.getId(), line.productId(), qty, start);
                     if (line.unitPrice() != null) sub.setUnitPrice(line.unitPrice());
                     if (line.endDate() != null) sub.setEndDate(line.endDate());
