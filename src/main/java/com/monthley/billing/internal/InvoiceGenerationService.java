@@ -14,7 +14,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -64,9 +66,7 @@ public class InvoiceGenerationService {
             List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
             if (lines.isEmpty()) continue;
 
-            if (createAndPost(spCode, account, base, lines, ctx)) {
-                posted++;
-            }
+            posted += createGrouped(spCode, account, base, lines, ctx);
         }
         return posted;
     }
@@ -90,7 +90,40 @@ public class InvoiceGenerationService {
         List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
         if (lines.isEmpty()) return 0;
 
-        return createAndPost(spCode, account, base, lines, ctx) ? 1 : 0;
+        return createGrouped(spCode, account, base, lines, ctx);
+    }
+
+    /**
+     * Cipta satu atau beberapa dokumen mengikut tetapan split (ADR 0008).
+     *
+     * split = 0 -> SATU dokumen mengandungi semua baris
+     * split = 1 -> SATU dokumen per produk
+     *
+     * Baris transaksi sentiasa lengkap dalam kedua-dua kes; hanya bilangan
+     * dokumen berbeza. SUM(baris) kekal sama, jadi ledger seimbang.
+     *
+     * @return bilangan dokumen yang benar-benar dicipta (0 kalau semua diskip)
+     */
+    private int createGrouped(String spCode, AccountView account, Charge base,
+                              List<CalculatedLine> lines, BillingContext ctx) {
+        if (!ctx.splitByProduct()) {
+            return createAndPost(spCode, account, base, lines, ctx) ? 1 : 0;
+        }
+
+        // Kumpul ikut produk, kekalkan susunan asal supaya nombor dokumen
+        // mengikut urutan yang boleh diramal.
+        Map<Long, List<CalculatedLine>> byProduct = new LinkedHashMap<>();
+        for (CalculatedLine l : lines) {
+            byProduct.computeIfAbsent(l.productId(), k -> new ArrayList<>()).add(l);
+        }
+
+        int created = 0;
+        for (List<CalculatedLine> group : byProduct.values()) {
+            if (createAndPost(spCode, account, base, group, ctx)) {
+                created++;
+            }
+        }
+        return created;
     }
 
     /** @return true kalau invois dicipta & di-post; false kalau diskip (idempotent). */

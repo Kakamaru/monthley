@@ -78,7 +78,8 @@ class InvoicingController {
                 excludedPeriodIds(sp),
                 arGl,
                 GlAccounts.TAX_PAYABLE,
-                incomeGl);
+                incomeGl,
+                cfg.splitInvoiceByProduct());
 
         int posted = billing.generateForSp(sp, runMonth, mode, ctx);
         return new GenerateResult(sp, runMonth.toString(), mode.name(), posted);
@@ -119,7 +120,8 @@ class InvoicingController {
                 excludedPeriodIds(sp),
                 arGl,
                 GlAccounts.TAX_PAYABLE,
-                incomeGl);
+                incomeGl,
+                cfg.splitInvoiceByProduct());
 
         int posted = billing.generateForAccount(sp, req.accountId(), runMonth, mode, ctx);
         return new GenerateSingleResult(req.accountId(), runMonth.toString(), mode.name(), posted);

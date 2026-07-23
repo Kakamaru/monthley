@@ -23,7 +23,8 @@ class BillingSettingsService implements BillingSettingsPort {
                        b.ar_gl_account_id,
                        b.income_gl_account_id,
                        b.smallest_denomination,
-                       d.allow_price_override
+                       d.allow_price_override,
+                       d.split_invoice_by_product
                 FROM sp_document_setting d
                 JOIN sp_billing_setting b ON b.sp_code = d.sp_code
                 WHERE d.sp_code = :sp
@@ -36,7 +37,8 @@ class BillingSettingsService implements BillingSettingsPort {
                 r[3] == null ? null : ((Number) r[3]).longValue(),
                 r[4] == null ? null : ((Number) r[4]).longValue(),
                 r[5] == null ? BigDecimal.ZERO : (BigDecimal) r[5],
-                toBool(r[6]));
+                toBool(r[6]),
+                toBool(r[7]));
     }
 
     /** TINYINT(1) datang sebagai Boolean atau Number bergantung pemandu/nilai. */

@@ -25,7 +25,8 @@ public record BillingContext(
         Set<Long> excludedPeriodIds,
         String arGlCode,
         String taxGlCode,
-        String defaultIncomeGlCode
+        String defaultIncomeGlCode,
+        boolean splitByProduct          // ADR 0008: satu dokumen per produk
 ) {
 
     public BillingContext {
@@ -35,6 +36,6 @@ public record BillingContext(
     /** Kilang ringkas untuk ujian: tiada pembundaran, tiada exclude, override dibenarkan. */
     public static BillingContext of(String spCode, BigDecimal taxRate,
                                     String ar, String tax, String income) {
-        return new BillingContext(spCode, taxRate, null, true, 14, Set.of(), ar, tax, income);
+        return new BillingContext(spCode, taxRate, null, true, 14, Set.of(), ar, tax, income, false);
     }
 }

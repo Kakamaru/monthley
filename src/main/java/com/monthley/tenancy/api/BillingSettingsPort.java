@@ -21,6 +21,7 @@ public interface BillingSettingsPort {
             Long arGlAccountId,          // nullable
             Long incomeGlAccountId,      // nullable
             BigDecimal smallestDenomination,  // 0 -> tiada pembundaran
-            boolean allowPriceOverride
+            boolean allowPriceOverride,
+            boolean splitInvoiceByProduct   // ADR 0008: satu dokumen per produk
     ) {}
 }
