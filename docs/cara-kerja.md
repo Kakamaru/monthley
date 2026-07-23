@@ -251,6 +251,43 @@ dan tiada ujian yang akan menangkapnya. Kama yang segar menemuinya.
 
 Penjaga 1-3 struktur; penjaga 4 kejujuran. Keduanya perlu.
 
+### 5. Dokumen status dikemas kini dalam commit yang SAMA
+
+Ditambah 23 Julai 2026 selepas tiga kes dokumen lapuk dalam satu sesi.
+
+| Apa | Betul masa ditulis | Jadi salah bila |
+|---|---|---|
+| README "V1-V20 dipakai" | Ya | 10 migration kemudian |
+| README "BillingContext MENYEKAT tab exclude" | Ya | V22 menyelesaikannya |
+| ADR 0006 "tidak dibetulkan sekarang" | Ya | **satu commit** kemudian (P4.5) |
+
+Kes ketiga paling merbahaya: jaraknya sejam. Kalau nota boleh jadi lapuk
+dalam masa sejam, apa lagi yang ditulis berminggu lepas.
+
+**Bahayanya bukan sekadar mengelirukan.** Dokumen lapuk menjemput kau
+"betulkan" benda yang sudah betul — iaitu menyentuh kod yang stabil dan
+teruji. Setiap sentuhan itu peluang memecahkan sesuatu yang berfungsi.
+Kerja jadi dua tiga kali, dan risiko naik setiap kali.
+
+Puncanya: kita catat keputusan, tapi tidak catat bila keputusan itu
+BERUBAH. Menulis mudah; mengemas kini terlupa.
+
+Peraturan: bila commit menukar status sesuatu yang bertulis — ADR
+(ditangguh -> selesai, dicadang -> diterima), item README (belum hidup ->
+siap), atau mana-mana ayat yang jadi tidak benar — kemas kini dalam
+**commit yang sama**. Bukan commit berasingan. Bukan nanti.
+
+Pemicu yang boleh diperiksa, sebelum setiap commit:
+
+> "Adakah commit ini menjadikan mana-mana ayat bertulis tidak benar?"
+
+Soalan itu boleh dijawab. "Ingat kemas kini dokumen" tidak — semua orang
+setuju dengannya dan semua orang lupa.
+
+Nota: mesej commit LAMA tidak diusik walaupun jadi lapuk — ia rekod sejarah
+yang tepat pada masanya. Yang dikemas kini ialah dokumen yang dibaca sebagai
+**keadaan semasa**: README dan ADR.
+
 ## 5. Persekitaran
 
 ### Backend
