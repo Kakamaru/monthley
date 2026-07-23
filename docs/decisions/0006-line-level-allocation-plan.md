@@ -121,3 +121,57 @@ mana-mana fasa tanpa merosakkan sistem.
 - `0004-manual-payment-idempotency.md`
 - `evidence/CASE-001-balance-mismatch-A0124.md`
 - `domain/accounting-invariants.md`
+
+---
+
+## Nota susulan: guna-advance (skop ADR 0007)
+
+Disahkan 23 Julai 2026 — laluan "guna advance" **belum wujud** dalam sistem
+baharu (grep applyAdvance/useDeposit/consumeAdvance = kosong), walaupun
+advance memang tercipta (payment id 74: bayar 500, alokasi 300, advance 200).
+
+### Tingkah laku legacy (bukti: penyata akaun M0318, 2025)
+
+- Resit "Advanced Payment" RM880 -> baki terus jadi **(880.00)** iaitu kredit.
+- Setiap bulan invois RM80 dijana -> advance di-knock automatik masa jana bil.
+- Baki susut: (800) -> (720) -> ... -> 0.00 pada Disember. Setiap invois
+  bertanda lunas.
+
+Rumusan: **advance di-knock pada masa penjanaan bil**, dan **baki akaun boleh
+negatif** apabila advance melebihi invois.
+
+### Implikasi untuk ADR 0007
+
+1. Baki mesti boleh negatif. Query semasa (`SUM(invois) - SUM(alokasi)`)
+   tidak tolak advance yang belum dipakai — perlu diputuskan.
+2. **Lubang invariant sisi kredit**: `AllocationGuard` hanya semak sisi debit
+   (invois tidak boleh over-allocate). Tiada semakan bahawa jumlah alokasi
+   dari satu resit <= nilai resit. Bila advance di-knock guna resit asal
+   sebagai `credit_document_id`, lubang ini jadi berisiko. Perlu invariant
+   sisi kredit.
+3. Alokasi yang dicipta oleh laluan guna-advance mesti **peringkat line**
+   juga — sebab itu line-level (ADR 0006) didahulukan.
+
+### Semakan kod legacy (InvoiceGenerator.java, 1958 baris)
+
+Soalan: adakah legacy menyemak baki/advance semasa menjana bil?
+**Jawapan: TIDAK.**
+
+- `TXN_CODE_ADVANCED_PYMT = "M2000"` diisytihar (baris 146) tetapi **tidak
+  pernah digunakan** dalam generator.
+- Tiada kod alokasi langsung (grep allocat/knockoff/settle/paid_amt = kosong).
+- Mekanisme sebenar: **baki berjalan** — `accBal.add(totalAmt)` menokok
+  `balance_amount` yang di-cache.
+
+Kerana baki sudah negatif (advance -880), setiap invois +80 menolaknya ke
+arah sifar. Kesan pada penyata kelihatan seperti knock-off, tetapi **tiada
+rekod alokasi** — legacy tidak dapat menjawab "invois ini dibayar oleh resit
+yang mana".
+
+Ini punca yang sama dengan CASE-001: bergantung pada baki cache tanpa rekod
+alokasi menyebabkan hanyutan yang tidak dapat direkonsiliasi.
+
+**Kesimpulan:** ambil **tingkah laku** legacy (baki boleh negatif, advance
+susut setiap bulan) tetapi **bukan mekanismenya**. Sistem baharu mesti guna
+alokasi eksplisit yang boleh dijejaki — selaras prinsip "ledger sumber
+kebenaran".
