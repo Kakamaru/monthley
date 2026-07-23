@@ -34,17 +34,20 @@ class PaymentService implements PaymentPort {
     private final DocumentPort documents;
     private final LedgerPort ledger;
     private final AllocationGuard guard;
+    private final LineAllocationWriter lineWriter;
 
     @PersistenceContext
     private EntityManager em;
 
     PaymentService(PaymentRepository payments, AllocationRepository allocations,
-                   DocumentPort documents, LedgerPort ledger, AllocationGuard guard) {
+                   DocumentPort documents, LedgerPort ledger, AllocationGuard guard,
+                   LineAllocationWriter lineWriter) {
         this.payments = payments;
         this.allocations = allocations;
         this.documents = documents;
         this.ledger = ledger;
         this.guard = guard;
+        this.lineWriter = lineWriter;
     }
 
     @Override
@@ -163,10 +166,9 @@ class PaymentService implements PaymentPort {
         for (FifoAllocator.Allocation a : alloc.allocations()) {
             // Invariant + kunci pesimis SATU tempat (elak drift family 1/2).
             guard.checkAndLock(a.documentId(), a.amount());
-            PaymentAllocation pa = new PaymentAllocation(
-                    req.spCode(), req.payerAccountId(),
+            // Pecah mengikut line (ADR 0006) — jumlah per dokumen kekal sama.
+            lineWriter.write(req.spCode(), req.payerAccountId(),
                     a.documentId(), receiptDocId, a.amount());
-            allocations.save(pa);
         }
 
         return new PaymentResult(payment.getId(), "RCP-" + receiptDocId, allocated, alloc.deposit());

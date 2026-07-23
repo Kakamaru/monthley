@@ -32,13 +32,16 @@ public class AdjustmentService {
     private final LedgerPort ledger;
     private final AllocationGuard guard;
     private final AllocationRepository allocations;
+    private final LineAllocationWriter lineWriter;
 
     AdjustmentService(DocumentPort documents, LedgerPort ledger,
-                      AllocationGuard guard, AllocationRepository allocations) {
+                      AllocationGuard guard, AllocationRepository allocations,
+                      LineAllocationWriter lineWriter) {
         this.documents = documents;
         this.ledger = ledger;
         this.guard = guard;
         this.allocations = allocations;
+        this.lineWriter = lineWriter;
     }
 
     public record NewAdjustment(
@@ -70,9 +73,9 @@ public class AdjustmentService {
                 req.amount(), req.sourceRef()));
 
         // Alokasi: debit=invois sasaran, credit=kredit nota (kurang baki invois).
-        allocations.save(new PaymentAllocation(
-                req.spCode(), req.accountId(),
-                req.targetInvoiceId(), cnId, req.amount()));
+        // Pecah mengikut line (ADR 0006) — kredit nota knock line invois sasaran.
+        lineWriter.write(req.spCode(), req.accountId(),
+                req.targetInvoiceId(), cnId, req.amount());
 
         // Ledger: Dr Hasil / Cr AR (subledger = akaun).
         ledger.post(new PostingRequest(
