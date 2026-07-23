@@ -87,6 +87,15 @@ class DocumentService implements DocumentPort {
 
     @Override
     @Transactional
+    public java.math.BigDecimal lockAndGetTotal(Long documentId) {
+        return documents.findByIdForUpdate(documentId)
+                .map(FinancialDocument::getTotal)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Dokumen tak wujud: " + documentId));
+    }
+
+    @Override
+    @Transactional
     public void cancelDocument(Long documentId) {
         documents.findById(documentId).ifPresent(FinancialDocument::markCancelled);
     }

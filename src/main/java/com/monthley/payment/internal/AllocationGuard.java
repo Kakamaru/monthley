@@ -1,8 +1,7 @@
 package com.monthley.payment.internal;
 
-import com.monthley.document.internal.FinancialDocument;
+import com.monthley.document.api.DocumentPort;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +27,12 @@ public class AllocationGuard {
     @PersistenceContext
     private EntityManager em;
 
+    private final DocumentPort documents;
+
+    AllocationGuard(DocumentPort documents) {
+        this.documents = documents;
+    }
+
     /**
      * Kunci dokumen sasaran (PESSIMISTIC_WRITE), semak invariant, lempar jika
      * over-allocate. Panggil SEBELUM cipta PaymentAllocation.
@@ -36,18 +41,14 @@ public class AllocationGuard {
      * @param amount     amaun alokasi baharu yang hendak ditambah
      */
     public void checkAndLock(Long documentId, BigDecimal amount) {
-        // 1. Kunci pesimis — dokumen jadi sempadan agregat; alokasi bersiri.
-        FinancialDocument doc = em.find(
-                FinancialDocument.class, documentId, LockModeType.PESSIMISTIC_WRITE);
-        if (doc == null) {
-            throw new IllegalArgumentException("Dokumen tak wujud: " + documentId);
-        }
+        // 1. Kunci pesimis melalui document::api — dokumen jadi sempadan
+        //    agregat; alokasi bersiri. Kunci kekal di modul pemilik data.
+        BigDecimal cap = documents.lockAndGetTotal(documentId);   // amount + tax
 
         // 2. Jumlah alokasi aktif sedia ada (native — elak isu enum status).
         BigDecimal allocated = sumActive(documentId);
 
-        // 3. Invariant: allocated + amount <= doc.amount (guna total amount+tax).
-        BigDecimal cap = doc.getTotal();   // amount + tax_amount
+        // 3. Invariant: allocated + amount <= cap.
         if (allocated.add(amount).compareTo(cap) > 0) {
             throw new OverAllocationException(documentId, cap, allocated, amount);
         }

@@ -24,6 +24,18 @@ public interface DocumentPort {
      */
     Long createAdjustment(NewAdjustmentDoc adj);
 
+    /**
+     * Kunci dokumen (PESSIMISTIC_WRITE) dan pulangkan jumlahnya (amount + tax).
+     *
+     * Kunci dan bacaan digabung dalam satu operasi kerana memisahkannya
+     * memusnahkan tujuan kunci. Dokumen ialah sempadan agregat bagi alokasi —
+     * modul payment mengunci melalui port ini, bukan menyentuh entiti dalaman.
+     *
+     * @return jumlah dokumen
+     * @throws IllegalArgumentException jika dokumen tak wujud
+     */
+    java.math.BigDecimal lockAndGetTotal(Long documentId);
+
     /** Tandakan dokumen sebagai dibatalkan. */
     void cancelDocument(Long documentId);
 }
