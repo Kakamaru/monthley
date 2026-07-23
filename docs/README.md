@@ -86,8 +86,9 @@ Ujian: 18 kelas, regresi penuh hijau.
 
 - **Dashboard v2 (frontend).** Reka bentuk baharu: kad Terkumpul dengan
   sasaran, donut kadar bayar, Invois vs Kutipan (bar berganda), Kutipan Ikut
-  Produk (donut). Endpoint `collection-by-product` sudah sedia; selebihnya
-  perlu dibina.
+  Produk (donut). **Semua endpoint sudah sedia** — `summary` (dengan sasaran,
+  kadar bayar, MoM), `invoice-vs-collection` (3 siri), `collection-by-product`.
+  Tinggal frontend.
 
 ### Belum hidup (mula di sini sesi depan)
 
