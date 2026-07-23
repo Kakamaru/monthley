@@ -32,6 +32,13 @@ public class PaymentAllocation extends BaseEntity {
     @Column(name = "credit_document_id", nullable = false)
     private Long creditDocumentId;   // resit
 
+    /**
+     * Line invois yang dibayar (ADR 0006). NULL bagi dokumen tanpa line
+     * (DEBIT_NOTE/CREDIT_NOTE) — alokasi tersebut kekal peringkat dokumen.
+     */
+    @Column(name = "debit_document_line_id")
+    private Long debitDocumentLineId;
+
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount = BigDecimal.ZERO;
 
@@ -58,8 +65,17 @@ public class PaymentAllocation extends BaseEntity {
         this.amount = amount;
     }
 
+    /** Constructor peringkat line (ADR 0006). lineId boleh null. */
+    public PaymentAllocation(String spCode, Long accountId, Long debitDocumentId,
+                             Long creditDocumentId, BigDecimal amount, Long debitDocumentLineId) {
+        this(spCode, accountId, debitDocumentId, creditDocumentId, amount);
+        this.debitDocumentLineId = debitDocumentLineId;
+    }
+
     public Long getId() { return id; }
     public Long getDebitDocumentId() { return debitDocumentId; }
+    public Long getCreditDocumentId() { return creditDocumentId; }
+    public Long getDebitDocumentLineId() { return debitDocumentLineId; }
     public BigDecimal getAmount() { return amount; }
     public Status getStatus() { return status; }
     public void markReversed() { this.status = Status.REVERSED; }
