@@ -345,7 +345,7 @@ class DashboardController {
                   AND YEAR(rcp.doc_date) = YEAR(CURDATE())
                   AND MONTH(rcp.doc_date) = MONTH(CURDATE())
                 GROUP BY pr.id, pr.name
-                ORDER BY amt DESC LIMIT 6
+                ORDER BY amt DESC LIMIT 4
                 """).setParameter("sp", sp).getResultList();
 
         BigDecimal total = BigDecimal.ZERO;
