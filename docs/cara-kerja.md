@@ -288,6 +288,50 @@ Nota: mesej commit LAMA tidak diusik walaupun jadi lapuk — ia rekod sejarah
 yang tepat pada masanya. Yang dikemas kini ialah dokumen yang dibaca sebagai
 **keadaan semasa**: README dan ADR.
 
+### 6. Satu keputusan, satu tempat
+
+Ditambah 24 Julai 2026 selepas ENAM kejadian dalam dua hari.
+
+Corak: satu keputusan wujud di beberapa tempat, dan tempat-tempat itu
+tidak bersetuju. Satu ingat, satu lupa.
+
+| Keputusan | Tempat yang bersetuju | Tempat yang menyimpang |
+|---|---|---|
+| Pembundaran jumlah bayaran | `recalcAmount` | `toggleSelectAll` -> 561.5899999999999 dihantar ke backend |
+| Mod penjanaan | Laluan tunggal baca tetapan | Laluan pukal hardcode CURRENT -> pukal jana Julai, tunggal jana Ogos |
+| `startDate` null bermakna tiada gate | 1 daripada 3 laluan | 2 laluan auto-isi hari ini |
+| Reset muka surat selepas simpan | Laluan edit kekal | Laluan cipta reset ke muka surat 1 |
+| Grouping invois | — | DUA lajur DB bercanggah (`invoice_grouping` vs `split_invoice_by_product`) |
+| Tetapan penjanaan | DB | Kad UI hardcode 4 nilai literal |
+
+Ini corak yang SAMA dengan tiga kes production legacy:
+- CASE-001: kunci per-laluan — "satu laluan ingat, satu lupa"
+- CASE-002: baki disimpan empat tempat, menyimpang antara satu sama lain
+- CASE-003: state dikongsi antara handler serentak
+
+`AllocationGuard` dan `LineAllocationWriter` wujud khusus untuk corak ini —
+invariant dan pemecahan line duduk di SATU tempat, dikongsi semua laluan.
+
+**Kenapa ia berulang:** menulis laluan kedua terasa seperti kerja baharu,
+bukan pertindihan. Pengarang laluan kedua selalunya tidak tahu laluan
+pertama wujud.
+
+Peringatan tambahan: nilai yang SAMA dengan lalai bukan bermakna selamat.
+`mode: 'CURRENT'` betul selagi tetapan SP juga CURRENT — ia senyap sehingga
+seseorang menukar tetapan, kemudian gagal tanpa ralat.
+
+Soalan yang boleh diperiksa, sebelum menulis mana-mana lalai, peraturan,
+atau nilai terkira:
+
+> "Keputusan ini wujud di mana lagi?"
+
+Kalau lebih daripada satu tempat: satukan, atau jangka ia akan menyimpang.
+Kalau tidak boleh disatukan sekarang, catat pertindihan itu dalam komen di
+KEDUA-DUA tempat.
+
+Nota: nilai literal dalam UI ialah kes khas corak ini — DB dan HTML kedua-
+duanya "tahu" tetapan, dan HTML tidak pernah dimaklumkan bila DB berubah.
+
 ## 5. Persekitaran
 
 ### Backend
