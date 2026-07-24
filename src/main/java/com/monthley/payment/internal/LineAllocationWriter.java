@@ -39,13 +39,23 @@ class LineAllocationWriter {
      * Dokumen tanpa line (DEBIT_NOTE/CREDIT_NOTE) menghasilkan satu baris
      * peringkat dokumen — tingkah laku sama seperti sebelum ini.
      *
-     * PENTING: pemanggil mesti panggil {@code guard.checkAndLock} DAHULU.
-     * Kaedah ini tidak menyemak invariant — pemisahan tanggungjawab.
+     * Pembahagian tanggungjawab semakan:
+     *   pemanggil  — invariant sisi DEBIT ({@code guard.checkAndLock}),
+     *                kerana pemanggil memegang konteks urutan kunci
+     *   writer     — invariant sisi KREDIT dan peringkat LINE
+     *
+     * Semakan kredit dan line duduk di sini supaya SEMUA laluan mendapatnya
+     * tanpa perlu mengingatinya (cara-kerja.md guard 6).
      *
      * @return bilangan baris alokasi yang dicipta
      */
     int write(String spCode, Long accountId, Long debitDocumentId,
               Long creditDocumentId, BigDecimal amount) {
+
+        // Invariant sisi KREDIT (ADR 0009 P2): jumlah alokasi dari dokumen
+        // kredit ini naik sebanyak `amount`, tidak kira bagaimana ia pecah
+        // merentas line. Disemak SEKALI di sini, bukan per-line.
+        guard.checkAndLockCredit(creditDocumentId, amount);
 
         LineFifoAllocator.Result r = resolver.resolve(debitDocumentId, amount);
         int rows = 0;
