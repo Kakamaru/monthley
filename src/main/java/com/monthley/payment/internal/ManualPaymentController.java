@@ -89,32 +89,36 @@ class ManualPaymentController {
         String acc = blankToNull(account);
         String nm = blankToNull(name);
 
-        // Baki per invois (aktif, belum lunas), kemudian group by akaun.
+        // SEMUA akaun aktif — bukan hanya yang bertunggak.
+        //
+        // Sebelum ini ditapis kepada akaun yang ada invois terbuka. Kesannya:
+        // pelanggan yang bayar lebih terus HILANG dari senarai, dan SP tidak
+        // boleh merekod bayaran seterusnya sehingga invois baharu dijana.
+        // Menyekat untuk operasi sebenar.
+        //
+        // Carian dan pagination sudah menangani senarai panjang.
         String base = """
-            FROM financial_document d
-            JOIN account a ON a.id = d.account_id
-            WHERE d.sp_code = :sp
-              AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
-              AND d.status <> 'CANCELLED'
+            FROM account a
+            LEFT JOIN account_balance ab ON ab.account_id = a.id
+            WHERE a.sp_code = :sp
+              AND a.status = 'ACTIVE'
               AND (:acc IS NULL OR LOWER(a.account_no) LIKE :acc)
               AND (:nm  IS NULL OR LOWER(a.account_name) LIKE :nm)
-              AND (d.amount + d.tax_amount) - COALESCE((
-                    SELECT SUM(al.amount) FROM fi_allocation al
-                    WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) > 0.005
             """;
 
         var countQ = em.createNativeQuery(
-                "SELECT COUNT(DISTINCT a.id) " + base);
+                "SELECT COUNT(*) " + base);
         countQ.setParameter("sp", sp());
         countQ.setParameter("acc", acc == null ? null : "%" + acc.toLowerCase() + "%");
         countQ.setParameter("nm", nm == null ? null : "%" + nm.toLowerCase() + "%");
         long total = ((Number) countQ.getSingleResult()).longValue();
 
+        // Baki dari view account_balance (ADR 0009) — satu takrifan dikongsi.
+        // Sebelum ini query ini mengira sendiri: jumlah invois TERBUKA, yang
+        // bukan sama dengan baki akaun (abaikan advance belum dialokasi).
         String sql = "SELECT a.id, a.account_no, a.account_name, "
-                + "SUM((d.amount + d.tax_amount) - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al "
-                + "WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0)) AS balance "
+                + "COALESCE(ab.balance, 0) AS balance "
                 + base
-                + " GROUP BY a.id, a.account_no, a.account_name "
                 + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
