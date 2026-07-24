@@ -47,14 +47,13 @@ class DashboardController {
                 """).setParameter("sp", sp).getSingleResult());
 
         // 2. Tunggakan — SUM(INVOICE + DEBIT_NOTE) - SUM(alokasi aktif) merentas SP.
+        // Tunggakan SP = jumlah baki POSITIF sahaja (ADR 0009). Kredit seorang
+        // pelanggan tidak boleh menyembunyikan hutang pelanggan lain.
         BigDecimal outstanding = num(em.createNativeQuery("""
-                SELECT COALESCE(SUM(d.amount + d.tax_amount), 0)
-                       - COALESCE((
-                         SELECT SUM(a.amount) FROM fi_allocation a
-                         WHERE a.sp_code = :sp AND a.status = 'ACTIVE'), 0)
-                FROM financial_document d
-                WHERE d.sp_code = :sp AND d.status <> 'CANCELLED'
-                  AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
+                SELECT COALESCE(SUM(GREATEST(ab.balance, 0)), 0)
+                FROM account a
+                JOIN account_balance ab ON ab.account_id = a.id
+                WHERE a.sp_code = :sp
                 """).setParameter("sp", sp).getSingleResult());
 
         // 3. Akaun aktif + tak aktif.
@@ -114,16 +113,11 @@ class DashboardController {
               + "AND p.payer_account_id IN (" + invoicedThisMonth + ")")
                 .setParameter("sp", sp).getSingleResult()).longValue();
 
-        long arrearsAcc = ((Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM (SELECT a.id, "
-              + "COALESCE(SUM(d.amount + d.tax_amount), 0) - COALESCE((SELECT SUM(al.amount) "
-              + "FROM fi_allocation al WHERE al.debit_document_id IN (SELECT d2.id "
-              + "FROM financial_document d2 WHERE d2.account_id = a.id "
-              + "AND d2.doc_type IN ('INVOICE','DEBIT_NOTE')) AND al.status = 'ACTIVE'), 0) AS baki "
-              + "FROM account a JOIN financial_document d ON d.account_id = a.id "
-              + "AND d.doc_type IN ('INVOICE','DEBIT_NOTE') AND d.status <> 'CANCELLED' "
-              + "WHERE a.sp_code = :sp GROUP BY a.id HAVING baki > 0) t")
-                .setParameter("sp", sp).getSingleResult()).longValue();
+        long arrearsAcc = ((Number) em.createNativeQuery("""
+                SELECT COUNT(*) FROM account a
+                JOIN account_balance ab ON ab.account_id = a.id
+                WHERE a.sp_code = :sp AND ab.balance > 0
+                """).setParameter("sp", sp).getSingleResult()).longValue();
 
         return new Summary(collected, outstanding, active, inactive, bills,
                 target, cRate, mom, invoicedAcc, paidAcc,
@@ -230,22 +224,13 @@ class DashboardController {
     @SuppressWarnings("unchecked")
     List<ArrearRow> topArrears() {
         String sp = sp();
-        // Baki per akaun = SUM(INVOICE+DEBIT_NOTE) - SUM(alokasi aktif), > 0, tertinggi.
+        // Baki dari view account_balance (ADR 0009) — satu takrifan dikongsi.
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT a.account_name, a.account_no,
-                       COALESCE(SUM(d.amount + d.tax_amount), 0)
-                       - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
-                                   WHERE al.debit_document_id IN (
-                                     SELECT d2.id FROM financial_document d2
-                                     WHERE d2.account_id = a.id AND d2.doc_type IN ('INVOICE','DEBIT_NOTE'))
-                                   AND al.status = 'ACTIVE'), 0) AS baki
+                SELECT a.account_name, a.account_no, ab.balance
                 FROM account a
-                JOIN financial_document d ON d.account_id = a.id
-                  AND d.doc_type IN ('INVOICE','DEBIT_NOTE') AND d.status <> 'CANCELLED'
-                WHERE a.sp_code = :sp
-                GROUP BY a.id, a.account_name, a.account_no
-                HAVING baki > 0
-                ORDER BY baki DESC LIMIT 6
+                JOIN account_balance ab ON ab.account_id = a.id
+                WHERE a.sp_code = :sp AND ab.balance > 0
+                ORDER BY ab.balance DESC LIMIT 6
                 """).setParameter("sp", sp).getResultList();
         List<ArrearRow> out = new ArrayList<>();
         for (Object[] r : rows) {

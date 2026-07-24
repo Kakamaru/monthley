@@ -86,19 +86,8 @@ class AccountController {
         String sql = """
             SELECT a.id, a.account_no, a.account_name, a.payer_user_id, a.category_id,
                    a.charge_frequency, a.status,
-                   COALESCE((
-                     SELECT SUM(d.amount + d.tax_amount)
-                     FROM financial_document d
-                     WHERE d.account_id = a.id AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
-                       AND d.status <> 'CANCELLED'
-                   ), 0)
-                   -
-                   COALESCE((
-                     SELECT SUM(d2.amount + d2.tax_amount)
-                     FROM financial_document d2
-                     WHERE d2.account_id = a.id AND d2.doc_type = 'RECEIPT'
-                       AND d2.status <> 'CANCELLED'
-                   ), 0) AS balance
+                   COALESCE((SELECT ab.balance FROM account_balance ab
+                             WHERE ab.account_id = a.id), 0) AS balance
             FROM account a
             """ + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
 
