@@ -1,7 +1,7 @@
 # Monthley — Dokumentasi
 
 > **Mula di sini.** Dokumen ini indeks + keadaan semasa.
-> Kemas kini: 23 Julai 2026
+> Kemas kini: 25 Julai 2026
 
 Projek: penulisan semula greenfield Monthley — SaaS bil berulang multi-tenant
 oleh Rapidevelop Technology Sdn Bhd. Sistem lama (`p302_my`) masih hidup,
@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V30 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V32 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Terkini:
@@ -55,6 +55,8 @@ Terkini:
 | V28 | Dokumen adjustment (CREDIT_NOTE / DEBIT_NOTE) |
 | V29 | `payment.idempotency_key` + UNIQUE — elak double-entry (ADR 0004) |
 | V30 | `fi_allocation.debit_document_line_id` — alokasi peringkat line (ADR 0006) |
+| V31 | Gugurkan `invoice_grouping` — split ialah binari (ADR 0008) |
+| V32 | VIEW `account_balance` — satu takrifan baki (ADR 0009) |
 
 ### Siap
 
@@ -63,6 +65,11 @@ Terkini:
 - `AllocationGuard` — invariant + kunci pesimis, satu tempat untuk semua laluan
 - Idempotency bayaran manual (ADR 0004) — token klien + UNIQUE constraint
 - Adjustment: kredit nota (kurang baki) + debit nota (tambah baki), boleh dibayar
+- **Satu takrifan baki + guna advance (ADR 0009 P1-P3)** — baki ialah dokumen
+  debit tolak kredit, dilaksana sebagai VIEW `account_balance` dan dikongsi
+  LIMA pemanggil yang sebelum ini menyimpang. Baki boleh negatif (kredit).
+  Advance di-knock automatik semasa jana bil, dengan posting ledger
+  Dr Customer Deposit / Cr AR. Invariant alokasi kini dua sisi (debit + kredit).
 - **Alokasi peringkat line (ADR 0006, P1-P7 SELESAI)** — sistem tahu bayaran
   untuk produk mana. Legacy tidak dapat menjawab soalan ini. Backfill
   dijalankan pada SP0002; laporan kutipan ikut produk berkira dengan ledger.
@@ -95,7 +102,7 @@ Ujian: 18 kelas, regresi penuh hijau.
 | Kerja | Nota |
 |---|---|
 | **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
-| **Guna-advance** | Advance tercipta tetapi tiada kod yang memakainya. Legacy knock advance masa jana bil; baki boleh negatif. Perlu ADR 0009. |
+
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | `cached_balance` lajur mati | Diisytihar dalam entity, tidak dibaca/ditulis. Perlu digugurkan. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
@@ -178,7 +185,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 1 | `FiPeriodService.getIntertwinedPeriods()` belum dibaca — **teras enjin** | `PeriodResolver` penuh |
 | 2 | `charge_1st_mon` dalam `mon_sp_prod` — anchor yang tidak siap? | Reka bentuk anchor |
 | 3 | Pakej: caj mengalir bagaimana dari parent ke anak? | Modul subscription |
-| 4 | Bila advance dipakai — masa jana bil, masa bayar seterusnya, atau job? | ADR 0009 |
+| 4 | Penyata PDF — bawa ke hadapan, penyata ikut tahun, kepala SP | Belum |
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
@@ -213,7 +220,7 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Proration exclude ikut bulan
 - [x] Alokasi peringkat line (ADR 0006 P1–P6)
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
-- [ ] Auto-knock advance semasa jana invois (ADR 0009)
+- [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**

@@ -1,6 +1,6 @@
 # ADR 0009 — Satu Takrifan Baki + Guna Advance
 
-- **Status:** Dicadang
+- **Status:** P1-P3 DILAKSANA (24-25 Julai 2026); P4 (UI) sebahagian besar sudah berfungsi
 - **Tarikh:** 24 Julai 2026
 
 ## Konteks
