@@ -52,23 +52,53 @@ public class InvoiceGenerationService {
         this.ledger = ledger;
     }
 
+    /**
+     * Hasil penjanaan dengan SEBAB bila tiada invois dicipta.
+     *
+     * posted == 0 boleh berlaku atas tiga sebab yang sangat berbeza, dan UI
+     * tidak boleh menekanya. Sebelum ini UI sentiasa melaporkan "sudah dijana
+     * sebelum ini" — tidak benar bagi akaun baharu yang langganannya bermula
+     * selepas tempoh bil.
+     */
+    public record GenerationOutcome(
+            int invoicesPosted,
+            int accountsScanned,
+            int skippedNoSubscription,     // akaun tiada produk langsung
+            int skippedNothingToCharge,    // tiada baris bagi tempoh ini
+            int skippedAlreadyGenerated,   // memang pendua
+            java.util.Set<Long> billedPeriodIds   // tempoh yang BENAR-BENAR dibilkan
+    ) {}
+
     @Transactional
-    public int generateForSp(String spCode, YearMonth runMonth,
-                             GenMode mode, BillingContext ctx) {
-        int posted = 0;
+    public GenerationOutcome generateDetailed(String spCode, YearMonth runMonth,
+                                              GenMode mode, BillingContext ctx) {
+        int posted = 0, scanned = 0, noSub = 0, nothing = 0, already = 0;
+        java.util.Set<Long> periods = new java.util.LinkedHashSet<>();
 
         for (AccountView account : accounts.activeAccountsFor(spCode)) {
+            scanned++;
+
             List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
-            if (subs.isEmpty()) continue;
+            if (subs.isEmpty()) { noSub++; continue; }
 
             Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
 
             List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
-            if (lines.isEmpty()) continue;
+            if (lines.isEmpty()) { nothing++; continue; }
 
-            posted += createGrouped(spCode, account, base, lines, ctx);
+            int created = createGrouped(spCode, account, base, lines, ctx);
+            if (created == 0) already++;
+            else periods.add(base.periodId());
+            posted += created;
         }
-        return posted;
+        return new GenerationOutcome(posted, scanned, noSub, nothing, already, periods);
+    }
+
+    /** Pembalut nipis — 32 pemanggil sedia ada kekal tidak berubah. */
+    @Transactional
+    public int generateForSp(String spCode, YearMonth runMonth,
+                             GenMode mode, BillingContext ctx) {
+        return generateDetailed(spCode, runMonth, mode, ctx).invoicesPosted();
     }
 
     /**

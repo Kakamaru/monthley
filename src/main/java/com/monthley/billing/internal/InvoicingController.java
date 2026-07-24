@@ -44,7 +44,10 @@ class InvoicingController {
             String mode         // CURRENT | PREPAID | POSTPAID — null = ikut setting SP
     ) {}
 
-    record GenerateResult(String spCode, String period, String mode, int invoicesPosted) {}
+    record GenerateResult(String spCode, String period, String mode, int invoicesPosted,
+                         int accountsScanned, int skippedNoSubscription,
+                         int skippedNothingToCharge, int skippedAlreadyGenerated,
+                         java.util.List<String> billedPeriods) {}
 
     @PostMapping("/generate-invoices")
     GenerateResult generate(@RequestBody(required = false) GenerateRequest req) {
@@ -81,8 +84,19 @@ class InvoicingController {
                 incomeGl,
                 cfg.splitInvoiceByProduct());
 
-        int posted = billing.generateForSp(sp, runMonth, mode, ctx);
-        return new GenerateResult(sp, runMonth.toString(), mode.name(), posted);
+        var out = billing.generateDetailed(sp, runMonth, mode, ctx);
+        // Tempoh yang BENAR-BENAR dibilkan — bukan bulan larian. POSTPAID pada
+        // Julai membilkan Jun; melaporkan runMonth adalah menipu.
+        java.util.List<String> billed = out.billedPeriodIds().isEmpty()
+                ? java.util.List.of()
+                : em.createNativeQuery(
+                        "SELECT name_ FROM fi_period WHERE period_id IN (:ids) ORDER BY period_id")
+                    .setParameter("ids", out.billedPeriodIds())
+                    .getResultList();
+
+        return new GenerateResult(sp, runMonth.toString(), mode.name(), out.invoicesPosted(),
+                out.accountsScanned(), out.skippedNoSubscription(),
+                out.skippedNothingToCharge(), out.skippedAlreadyGenerated(), billed);
     }
 
     record GenerateSingleRequest(Long accountId, String period, String mode) {}

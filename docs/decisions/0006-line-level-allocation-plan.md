@@ -129,7 +129,7 @@ mana-mana fasa tanpa merosakkan sistem.
 
 ---
 
-## Nota susulan: guna-advance (skop ADR 0008)
+## Nota susulan: guna-advance (skop ADR 0009)
 
 Disahkan 23 Julai 2026 — laluan "guna advance" **belum wujud** dalam sistem
 baharu (grep applyAdvance/useDeposit/consumeAdvance = kosong), walaupun
@@ -145,7 +145,7 @@ advance memang tercipta (payment id 74: bayar 500, alokasi 300, advance 200).
 Rumusan: **advance di-knock pada masa penjanaan bil**, dan **baki akaun boleh
 negatif** apabila advance melebihi invois.
 
-### Implikasi untuk ADR 0008
+### Implikasi untuk ADR 0009
 
 1. Baki mesti boleh negatif. Query semasa (`SUM(invois) - SUM(alokasi)`)
    tidak tolak advance yang belum dipakai — perlu diputuskan.

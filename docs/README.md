@@ -95,7 +95,7 @@ Ujian: 18 kelas, regresi penuh hijau.
 | Kerja | Nota |
 |---|---|
 | **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
-| **Guna-advance** | Advance tercipta tetapi tiada kod yang memakainya. Legacy knock advance masa jana bil; baki boleh negatif. Perlu ADR 0008. |
+| **Guna-advance** | Advance tercipta tetapi tiada kod yang memakainya. Legacy knock advance masa jana bil; baki boleh negatif. Perlu ADR 0009. |
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | `cached_balance` lajur mati | Diisytihar dalam entity, tidak dibaca/ditulis. Perlu digugurkan. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
@@ -178,7 +178,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 1 | `FiPeriodService.getIntertwinedPeriods()` belum dibaca — **teras enjin** | `PeriodResolver` penuh |
 | 2 | `charge_1st_mon` dalam `mon_sp_prod` — anchor yang tidak siap? | Reka bentuk anchor |
 | 3 | Pakej: caj mengalir bagaimana dari parent ke anak? | Modul subscription |
-| 4 | Bila advance dipakai — masa jana bil, masa bayar seterusnya, atau job? | ADR 0008 |
+| 4 | Bila advance dipakai — masa jana bil, masa bayar seterusnya, atau job? | ADR 0009 |
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
@@ -213,7 +213,7 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Proration exclude ikut bulan
 - [x] Alokasi peringkat line (ADR 0006 P1–P6)
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
-- [ ] Auto-knock advance semasa jana invois (ADR 0008)
+- [ ] Auto-knock advance semasa jana invois (ADR 0009)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**
