@@ -4,6 +4,7 @@ import com.monthley.account.api.AccountPort;
 import com.monthley.account.api.AccountView;
 import com.monthley.account.api.SubscriptionView;
 import com.monthley.document.api.*;
+import com.monthley.payment.api.AdvancePort;
 import com.monthley.ledger.api.*;
 import com.monthley.shared.Charge;
 import com.monthley.shared.GenMode;
@@ -43,13 +44,16 @@ public class InvoiceGenerationService {
     private final InvoiceCalculator calculator;
     private final DocumentPort documents;
     private final LedgerPort ledger;
+    private final AdvancePort advance;
 
     InvoiceGenerationService(AccountPort accounts, InvoiceCalculator calculator,
-                             DocumentPort documents, LedgerPort ledger) {
+                             DocumentPort documents, LedgerPort ledger,
+                             AdvancePort advance) {
         this.accounts = accounts;
         this.calculator = calculator;
         this.documents = documents;
         this.ledger = ledger;
+        this.advance = advance;
     }
 
     /**
@@ -186,6 +190,15 @@ public class InvoiceGenerationService {
                 spCode, docDate, SourceType.INVOICE, docId.get(),
                 "Invois " + account.accountNo(),
                 postingLines(account, lines, ctx), null));
+
+        // Guna advance sedia ada (ADR 0009 P3). Transaksi SAMA — kesan
+        // kewangan segerak, accounting-invariants.md §7.
+        //
+        // Baki akaun sudah betul tanpa langkah ini (resit dikira sebagai
+        // dokumen kredit). Ini menambah PADANAN: tanpanya invois yang sudah
+        // ditampung advance masih kelihatan belum dibayar dalam Manual
+        // Payment, dan kerani boleh menerima bayaran KEDUA.
+        advance.applyAdvance(spCode, account.id(), docId.get());
 
         return true;
     }

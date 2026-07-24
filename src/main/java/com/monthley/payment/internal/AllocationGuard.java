@@ -81,6 +81,19 @@ public class AllocationGuard {
         }
     }
 
+    /**
+     * Jumlah dokumen TANPA kunci — untuk mengira ruang sebelum memutuskan
+     * berapa hendak dialokasi. Kunci berlaku sekali sahaja, dalam
+     * {@link #checkAndLock}.
+     */
+    public BigDecimal docTotal(Long documentId) {
+        Object v = em.createNativeQuery("""
+                SELECT amount + tax_amount FROM financial_document WHERE id = :doc
+                """).setParameter("doc", documentId).getSingleResult();
+        if (v == null) throw new IllegalArgumentException("Dokumen tak wujud: " + documentId);
+        return new BigDecimal(v.toString());
+    }
+
     /** SUM alokasi ACTIVE menyasar dokumen (sebagai debit_document). */
     /**
      * Invariant sisi KREDIT: SUM(alokasi ACTIVE dari dokumen kredit) + amt

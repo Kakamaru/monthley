@@ -276,9 +276,9 @@ untuk menjadi tidak selaras.
 ## 7. Senarai tindakan
 
 - [ ] `source_ref NOT NULL` pada dokumen; token UUID klien untuk catatan manual
-- [ ] Token di-mint bila borang dibuka (frontend)
-- [ ] Kunci pesimis + invariant `SUM(allocations) <= document.amount`
-- [ ] Invariant pada **tiga** laluan allocation (bayaran, manual, auto-knock)
+- [x] Token di-mint bila borang dibuka (frontend) — ADR 0004
+- [x] Kunci pesimis + invariant `SUM(allocations) <= document.amount` — dua sisi (debit + kredit), ADR 0009 P2
+- [x] Invariant pada **tiga** laluan allocation (bayaran, manual, auto-knock) — ADR 0009 P2/P3
 - [ ] `document.amount` immutable selepas diposkan
 - [ ] Balanced-entry invariant pada agregat `JournalEntry`
 - [ ] Posting ledger **segerak**, transaction sama dengan penciptaan dokumen — jangan jadikan event Modulith (`@ApplicationModuleListener` ialah `@Async` + `REQUIRES_NEW`, akan mencipta semula family 3 sebagai seni bina)
