@@ -84,6 +84,23 @@ Disahkan sihat pada 24 Julai 2026: `payment` dan dokumen RECEIPT sepadan
 sempurna (12 baris, RM2,441.68 kedua-duanya), dan sifar baris payment
 untuk kredit nota.
 
+### 3b. Kod warna baki
+
+| Baki | Maksud | Warna |
+|---|---|---|
+| Positif | Ada hutang | Merah |
+| Sifar | Lunas | Hijau / lembut |
+| Negatif | Ada kredit | Hijau / lembut |
+
+Merah untuk baki sifar atau negatif bercanggah — SP nampak amaran
+sedangkan keadaan baik.
+
+Semakan 24 Julai: frontend sebahagian besarnya SUDAH bersedia (kad baki
+my-accounts guna kelas .neg dan kurungan; penyata hijau bila negatif;
+jumlah tunggakan guna Math.max(0, balance) supaya kredit tidak mengurangkan
+jumlah hutang). Satu tempat menganggap baki sentiasa hutang: manual-payment
+senarai akaun, warna merah hardcoded.
+
 ### 4. Invariant sisi kredit (baharu)
 
 `AllocationGuard` sekarang hanya menjaga sisi debit — invois tidak boleh
