@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  ADR 0010 P3b. Susun atur mengikut legacy dengan rapat: kepala dua lajur,
+  BILL TO, Account Summary, jadual, legend, kaki. Kandungan di bawahnya sudah
+  banyak berubah (baris ikut dokumen, sub-baris padanan, tahun berbawa
+  hadapan); susun atur yang biasa mengurangkan beban perubahan untuk SP.
+
+  KETAT: openhtmltopdf menghurai XHTML. TIADA entiti HTML bernama (em-dash,
+  non-breaking space, dsb.) — gunakan aksara Unicode terus. Ini termasuk DALAM
+  komen: parser XML memproses entiti di sini juga, jadi menyebut nama entiti
+  di dalam amaran ini akan memecahkan render yang ia lindungi. Setiap nilai DB melalui th:text, tidak
+  pernah th:utext: nama SP ialah data pengguna dan satu & mentah akan
+  mematikan seluruh render.
+-->
+<!--
+  Rujukan aksara BERANGKA (&#x2713;) sah dalam XML; hanya entiti BERNAMA
+  (em-dash, nbsp) yang haram. Jangan gunakan escape \u di sini: itu escape
+  Java, dan Thymeleaf akan mencetaknya secara harfiah.
+-->
+<style>
+@page {
+  size: A4;
+  margin: 14mm 12mm 16mm 12mm;
+  @bottom-left   { content: element(kakiKiri); }
+  @bottom-right  { content: element(kakiKanan); }
+}
+body { font-family: 'DejaVu Sans', sans-serif; font-size: 8pt;
+       color: #1a1a1a; }
+
+.hdr        { width: 100%; }
+.hdr td     { vertical-align: top; }
+.sp-name    { font-size: 15pt; font-weight: bold; line-height: 1.15; }
+.sp-detail  { font-size: 7pt; color: #444; line-height: 1.35; }
+.title      { font-size: 15pt; font-weight: bold; text-align: right; }
+
+.box        { border-collapse: collapse; width: 100%; margin-top: 4mm; }
+.box td     { border: 0.6pt solid #555; padding: 1.2mm 2mm; }
+.box .lbl   { background: #f0f0f0; width: 32%; font-size: 7.5pt; }
+.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 8pt; }
+
+.bar        { background: #16324a; color: #fff; padding: 1.2mm 2mm;
+              font-size: 8pt; margin-top: 5mm; }
+.summary    { width: 100%; font-size: 8pt; margin-top: 1.5mm; }
+.summary td { padding: 0.7mm 0; }
+.summary .k { width: 38%; color: #333; }
+.summary .s { width: 4%; }
+
+.rule       { border-top: 1.2pt solid #16324a; width: 12mm; margin-top: 6mm; }
+.sect       { font-weight: bold; font-size: 8.5pt; margin-top: 1.5mm; }
+.note       { font-size: 6.5pt; color: #555; margin: 0.8mm 0 1.5mm 0; }
+
+table.txn      { width: 100%; border-collapse: collapse; margin-top: 1mm; }
+table.txn thead { display: table-header-group; }
+table.txn th   { background: #16324a; color: #fff; font-size: 7.5pt;
+                 padding: 1.6mm 2mm; text-align: left; font-weight: normal; }
+table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
+                 vertical-align: top; }
+.r          { text-align: right; }
+.c          { text-align: center; }
+.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 7.5pt; }
+.docno      { font-family: 'DejaVu Sans Mono', monospace; font-size: 7pt; color: #333; }
+.batal      { color: #999; }
+.remark     { font-style: italic; font-size: 7pt; color: #555; }
+.sub        { font-size: 7pt; color: #333; padding-left: 4mm; }
+.sub td     { border-bottom: none; padding: 0.4mm 2mm; }
+.total td   { background: #16324a; color: #fff; font-weight: bold;
+              padding: 1.8mm 2mm; }
+
+#kakiKiri   { position: running(kakiKiri);  font-size: 6.5pt; color: #444; }
+#kakiKanan  { position: running(kakiKanan); font-size: 6.5pt; color: #444; }
+.pg:before  { content: counter(page); }
+.tot:before { content: counter(pages); }
+</style>
+</head>
+<body>
+
+<div id="kakiKiri">
+  <b>Legend</b>
+  <span> &#x2713; Aktif</span>
+  <span> &#x2715; Batal</span>
+</div>
+<div id="kakiKanan">Muka <span class="pg"></span> / <span class="tot"></span></div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:58%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine2())}" th:text="${h.spAddrLine2()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine3())}" th:text="${h.spAddrLine3()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+        <span th:if="${fmt.has(h.spCountry())}"   th:text="', ' + ${h.spCountry()}"></span>
+        <div>
+          <span th:if="${fmt.has(h.spPhone())}"   th:text="${h.spPhone()} + '  '"></span>
+          <span th:if="${fmt.has(h.spEmail())}"   th:text="${h.spEmail()} + '  '"></span>
+          <span th:if="${fmt.has(h.spWebsite())}" th:text="${h.spWebsite()}"></span>
+        </div>
+        <div th:if="${fmt.has(h.spBankAccountNo())}">
+          <span th:text="${h.spBankAccountNo()}"></span>
+          <span th:if="${fmt.has(h.spBankCode())}" th:text="' (' + ${h.spBankCode()} + ')'"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:42%">
+      <div class="title" th:text="${h.statementTitle()}">Statement</div>
+      <table class="box">
+        <tr><td class="lbl">Akaun</td>
+            <td class="val" th:text="${h.accountNo()}"></td></tr>
+        <tr><td class="lbl">Pemegang Akaun</td>
+            <td class="val" th:text="${h.accountName()}"></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<table class="hdr" style="margin-top:5mm">
+  <tr>
+    <td style="width:58%; padding-right:6mm">
+      <div class="bar" style="margin-top:0">BILL TO</div>
+      <div style="margin-top:2mm; line-height:1.4">
+        <div th:text="${h.billtoName()}"></div>
+        <div th:if="${fmt.has(h.billtoEmail())}" th:text="'(' + ${h.billtoEmail()} + ')'"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine1())}" th:text="${h.billtoAddrLine1()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine2())}" th:text="${h.billtoAddrLine2()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine3())}" th:text="${h.billtoAddrLine3()}"></div>
+        <div>
+          <span th:if="${fmt.has(h.billtoPostcode())}" th:text="${h.billtoPostcode()} + ' '"></span>
+          <span th:if="${fmt.has(h.billtoState())}"    th:text="${h.billtoState()}"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:42%">
+      <div class="bar" style="margin-top:0">Ringkasan Akaun</div>
+      <table class="summary">
+        <tr><td class="k">Tempoh Penyata</td><td class="s">:</td>
+            <td class="r mono"
+                th:text="${fmt.date(m.from())} + ' - ' + ${fmt.date(m.to())}"></td></tr>
+        <tr><td class="k">Baki Bawa Ke Hadapan</td><td class="s">:</td>
+            <td class="r mono"
+                th:text="${h.currency()} + ' ' + ${fmt.money(m.openingBalance())}"></td></tr>
+        <tr><td class="k">Baki Akhir</td><td class="s">:</td>
+            <td class="r mono"
+                th:text="${h.currency()} + ' ' + ${fmt.money(m.closingBalance())}"></td></tr>
+        <tr><td class="k">Tunggakan</td><td class="s">:</td>
+            <td class="r mono"
+                th:text="${h.currency()} + ' ' + ${fmt.money(m.arrears())}"></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div class="rule"></div>
+<div class="sect">Transaksi</div>
+<div class="note"
+     th:text="'Semua transaksi dalam mata wang ' + ${h.currency()} + '.'"></div>
+
+<table class="txn">
+  <thead>
+    <tr>
+      <th style="width:5%">No.</th>
+      <th style="width:12%">Tarikh</th>
+      <th style="width:16%">Dokumen</th>
+      <th style="width:37%">Keterangan</th>
+      <th style="width:6%" class="c">Status</th>
+      <th style="width:12%" class="r">Amaun</th>
+      <th style="width:12%" class="r">Baki</th>
+    </tr>
+  </thead>
+  <tbody>
+    <th:block th:each="r,i : ${m.rows()}">
+      <tr th:classappend="${r.cancelled()} ? 'batal' : ''">
+        <td th:text="${i.count}"></td>
+        <td class="mono" th:text="${fmt.date(r.docDate())}"></td>
+        <td class="docno" th:text="${r.docNo()}"></td>
+        <td>
+          <span th:text="${r.description()}"></span>
+          <div th:if="${fmt.has(r.remark())}" class="remark" th:text="${r.remark()}"></div>
+        </td>
+        <td class="c" th:text="${r.cancelled()} ? '&#x2715;' : '&#x2713;'"></td>
+        <td class="r mono" th:text="${fmt.money(r.amount())}"></td>
+        <td class="r mono" th:text="${fmt.money(r.runningBalance())}"></td>
+      </tr>
+      <tr th:each="x : ${r.matches()}" class="sub">
+        <td></td><td></td>
+        <td class="docno" th:text="${x.documentNo()}"></td>
+        <td>
+          <span th:text="${x.productName()}"></span>
+          <span th:if="${x.periodStart() != null}"
+                th:text="'  ' + ${fmt.period(x.periodStart(), x.periodEnd())}"></span>
+        </td>
+        <td></td>
+        <td class="r mono" th:text="${fmt.money(x.amount())}"></td>
+        <td></td>
+      </tr>
+    </th:block>
+    <tr class="total">
+      <td colspan="5">Baki Akhir</td>
+      <td class="r mono" th:text="${h.currency()}"></td>
+      <td class="r mono" th:text="${fmt.money(m.closingBalance())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

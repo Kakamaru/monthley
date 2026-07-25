@@ -16,6 +16,7 @@ import java.util.List;
  * Legacy memaparkan kedua-duanya bersebelahan tanpa membezakannya.
  */
 public record StatementModel(
+        StatementHeader header,
         String spCode,
         long accountId,
         LocalDate from,

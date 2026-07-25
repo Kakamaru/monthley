@@ -145,6 +145,11 @@
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- ADR 0010 P3b — templat penyata boleh diedit tanpa recompile -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
         <!-- ADR 0010 P1 — penjanaan PDF penyata (openhtmltopdf, PDFBox 3) -->
         <dependency>
             <groupId>io.github.openhtmltopdf</groupId>

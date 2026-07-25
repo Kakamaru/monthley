@@ -187,9 +187,10 @@ R242390, doc A dengan ledger dan link semuanya C).
   penutup tahun N mesti sama dengan pembukaan tahun N+1.
 - **P3a** SELESAI. VIEW account_allocation_match (V34) + sub-baris padanan
   dua arah dalam StatementService. Dikunci oleh StatementMatchTest.
-- **P3b** StatementPdfWriter + templat Thymeleaf; kepala dan kaki
-  berulang, legend, baris Total pada muka terakhir sahaja. Ukur
-  bilangan baris untuk menetapkan ambang keputusan 6.
+- **P3b** SELESAI. StatementPdfWriter + templat Thymeleaf + VIEW
+  statement_header (V35). Susun atur mengikut legacy dengan rapat.
+  Font DejaVu DIBENAMKAN — wajib, bukan hiasan (lihat nota pelaksanaan).
+  Ambang keputusan 6 masih perlu diukur pada data sebenar.
 - **P4** Sambung tiga pemanggil kepada satu perkhidmatan.
 - **P5** StatementXlsxWriter dua sheet.
 - **P6** Ambang baris + laluan tak segerak.
@@ -255,6 +256,32 @@ berasingan, jadi PDFBox mengekstraknya mengikut turutan lukisan
 ("Page of 1 4") dan bukan turutan visual. Gunakan
 `stripper.setSortByPosition(true)` semasa menguji, jika tidak assert
 akan gagal walaupun PDF betul.
+
+**Font mesti dibenamkan.** Helvetica dan Courier terbina PDFBox ialah
+WinAnsi sahaja. Sebarang aksara di luarnya dilukis sebagai '#' TANPA
+sebarang ralat — PDF kelihatan siap, lajur penuh, dan tiada apa dalam
+log. Ini bukan isu tanda semak: nama SP dan pelanggan ialah data
+pengguna, dan kerosakan senyap pada nama orang tidak boleh diterima
+dalam produk Malaysia. DejaVu Sans + Sans Mono (lesen bebas)
+dibenamkan; ~2.7MB.
+
+Mono diperlukan berasingan: lajur nombor mesti sejajar kerana mata
+mengimbas menegak dalam penyata kewangan. Fallback 'monospace' CSS
+menjatuhkan PDFBox kembali kepada Courier, membawa balik masalah yang
+sama.
+
+**Escape \u ialah escape JAVA, bukan HTML.** Dalam templat Thymeleaf
+ia dicetak secara harfiah. Gunakan rujukan aksara BERANGKA
+(&#x2713;) — ia sah dalam XML; hanya entiti BERNAMA yang haram. Ini
+termasuk di dalam komen HTML: parser XML memproses entiti di sana
+juga, jadi amaran tentang entiti bernama boleh memecahkan render yang
+ia lindungi.
+
+**Ujian PDF menguji kebolehekstrakan, bukan susun atur.** Teks sel
+membalut baris dan setSortByPosition membaca merentas baris dahulu,
+jadi frasa panjang tidak wujud sebagai teks bersebelahan. Assert pada
+serpihan pendek dan pada perkara yang benar-benar diuji (ampersand
+terselamat, tiada &amp; berganda, glyph ialah aksara bukan '#').
 
 ## Rujukan
 - 0009-baki-tunggal-dan-advance.md (VIEW account_balance)

@@ -28,6 +28,52 @@ class StatementQuery {
         this.jdbc = jdbc;
     }
 
+    /** Kepala daripada VIEW statement_header. */
+    com.monthley.statement.api.StatementHeader header(String spCode, long accountId) {
+        return jdbc.sql("""
+                SELECT * FROM statement_header
+                WHERE sp_code = :sp AND account_id = :acc
+                """)
+                .param("sp", spCode)
+                .param("acc", accountId)
+                .query((rs, n) -> new com.monthley.statement.api.StatementHeader(
+                        rs.getString("statement_title"),
+                        rs.getString("currency"),
+                        rs.getString("language"),
+                        rs.getString("date_format"),
+                        rs.getString("tax_name"),
+                        rs.getString("sp_name"),
+                        rs.getString("sp_registration_no"),
+                        rs.getString("sp_addr_line1"),
+                        rs.getString("sp_addr_line2"),
+                        rs.getString("sp_addr_line3"),
+                        rs.getString("sp_postcode"),
+                        rs.getString("sp_city"),
+                        rs.getString("sp_state"),
+                        rs.getString("sp_country"),
+                        rs.getString("sp_phone"),
+                        rs.getString("sp_website"),
+                        rs.getString("sp_email"),
+                        rs.getString("sp_helpdesk_email"),
+                        rs.getString("sp_helpdesk_phone"),
+                        rs.getString("sp_logo_url"),
+                        rs.getString("sp_bank_code"),
+                        rs.getString("sp_bank_account_no"),
+                        rs.getString("sp_bank_account_name"),
+                        rs.getString("account_no"),
+                        rs.getString("account_name"),
+                        rs.getString("member_name"),
+                        rs.getString("billto_name"),
+                        rs.getString("billto_email"),
+                        rs.getString("billto_addr_line1"),
+                        rs.getString("billto_addr_line2"),
+                        rs.getString("billto_addr_line3"),
+                        rs.getString("billto_postcode"),
+                        rs.getString("billto_state"),
+                        rs.getString("billto_country")))
+                .single();
+    }
+
     /** Baki sebelum tarikh mula — baki bawa ke hadapan. */
     BigDecimal openingBalance(String spCode, long accountId, LocalDate from) {
         return jdbc.sql("""

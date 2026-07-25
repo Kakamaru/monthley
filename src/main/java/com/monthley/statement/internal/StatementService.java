@@ -65,7 +65,8 @@ class StatementService implements StatementPort {
         // Tunggakan tidak boleh negatif; baki boleh (ADR 0010 keputusan 9)
         BigDecimal arrears = closing.max(BigDecimal.ZERO);
 
-        return new StatementModel(spCode, accountId, from, to,
+        return new StatementModel(query.header(spCode, accountId),
+                spCode, accountId, from, to,
                 opening, rows, closing, arrears);
     }
 
