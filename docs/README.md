@@ -121,6 +121,7 @@ berulang. Baca sebelum menyentuh laluan berkaitan.
 | [CASE-001](evidence/CASE-001-balance-mismatch-A0124.md) | Baki menyimpang — alokasi yatim dari resit dibatalkan yang tidak pernah dibalikkan | Ledger sumber kebenaran; `AllocationGuard` (invariant + kunci pesimis di SATU tempat, bukan disalin per laluan) |
 | [CASE-002](evidence/CASE-002-amt_actv-scenario-catalog.md) | Baki disimpan di **empat tempat** (`bal_amt`, `amt_actv`, running balance, doc_link) yang menyimpang antara satu sama lain | Satu event ledger; semua baki diterbitkan on-read |
 | [CASE-003](evidence/CASE-003-online-payment-integration.md) | 33 anomali / 20,885 resit online. Terburuk **RM310,000 untuk bayaran RM310**. Satu kes terlepas 5 bulan | [ADR 0007](decisions/0007-online-payment-guards.md) — amaun dari gateway (jangan kira), callback stateless, idempotency, reconciliation harian |
+| [CASE-004](evidence/CASE-004-ledger-line-taxonomy.md) | Jenis baris ledger tersembunyi dalam teks bebas — `prod_descr` mengandungi dua ejaan untuk konsep sama ("Advanced"/"Advance Payment"), tempoh ditanam dalam string, produk dinamakan semula memutuskan padanan | `line_type` eksplisit + `product_id`; `period_start`/`period_end` sebagai DATE; teks jadi snapshot papar, tidak pernah disoal |
 
 ### Empat keluarga hanyutan (CASE-001)
 
@@ -185,7 +186,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 1 | `FiPeriodService.getIntertwinedPeriods()` belum dibaca — **teras enjin** | `PeriodResolver` penuh |
 | 2 | `charge_1st_mon` dalam `mon_sp_prod` — anchor yang tidak siap? | Reka bentuk anchor |
 | 3 | Pakej: caj mengalir bagaimana dari parent ke anak? | Modul subscription |
-| 4 | Penyata PDF — bawa ke hadapan, penyata ikut tahun, kepala SP | Belum |
+| 4 | Penyata PDF — bawa ke hadapan, penyata ikut tahun, kepala SP | [ADR 0010](decisions/0010-penyata-akaun.md) (dicadang) |
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
@@ -221,6 +222,7 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Alokasi peringkat line (ADR 0006 P1–P6)
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
 - [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
+- [ ] Penyata akaun: satu `StatementService`, tiga pemanggil (ADR 0010 P1-P6)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**
