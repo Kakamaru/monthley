@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <openhtmltopdf.version>1.1.59</openhtmltopdf.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <!-- Semak versi terkini sebelum guna -->
         <shedlock.version>6.10.0</shedlock.version>
@@ -143,6 +144,12 @@
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <!-- ADR 0010 P1 — penjanaan PDF penyata (openhtmltopdf, PDFBox 3) -->
+        <dependency>
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>${openhtmltopdf.version}</version>
         </dependency>
     </dependencies>
 

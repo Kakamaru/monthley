@@ -186,7 +186,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 1 | `FiPeriodService.getIntertwinedPeriods()` belum dibaca — **teras enjin** | `PeriodResolver` penuh |
 | 2 | `charge_1st_mon` dalam `mon_sp_prod` — anchor yang tidak siap? | Reka bentuk anchor |
 | 3 | Pakej: caj mengalir bagaimana dari parent ke anak? | Modul subscription |
-| 4 | Penyata PDF — bawa ke hadapan, penyata ikut tahun, kepala SP | [ADR 0010](decisions/0010-penyata-akaun.md) (dicadang) |
+| 4 | Penyata PDF — bawa ke hadapan, penyata ikut tahun, kepala SP | [ADR 0010](decisions/0010-penyata-akaun.md) — P1 lulus |
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
@@ -222,7 +222,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Alokasi peringkat line (ADR 0006 P1–P6)
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
 - [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
-- [ ] Penyata akaun: satu `StatementService`, tiga pemanggil (ADR 0010 P1-P6)
+- [x] P1 spike: `counter(pages)` openhtmltopdf disahkan (ADR 0010)
+- [ ] Penyata akaun: satu `StatementService`, tiga pemanggil (ADR 0010 P2-P6)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**

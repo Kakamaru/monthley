@@ -1,6 +1,6 @@
 # ADR 0010 — Penyata akaun: satu perkhidmatan, baris ikut dokumen
 
-- **Status:** Dicadang (25 Julai 2026)
+- **Status:** Diterima (25 Julai 2026) — P1 disahkan, P2-P6 belum dilaksana
 - **Berkait:** ADR 0006 (alokasi peringkat line), ADR 0009 (satu takrifan baki)
 - **Bukti:** evidence/CASE-004-ledger-line-taxonomy.md
 
@@ -152,8 +152,12 @@ R242390, doc A dengan ledger dan link semuanya C).
 
 ## Fasa
 
-- **P1** Spike: sahkan counter(pages) berfungsi dalam kotak margin
-  openhtmltopdf ("Page 1 of 14"). Gagal, guna render dua-pass.
+- **P1** SELESAI (25 Julai 2026). counter(page) dan counter(pages)
+  berfungsi dalam kotak margin openhtmltopdf; render satu-pass memadai,
+  dua-pass tidak diperlukan. Disahkan oleh
+  `com.monthley.statement.PdfPageCounterTest` yang merender 200 baris,
+  membaca semula PDF dengan PDFBox, dan membandingkan nombor pada
+  setiap muka dengan bilangan muka sebenar.
 - **P2** StatementService + StatementModel + query window function.
   Ujian: baki penutup mesti sama dengan VIEW account_balance, dan
   penutup tahun N mesti sama dengan pembukaan tahun N+1.
@@ -200,6 +204,31 @@ FA10-1-10 setahun ialah 20-40 baris, bukan 262.
   Ulangan CASE-002.
 - **Penulis XLSX dengan query sendiri** — dua laluan menyimpang. Punca
   asal masalah ini.
+
+## Nota pelaksanaan (dari P1)
+
+**Pustaka.** `io.github.openhtmltopdf:openhtmltopdf-pdfbox` 1.1.59
+(PDFBox 3). Bukan `com.openhtmltopdf`, yang berhenti pada 1.0.10
+(September 2021, PDFBox 2). Pakej Java kekal `com.openhtmltopdf.*`
+walaupun groupId berpindah.
+
+**Entiti HTML bernama TIDAK disokong.** openhtmltopdf menghurai XHTML
+secara ketat; hanya lima entiti terbina XML dibenarkan (`&amp;`,
+`&lt;`, `&gt;`, `&quot;`, `&apos;`). `&mdash;`, `&nbsp;`, `&ndash;`,
+`&copy;` menyebabkan SAXParseException dan kegagalan render penuh.
+Guna aksara Unicode terus. Ini berisiko dalam produksi kerana nama SP
+ialah data pengguna — "Maintenance & Sinking Fund" mesti di-escape
+betul oleh Thymeleaf, dan `&nbsp;` untuk jarak adalah haram.
+
+**Kepala jadual berulang.** `thead { display: table-header-group; }`
+berfungsi tanpa akal-akalan — salah satu keperluan legacy dipenuhi
+secara percuma.
+
+**Nota ujian.** Kandungan `:before` dilukis sebagai operasi teks
+berasingan, jadi PDFBox mengekstraknya mengikut turutan lukisan
+("Page of 1 4") dan bukan turutan visual. Gunakan
+`stripper.setSortByPosition(true)` semasa menguji, jika tidak assert
+akan gagal walaupun PDF betul.
 
 ## Rujukan
 - 0009-baki-tunggal-dan-advance.md (VIEW account_balance)
