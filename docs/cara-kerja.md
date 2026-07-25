@@ -332,6 +332,52 @@ KEDUA-DUA tempat.
 Nota: nilai literal dalam UI ialah kes khas corak ini — DB dan HTML kedua-
 duanya "tahu" tetapan, dan HTML tidak pernah dimaklumkan bila DB berubah.
 
+### 7. Laluan migrasi manual mesti atomik
+
+Bila `mvn flyway:migrate` gagal (VPN/JDBC) dan kita jalankan SQL terus,
+dua langkah itu mesti dirantai:
+
+```bash
+mysql -u root db < V34__xxx.sql \
+  && mysql -u root db -e "INSERT INTO flyway_schema_history ..."
+```
+
+Tanpa `&&`, SQL yang GAGAL tetap diikuti oleh INSERT yang berjaya, dan
+Flyway kemudian percaya migrasi itu sudah dijalankan dengan
+`success = 1`. Migrasi tidak akan dicuba semula, di sini mahupun pada
+mesin orang lain.
+
+Ini berlaku pada V34 (25 Julai 2026): VIEW gagal atas lajur yang tidak
+wujud, tetapi baris sejarah didaftarkan sebagai berjaya. Baris palsu itu
+terpaksa dibuang secara manual.
+
+**Kenapa ia berbahaya:** kegagalan itu senyap ke arah yang salah. Ralat
+SQL kelihatan pada skrin, jadi manusia menyangka ia jelas — sedangkan
+yang rosak ialah keadaan yang tiada siapa akan periksa sehingga
+seseorang menyediakan pangkalan data baharu berbulan kemudian.
+
+Selepas mana-mana migrasi manual, sahkan KEDUA-DUA: objek benar-benar
+wujud, dan sejarah menggambarkannya dengan tepat.
+
+### 8. Jangan dakwa keputusan ujian sebelum melihatnya
+
+Nombor ujian dalam mesej commit ditulis SELEPAS output dilihat, bukan
+sebelum. Jangan menulis "Guard 2: 149/149 lulus" ke dalam mesej yang
+disediakan sementara ujian masih berjalan — atau lebih teruk, sebelum
+ia dijalankan langsung.
+
+Ini berlaku pada commit 05dc118: dakwaan itu ditulis lebih awal, dan
+hanya `StatementMatchTest` (4/4) yang sebenarnya diperhatikan. Nombor
+penuh disahkan selepas commit. Kali ini ia betul.
+
+**Kenapa ia berbahaya:** ia betul 99 kali daripada 100, jadi orang
+belajar mempercayainya. Kegagalan yang ke-100 masuk ke dalam sejarah
+sebagai fakta bertulis, dan tiada siapa akan menyoalnya.
+
+Sama juga untuk `mvn -q test` — `-q` menyenyapkan baris ringkasan
+`Tests run:`. Ketiadaan `[ERROR]` bukan bukti kelulusan. Jalankan tanpa
+`-q`, atau grep `BUILD SUCCESS` secara khusus.
+
 ## 5. Persekitaran
 
 ### Backend
