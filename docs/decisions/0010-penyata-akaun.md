@@ -72,7 +72,10 @@ kesilapan menjadi ujian yang gagal, bukan aduan SP.)
 
 **3. Baris ikut dokumen.** Satu baris per dokumen kewangan; lajur baki
 digerakkan oleh dokumen sahaja, dikira dengan window function
-SUM(signed_amount) OVER (ORDER BY doc_date, id). Tidak sekali-kali
+SUM(signed_amount) OVER (ORDER BY doc_date, document_id) atas VIEW
+account_document_entry (V33). VIEW itulah satu-satunya tempat yang
+memutuskan tanda dokumen dan bahawa cukai termasuk (amount +
+tax_amount); penyata tidak pernah memeriksa doc_type sendiri. Tidak sekali-kali
 membaca baki tersimpan. (Menghalang L2.)
 
 Lajur baki menghasilkan angka yang SAMA dengan legacy pada setiap
@@ -112,10 +115,15 @@ negatif; Baki boleh. Legacy memaparkan Due Amount bersebelahan Total
 tanpa membezakannya.
 
 **10. Dokumen batal kekal dipaparkan** dengan legend aktif/batal.
-Ledger append-only; pembatalan ialah contra, bukan padam. doc_reason
-dirender sebagai baris nota italic di bawah keterangan.
+Pembatalan dalam skema baharu ialah BENDERA STATUS (status =
+'CANCELLED'), bukan dokumen contra seperti legacy. Maka dokumen batal
+DIPAPARKAN tetapi TIDAK menggerakkan lajur baki: VIEW
+account_document_entry memberikannya signed_amount = 0. Ini lebih bersih
+daripada legacy — tiada dokumen contra dijana, tiada pasangan baris untuk
+difahami pembaca. cancel_reason dirender sebagai baris nota italic di
+bawah keterangan.
 
-**11. Jenis baris eksplisit, bukan teks bebas.** fi_document_line
+**11. Jenis baris eksplisit, bukan teks bebas.** financial_document_line
 membawa line_type (PRODUCT, PENALTY, ADVANCE, ADJUSTMENT,
 OPENING_BALANCE), product_id (NULL selain PRODUCT), period_start /
 period_end sebagai DATE, dan description sebagai snapshot sejarah yang
