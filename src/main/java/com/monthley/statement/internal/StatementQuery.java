@@ -51,7 +51,8 @@ class StatementQuery {
     List<DocumentEntry> entries(String spCode, long accountId,
                                 LocalDate from, LocalDate to, BigDecimal opening) {
         return jdbc.sql("""
-                SELECT e.doc_date,
+                SELECT e.document_id,
+                       e.doc_date,
                        e.doc_type,
                        e.doc_no,
                        e.title,
@@ -73,6 +74,7 @@ class StatementQuery {
                 .param("to", to)
                 .param("opening", opening)
                 .query((rs, n) -> new DocumentEntry(
+                        rs.getLong("document_id"),
                         rs.getDate("doc_date").toLocalDate(),
                         rs.getString("doc_type"),
                         rs.getString("doc_no"),
@@ -84,7 +86,62 @@ class StatementQuery {
                 .list();
     }
 
-    record DocumentEntry(LocalDate docDate, String docType, String docNo,
+    /**
+     * Padanan alokasi untuk julat yang sama, kedua-dua arah sekali.
+     *
+     * Satu query; pemanggil mengindeksnya mengikut sisi mana yang menjadi
+     * baris penyata. Baris RESIT menunjukkan invois yang dibayarnya; baris
+     * INVOIS menunjukkan resit yang membayarnya. Legacy hanya boleh yang
+     * pertama.
+     *
+     * Tempoh datang daripada BARIS invois, bukan dokumen — satu invois boleh
+     * membawa dua belas baris bulanan.
+     */
+    List<AllocationMatch> matches(String spCode, long accountId,
+                                  LocalDate from, LocalDate to) {
+        return jdbc.sql("""
+                SELECT m.credit_document_id,
+                       m.debit_document_id,
+                       m.credit_doc_no,
+                       m.debit_doc_no,
+                       m.debit_period_start,
+                       m.debit_period_end,
+                       COALESCE(m.product_name, m.line_description, m.debit_title)
+                           AS keterangan,
+                       m.amount
+                FROM   account_allocation_match m
+                WHERE  m.sp_code    = :sp
+                  AND  m.account_id = :acc
+                  AND  (m.credit_doc_date BETWEEN :from AND :to
+                        OR m.debit_doc_date BETWEEN :from AND :to)
+                ORDER  BY m.debit_period_start, m.debit_doc_no,
+                          m.debit_document_line_id
+                """)
+                .param("sp", spCode)
+                .param("acc", accountId)
+                .param("from", from)
+                .param("to", to)
+                .query((rs, n) -> new AllocationMatch(
+                        rs.getLong("credit_document_id"),
+                        rs.getLong("debit_document_id"),
+                        rs.getString("credit_doc_no"),
+                        rs.getString("debit_doc_no"),
+                        rs.getDate("debit_period_start") != null
+                                ? rs.getDate("debit_period_start").toLocalDate() : null,
+                        rs.getDate("debit_period_end") != null
+                                ? rs.getDate("debit_period_end").toLocalDate() : null,
+                        rs.getString("keterangan"),
+                        rs.getBigDecimal("amount")))
+                .list();
+    }
+
+    record AllocationMatch(long creditDocumentId, long debitDocumentId,
+                           String creditDocNo, String debitDocNo,
+                           LocalDate periodStart, LocalDate periodEnd,
+                           String description, BigDecimal amount) {
+    }
+
+    record DocumentEntry(long documentId, LocalDate docDate, String docType, String docNo,
                          String title, String cancelReason, boolean cancelled,
                          BigDecimal signedAmount, BigDecimal runningBalance) {
     }

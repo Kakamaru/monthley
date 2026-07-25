@@ -82,9 +82,25 @@ Lajur baki menghasilkan angka yang SAMA dengan legacy pada setiap
 sempadan dokumen — legacy pun menggerakkan baki ikut dokumen; barisan
 ledger cuma memecahkannya. SP tidak melihat sebarang nombor berubah.
 
-**4. Padanan menjadi detail.** Alokasi dirender sebagai sub-baris
-berinden dengan nombor invois — termasuk di portal pelanggan. Sub-baris
-TIDAK menyentuh lajur baki.
+**4. Padanan menjadi detail, DUA ARAH.** Alokasi dirender sebagai
+sub-baris berinden — termasuk di portal pelanggan. Sub-baris TIDAK
+menyentuh lajur baki.
+
+Alokasi ialah credit_document_id -> debit_document_id, jadi VIEW yang
+sama menjawab dua soalan dengan satu query: baris RESIT menunjukkan
+invois yang dibayarnya; baris INVOIS menunjukkan resit yang membayarnya.
+Legacy hanya boleh yang pertama.
+
+Tempoh datang daripada BARIS invois, bukan dokumen. INV000021 produksi
+mempunyai 12 baris parking bulanan di bawah satu dokumen bertempoh
+'2025'; tempoh aras-dokumen akan mencetak '2025' dua belas kali dan
+menyembunyikan bulan mana yang dibayar — soalan yang sub-baris wujud
+untuk menjawabnya.
+
+Tempoh dibawa sebagai TARIKH, bukan nama. fi_period.name_ ialah teks
+yang ditaip manusia, perangkap yang sama seperti prod_descr legacy
+('July, 2026' bersebelahan '2026'). Baris boleh mempunyai period_start
+tanpa period_id, jadi nama mungkin tiada walaupun tarikh sempurna.
 
 **5. Baki Bawa Ke Hadapan daripada VIEW account_balance bertarikh.**
 Dokumen sebelum tarikh mula tempoh. Bukan lajur tersimpan, bukan
@@ -169,7 +185,9 @@ R242390, doc A dengan ledger dan link semuanya C).
 - **P2** StatementService + StatementModel + query window function.
   Ujian: baki penutup mesti sama dengan VIEW account_balance, dan
   penutup tahun N mesti sama dengan pembukaan tahun N+1.
-- **P3** StatementPdfWriter + templat Thymeleaf; kepala dan kaki
+- **P3a** SELESAI. VIEW account_allocation_match (V34) + sub-baris padanan
+  dua arah dalam StatementService. Dikunci oleh StatementMatchTest.
+- **P3b** StatementPdfWriter + templat Thymeleaf; kepala dan kaki
   berulang, legend, baris Total pada muka terakhir sahaja. Ukur
   bilangan baris untuk menetapkan ambang keputusan 6.
 - **P4** Sambung tiga pemanggil kepada satu perkhidmatan.
