@@ -190,6 +190,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
+| 8 | `application-test.yml` menunjuk ke `monthley_new` — DB SAMA dengan backend pembangunan. Punca disahkan bagi `mvn test` yang gagal sekali lalu lulus tanpa perubahan | DB ujian berasingan |
 
 ---
 
@@ -223,7 +224,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [ ] `PER_USE`: sapu usage PENDING, tanda DONE
 - [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
 - [x] P1 spike: `counter(pages)` openhtmltopdf disahkan (ADR 0010)
-- [ ] Penyata akaun: satu `StatementService`, tiga pemanggil (ADR 0010 P2-P6)
+- [x] P2 `StatementService` + `StatementModel` + invarian (ADR 0010)
+- [ ] Penyata akaun: penulis PDF & XLSX, tiga pemanggil (ADR 0010 P3-P6)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**
