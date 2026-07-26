@@ -123,6 +123,7 @@ berulang. Baca sebelum menyentuh laluan berkaitan.
 | [CASE-003](evidence/CASE-003-online-payment-integration.md) | 33 anomali / 20,885 resit online. Terburuk **RM310,000 untuk bayaran RM310**. Satu kes terlepas 5 bulan | [ADR 0007](decisions/0007-online-payment-guards.md) — amaun dari gateway (jangan kira), callback stateless, idempotency, reconciliation harian |
 | [CASE-004](evidence/CASE-004-ledger-line-taxonomy.md) | Jenis baris ledger tersembunyi dalam teks bebas — `prod_descr` mengandungi dua ejaan untuk konsep sama ("Advanced"/"Advance Payment"), tempoh ditanam dalam string, produk dinamakan semula memutuskan padanan | `line_type` eksplisit + `product_id`; `period_start`/`period_end` sebagai DATE; teks jadi snapshot papar, tidak pernah disoal |
 | CASE-005 | `/accounts/my` mengira baki dengan formula sendiri (invois tolak alokasi) — buta kepada kredit belum dipadankan. M04 dipaparkan berhutang RM200 LEBIH daripada sebenar; kredit RM38.41 M06 dipaparkan sebagai sifar | VIEW `account_balance` di SETIAP pemanggil; tunggakan dan baki dinamakan berasingan; `MyAccountsBalanceTest` mengunci perbezaan kedua-dua formula |
+| [CASE-006](evidence/CASE-006-aliran-emel-penyata.md) | Aliran e-mel legacy mencipta satu dokumen `P` hantu setiap penyata semata-mata untuk memegang UUID pautan — 51 rekod bukan-kewangan pada satu akaun sejak 2023 | Jadual token berasingan (ADR 0011); jangan letak bukan-dokumen dalam jadual dokumen |
 
 ### Empat keluarga hanyutan (CASE-001)
 
@@ -191,7 +192,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 5 | Jenis `Money` — penuh (46 fail) atau bersasar (sempadan gateway)? | Modul online |
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
-| 8 | `application-test.yml` menunjuk ke `monthley_new` — DB SAMA dengan backend pembangunan. Punca disahkan bagi `mvn test` yang gagal sekali lalu lulus tanpa perubahan | DB ujian berasingan |
+| 8 | **DISAHKAN 26 Julai 2026** — `application-test.yml` menunjuk ke `monthley_new`, DB sama dengan backend pembangunan. Dengan backend hidup, konteks Spring GAGAL naik (`Unable to determine Dialect`); `kill` proses backend → ujian lulus serta-merta. Ini punca `mvn test` gagal-lalu-lulus, dan ia jenis kegagalan yang mengajar orang abaikan hasil merah | DB ujian berasingan — bukan lagi pilihan |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |
 
@@ -230,7 +231,9 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] P2 `StatementService` + `StatementModel` + invarian (ADR 0010)
 - [x] P3 penulis PDF + sub-baris padanan (ADR 0010)
 - [x] P4a `/accounts/my` guna `account_balance` (CASE-005)
-- [ ] Penyata akaun: penulis PDF & XLSX, tiga pemanggil (ADR 0010 P3-P6)
+- [x] P4b tiga endpoint penyata + ujian pemilikan & penyewa (ADR 0010)
+- [ ] Penyata akaun: penulis XLSX, ambang baris (ADR 0010 P5-P6)
+- [ ] Aliran e-mel + pautan awam + butang Pay (ADR 0011, CASE-006)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**

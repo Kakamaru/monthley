@@ -5,4 +5,18 @@ public interface StatementRenderPort {
 
     /** PDF. Templat boleh diedit tanpa recompile. */
     byte[] renderPdf(StatementModel model);
+
+    /**
+     * PDF dengan nama fail piawai. Gunakan ini daripada renderPdf apabila
+     * menghantar kepada pengguna, supaya penamaan tidak menyimpang antara
+     * ikon akaun, portal pelanggan dan tab Laporan.
+     */
+    default StatementFile renderPdfFile(StatementModel m) {
+        String akaun = m.header().accountNo() == null
+                ? String.valueOf(m.accountId())
+                : m.header().accountNo();
+        String name = ("penyata-" + akaun + "-" + m.from() + "-" + m.to() + ".pdf")
+                .replaceAll("[^A-Za-z0-9._-]", "_");
+        return new StatementFile(name, "application/pdf", renderPdf(m));
+    }
 }

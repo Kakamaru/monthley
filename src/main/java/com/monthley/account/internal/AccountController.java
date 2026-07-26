@@ -5,6 +5,8 @@ import com.monthley.tenancy.api.BillingSettingsPort;
 import com.monthley.notification.api.EmailPort;
 import com.monthley.shared.PageResponse;
 import com.monthley.shared.TenantContext;
+import com.monthley.statement.api.StatementPort;
+import com.monthley.statement.api.StatementRenderPort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
@@ -38,10 +40,15 @@ class AccountController {
     private final BillingSettingsPort settings;
     private final AccountInvitationRepository invitations;
     private final EmailPort email;
+    private final StatementPort statements;
+    private final StatementRenderPort statementRenderer;
 
     AccountController(AccountRepository accounts, AccountSubscriptionRepository subscriptions,
                       BillingSettingsPort settings, AccountInvitationRepository invitations,
-                      EmailPort email) {
+                      EmailPort email,
+                      StatementPort statements, StatementRenderPort statementRenderer) {
+        this.statements = statements;
+        this.statementRenderer = statementRenderer;
         this.accounts = accounts;
         this.subscriptions = subscriptions;
         this.settings = settings;
@@ -788,6 +795,45 @@ class AccountController {
                     (String) r[3], (String) r[4], (java.math.BigDecimal) r[5]));
         }
         return new PageResponse<>(items, total, page, size);
+    }
+
+    // ── Penyata akaun (portal pelanggan) ──
+    //
+    // Perkhidmatan yang SAMA seperti skrin SP (ADR 0010 keputusan 1), tetapi
+    // sempadan kebenarannya BERBEZA: pembayar boleh melihat akaun yang
+    // dibayarnya MERENTAS SP, jadi pemilikan disemak melalui payer_user_id
+    // dan bukan TenantContext. Semakan itu wujud di sini kerana peraturan
+    // pemilikan pembayar sudah tinggal di sini; StatementService tidak tahu
+    // siapa pemanggilnya dan tidak boleh menguatkuasakan apa-apa.
+    @GetMapping(value = "/my/{accountId}/statement",
+                produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> myStatement(
+            @PathVariable Long accountId,
+            @RequestParam(required = false) Integer year) {
+
+        Long uid = currentUserId();
+        List<?> owned = em.createNativeQuery(
+                "SELECT a.sp_code FROM account a "
+                + "WHERE a.id = :id AND a.payer_user_id = :uid AND a.status = 'ACTIVE'")
+                .setParameter("id", accountId)
+                .setParameter("uid", uid)
+                .getResultList();
+        if (owned.isEmpty()) {
+            return ResponseEntity.notFound().build();   // jangan bocorkan kewujudan
+        }
+        String spCode = (String) owned.get(0);
+
+        var model = statements.forYear(spCode, accountId,
+                year != null ? year : java.time.Year.now().getValue());
+        var f = statementRenderer.renderPdfFile(model);
+
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename(f.filename(), java.nio.charset.StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
     }
 
     /** User id dari JWT subject (JwtAuthFilter set principal = subject). */
