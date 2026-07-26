@@ -658,10 +658,25 @@ class AccountController {
     // ── Akaun Saya (portal pelanggan) — RENTAS SP ──
     // Pelanggan boleh ada akaun dalam banyak organisasi. Filter ikut
     // payer_user_id (dari JWT subject), BUKAN TenantContext — merentas semua SP.
-    // Baki diterbitkan SUM (invois - alokasi ACTIVE), bukan cached_balance (§9).
+    //
+    // BAKI daripada VIEW account_balance (ADR 0009) — satu takrifan dikongsi,
+    // sama seperti baris 89 dan DashboardController. Formula terdahulu di sini
+    // menjumlahkan invois tolak alokasi, yang BUTA kepada kredit yang belum
+    // dipadankan: pada 26 Julai 2026 ia memberitahu M04 bahawa dia berhutang
+    // RM700.59 sedangkan baki sebenar RM500.59 (RCP000005 mempunyai RM200
+    // belum dialokasi), dan menunjukkan M06 sebagai RM0.00 sedangkan dia
+    // mempunyai kredit RM38.41. Ia meminta wang yang bukan hak kita.
+    //
+    // TUNGGAKAN ialah nombor yang BERBEZA: invois belum berbayar. Ia tidak
+    // boleh negatif; baki boleh. Portal memaparkan kedua-duanya, sama seperti
+    // penyata (ADR 0010 keputusan 9). Kesilapan asalnya ialah memanggil
+    // tunggakan sebagai 'balance'.
     record MyAccountRow(Long id, String spCode, String spName,
-                        String accountNo, String accountName, java.math.BigDecimal balance,
-                        java.math.BigDecimal latestInvoiceAmount, java.time.LocalDate dueDate) {}
+                        String accountNo, String accountName,
+                        java.math.BigDecimal balance,
+                        java.math.BigDecimal arrears,
+                        java.math.BigDecimal latestInvoiceAmount,
+                        java.time.LocalDate dueDate) {}
 
     @GetMapping("/my")
     @SuppressWarnings("unchecked")
@@ -670,13 +685,19 @@ class AccountController {
 
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT a.id, a.sp_code, sp.name, a.account_no, a.account_name,
+                       COALESCE(ab.balance, 0) AS balance,
                        COALESCE((
                          SELECT SUM((d.amount + d.tax_amount) - COALESCE((
                                    SELECT SUM(al.amount) FROM fi_allocation al
                                    WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0))
                          FROM financial_document d
                          WHERE d.account_id = a.id AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
-                           AND d.status <> 'CANCELLED'), 0) AS balance,
+                           AND d.status <> 'CANCELLED'), 0) AS arrears,
+                       -- HUTANG TEKNIKAL (ADR 0010 P4): invois TERBARU, bukan
+                       -- yang tertunggak terawal. Ini formula MAX(doc_id)
+                       -- legacy: jika Januari belum dibayar, tarikh yang
+                       -- bermakna ialah tarikh Januari, bukan tarikh Julai.
+                       -- Pembetulan memerlukan VIEW tunggakan.
                        (SELECT (d2.amount + d2.tax_amount) FROM financial_document d2
                          WHERE d2.account_id = a.id AND d2.doc_type = 'INVOICE'
                            AND d2.status <> 'CANCELLED'
@@ -687,6 +708,7 @@ class AccountController {
                          ORDER BY d3.doc_date DESC, d3.id DESC LIMIT 1) AS due_dt
                 FROM account a
                 JOIN service_provider sp ON sp.sp_code = a.sp_code
+                LEFT JOIN account_balance ab ON ab.account_id = a.id
                 WHERE a.payer_user_id = :uid AND a.status = 'ACTIVE'
                 ORDER BY sp.name, a.account_no
                 """)
@@ -699,7 +721,8 @@ class AccountController {
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
                     (String) r[3], (String) r[4], (java.math.BigDecimal) r[5],
                     (java.math.BigDecimal) r[6],
-                    (java.time.LocalDate) r[7]));
+                    (java.math.BigDecimal) r[7],
+                    (java.time.LocalDate) r[8]));
         }
         return out;
     }

@@ -122,6 +122,7 @@ berulang. Baca sebelum menyentuh laluan berkaitan.
 | [CASE-002](evidence/CASE-002-amt_actv-scenario-catalog.md) | Baki disimpan di **empat tempat** (`bal_amt`, `amt_actv`, running balance, doc_link) yang menyimpang antara satu sama lain | Satu event ledger; semua baki diterbitkan on-read |
 | [CASE-003](evidence/CASE-003-online-payment-integration.md) | 33 anomali / 20,885 resit online. Terburuk **RM310,000 untuk bayaran RM310**. Satu kes terlepas 5 bulan | [ADR 0007](decisions/0007-online-payment-guards.md) — amaun dari gateway (jangan kira), callback stateless, idempotency, reconciliation harian |
 | [CASE-004](evidence/CASE-004-ledger-line-taxonomy.md) | Jenis baris ledger tersembunyi dalam teks bebas — `prod_descr` mengandungi dua ejaan untuk konsep sama ("Advanced"/"Advance Payment"), tempoh ditanam dalam string, produk dinamakan semula memutuskan padanan | `line_type` eksplisit + `product_id`; `period_start`/`period_end` sebagai DATE; teks jadi snapshot papar, tidak pernah disoal |
+| CASE-005 | `/accounts/my` mengira baki dengan formula sendiri (invois tolak alokasi) — buta kepada kredit belum dipadankan. M04 dipaparkan berhutang RM200 LEBIH daripada sebenar; kredit RM38.41 M06 dipaparkan sebagai sifar | VIEW `account_balance` di SETIAP pemanggil; tunggakan dan baki dinamakan berasingan; `MyAccountsBalanceTest` mengunci perbezaan kedua-dua formula |
 
 ### Empat keluarga hanyutan (CASE-001)
 
@@ -191,6 +192,8 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
 | 8 | `application-test.yml` menunjuk ke `monthley_new` — DB SAMA dengan backend pembangunan. Punca disahkan bagi `mvn test` yang gagal sekali lalu lulus tanpa perubahan | DB ujian berasingan |
+| 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
+| 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |
 
 ---
 
@@ -225,6 +228,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
 - [x] P1 spike: `counter(pages)` openhtmltopdf disahkan (ADR 0010)
 - [x] P2 `StatementService` + `StatementModel` + invarian (ADR 0010)
+- [x] P3 penulis PDF + sub-baris padanan (ADR 0010)
+- [x] P4a `/accounts/my` guna `account_balance` (CASE-005)
 - [ ] Penyata akaun: penulis PDF & XLSX, tiga pemanggil (ADR 0010 P3-P6)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
