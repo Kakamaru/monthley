@@ -42,7 +42,8 @@ class StatementPdfWriter implements StatementRenderPort {
 
     private static final String[] FONTS = {
             "DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf",
-            "DejaVuSansMono.ttf"
+            "DejaVuSansMono.ttf",
+            "Monthley.otf", "Monthley-SemiBold.otf", "Monthley-Bold.otf"
     };
 
     private final TemplateEngine templateEngine;
@@ -98,6 +99,24 @@ class StatementPdfWriter implements StatementRenderPort {
             // Lajur nombor mesti sejajar: mata mengimbas turun penyata
             // kewangan, dan lebar berubah menyukarkannya.
             b.useFont(fontFiles[3], "DejaVu Sans Mono", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+
+            // Fon jenama. Sambungan .otf tetapi isinya TrueType
+            // (sfntVersion 0x00010000), jadi PDFBox menerimanya seperti TTF.
+            //
+            // Monthley TIADA U+2713 dan U+2715, jadi DejaVu mesti kekal
+            // dalam senarai font-family templat sebagai fallback — jika
+            // tidak lajur Status kembali mencetak '#'.
+            //
+            // Digitnya juga proporsional (lebar '1' = 361, '0' = 662). Ciri
+            // tnum wujud dalam fon tetapi openhtmltopdf ialah perender
+            // CSS 2.1 dan tidak menyokong font-feature-settings, jadi lajur
+            // nombor KEKAL DejaVu Sans Mono.
+            b.useFont(fontFiles[4], "Monthley", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            b.useFont(fontFiles[5], "Monthley", 600,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            b.useFont(fontFiles[6], "Monthley", 700,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             b.withHtmlContent(html, null);
             b.toStream(os);

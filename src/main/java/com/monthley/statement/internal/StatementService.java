@@ -34,15 +34,26 @@ class StatementService implements StatementPort {
                                    LocalDate from, LocalDate to) {
         BigDecimal opening = query.openingBalance(spCode, accountId, from);
 
-        // Padanan diindeks DUA KALI daripada satu query. Baris kredit (resit,
-        // nota kredit) melihat sisi kredit — "invois mana yang aku bayar".
-        // Baris debit (invois, nota debit) melihat sisi debit — "resit mana
-        // yang membayar aku". Legacy hanya boleh yang pertama.
-        var all = query.matches(spCode, accountId, from, to);
-        Map<Long, List<StatementQuery.AllocationMatch>> byCredit = all.stream()
-                .collect(Collectors.groupingBy(StatementQuery.AllocationMatch::creditDocumentId));
-        Map<Long, List<StatementQuery.AllocationMatch>> byDebit = all.stream()
-                .collect(Collectors.groupingBy(StatementQuery.AllocationMatch::debitDocumentId));
+        // Padanan hanya pada baris KREDIT (resit, nota kredit): "invois mana
+        // yang aku bayar".
+        //
+        // Arah bertentangan pernah dipaparkan juga — invois menunjukkan resit
+        // yang membayarnya — kerana ia percuma secara teknikal. Hasilnya fakta
+        // yang SAMA dicetak dua kali: baris invois berkata 'dibayar oleh
+        // RCP008', baris resit berkata 'membayar DN001'. Pembaca terpaksa
+        // menghubungkan satu bayaran dua kali. Dibuang.
+        Map<Long, List<StatementQuery.AllocationMatch>> byCredit =
+                query.matches(spCode, accountId, from, to).stream()
+                        .collect(Collectors.groupingBy(
+                                StatementQuery.AllocationMatch::creditDocumentId));
+
+        // Baris dokumen untuk sisi debit. Sub-baris sentiasa menjawab satu
+        // soalan: dokumen ini terdiri daripada apa. Invois menunjukkan
+        // pecahan cajnya; resit menunjukkan invois yang dibayarnya.
+        Map<Long, List<StatementQuery.DocumentLine>> byDoc =
+                query.lines(spCode, accountId, from, to).stream()
+                        .collect(Collectors.groupingBy(
+                                StatementQuery.DocumentLine::documentId));
 
         List<StatementRow> rows = query.entries(spCode, accountId, from, to, opening)
                 .stream()
@@ -55,7 +66,7 @@ class StatementService implements StatementPort {
                         e.cancelled(),
                         e.signedAmount(),
                         e.runningBalance(),
-                        matchesFor(e, byCredit, byDebit)))
+                        matchesFor(e, byCredit, byDoc)))
                 .toList();
 
         BigDecimal closing = rows.isEmpty()
@@ -79,23 +90,32 @@ class StatementService implements StatementPort {
     private static List<StatementMatch> matchesFor(
             StatementQuery.DocumentEntry e,
             Map<Long, List<StatementQuery.AllocationMatch>> byCredit,
-            Map<Long, List<StatementQuery.AllocationMatch>> byDebit) {
+            Map<Long, List<StatementQuery.DocumentLine>> byDoc) {
 
         if (e.cancelled()) {
             return List.of();
         }
         boolean kredit = "RECEIPT".equals(e.docType()) || "CREDIT_NOTE".equals(e.docType());
-        var sumber = kredit
-                ? byCredit.getOrDefault(e.documentId(), List.of())
-                : byDebit.getOrDefault(e.documentId(), List.of());
 
-        return sumber.stream()
-                .map(m -> new StatementMatch(
-                        kredit ? m.debitDocNo() : m.creditDocNo(),
-                        m.description(),
-                        m.periodStart(),
-                        m.periodEnd(),
-                        m.amount()))
+        if (kredit) {
+            // Resit: invois mana yang aku bayar.
+            return byCredit.getOrDefault(e.documentId(), List.of()).stream()
+                    .map(m -> new StatementMatch(
+                            m.debitDocNo(), m.description(),
+                            m.periodStart(), m.periodEnd(), m.amount()))
+                    .toList();
+        }
+
+        // Invois: aku terdiri daripada caj apa. Satu baris sahaja tidak
+        // perlu dipecahkan — ia hanya mengulang keterangan dokumen.
+        var lines = byDoc.getOrDefault(e.documentId(), List.of());
+        if (lines.size() <= 1) {
+            return List.of();
+        }
+        return lines.stream()
+                .map(l -> new StatementMatch(
+                        null, l.description(),
+                        l.periodStart(), l.periodEnd(), l.amount()))
                 .toList();
     }
 }

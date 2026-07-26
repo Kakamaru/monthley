@@ -27,50 +27,52 @@
   @bottom-left   { content: element(kakiKiri); }
   @bottom-right  { content: element(kakiKanan); }
 }
-body { font-family: 'DejaVu Sans', sans-serif; font-size: 8pt;
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
        color: #1a1a1a; }
 
 .hdr        { width: 100%; }
 .hdr td     { vertical-align: top; }
 .sp-name    { font-size: 15pt; font-weight: bold; line-height: 1.15; }
-.sp-detail  { font-size: 7pt; color: #444; line-height: 1.35; }
+.sp-detail  { font-size: 8.5pt; color: #444; line-height: 1.35; }
 .title      { font-size: 15pt; font-weight: bold; text-align: right; }
 
 .box        { border-collapse: collapse; width: 100%; margin-top: 4mm; }
 .box td     { border: 0.6pt solid #555; padding: 1.2mm 2mm; }
-.box .lbl   { background: #f0f0f0; width: 32%; font-size: 7.5pt; }
-.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 8pt; }
+.box .lbl   { background: #f0f0f0; width: 32%; font-size: 9pt; }
+.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt; }
 
 .bar        { background: #16324a; color: #fff; padding: 1.2mm 2mm;
-              font-size: 8pt; margin-top: 5mm; }
-.summary    { width: 100%; font-size: 8pt; margin-top: 1.5mm; }
+              font-size: 10pt; margin-top: 5mm; }
+.summary    { width: 100%; font-size: 10pt; margin-top: 1.5mm; }
 .summary td { padding: 0.7mm 0; }
 .summary .k { width: 38%; color: #333; }
 .summary .s { width: 4%; }
 
 .rule       { border-top: 1.2pt solid #16324a; width: 12mm; margin-top: 6mm; }
-.sect       { font-weight: bold; font-size: 8.5pt; margin-top: 1.5mm; }
-.note       { font-size: 6.5pt; color: #555; margin: 0.8mm 0 1.5mm 0; }
+.sect       { font-weight: bold; font-size: 10.5pt; margin-top: 1.5mm; }
+.note       { font-size: 8pt; color: #555; margin: 0.8mm 0 1.5mm 0; }
 
 table.txn      { width: 100%; border-collapse: collapse; margin-top: 1mm; }
 table.txn thead { display: table-header-group; }
-table.txn th   { background: #16324a; color: #fff; font-size: 7.5pt;
+table.txn th   { background: #16324a; color: #fff; font-size: 9pt;
                  padding: 1.6mm 2mm; text-align: left; font-weight: normal; }
 table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
                  vertical-align: top; }
 .r          { text-align: right; }
 .c          { text-align: center; }
-.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 7.5pt; }
-.docno      { font-family: 'DejaVu Sans Mono', monospace; font-size: 7pt; color: #333; }
+.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              white-space: nowrap; }
+.docno      { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              color: #333; white-space: nowrap; }
 .batal      { color: #999; }
-.remark     { font-style: italic; font-size: 7pt; color: #555; }
-.sub        { font-size: 7pt; color: #333; padding-left: 4mm; }
+.remark     { font-style: italic; font-size: 8.5pt; color: #555; }
+.sub        { font-size: 8.5pt; color: #333; padding-left: 4mm; }
 .sub td     { border-bottom: none; padding: 0.4mm 2mm; }
 .total td   { background: #16324a; color: #fff; font-weight: bold;
               padding: 1.8mm 2mm; }
 
-#kakiKiri   { position: running(kakiKiri);  font-size: 6.5pt; color: #444; }
-#kakiKanan  { position: running(kakiKanan); font-size: 6.5pt; color: #444; }
+#kakiKiri   { position: running(kakiKiri);  font-size: 7.5pt; color: #444; }
+#kakiKanan  { position: running(kakiKanan); font-size: 7.5pt; color: #444; }
 .pg:before  { content: counter(page); }
 .tot:before { content: counter(pages); }
 </style>
@@ -138,10 +140,10 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
     <td style="width:42%">
       <div class="bar" style="margin-top:0">Ringkasan Akaun</div>
       <table class="summary">
-        <tr><td class="k">Tempoh Penyata</td><td class="s">:</td>
+        <tr><td class="k" style="white-space:nowrap">Tempoh Penyata</td><td class="s">:</td>
             <td class="r mono"
                 th:text="${fmt.date(m.from())} + ' - ' + ${fmt.date(m.to())}"></td></tr>
-        <tr><td class="k">Baki Bawa Ke Hadapan</td><td class="s">:</td>
+        <tr><td class="k">Baki Awal</td><td class="s">:</td>
             <td class="r mono"
                 th:text="${h.currency()} + ' ' + ${fmt.money(m.openingBalance())}"></td></tr>
         <tr><td class="k">Baki Akhir</td><td class="s">:</td>
@@ -163,13 +165,13 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
 <table class="txn">
   <thead>
     <tr>
-      <th style="width:5%">No.</th>
-      <th style="width:12%">Tarikh</th>
-      <th style="width:16%">Dokumen</th>
-      <th style="width:37%">Keterangan</th>
+      <th style="width:4%">No.</th>
+      <th style="width:14%">Tarikh</th>
+      <th style="width:15%">Dokumen</th>
+      <th style="width:36%">Keterangan</th>
       <th style="width:6%" class="c">Status</th>
-      <th style="width:12%" class="r">Amaun</th>
-      <th style="width:12%" class="r">Baki</th>
+      <th style="width:12.5%" class="r">Amaun</th>
+      <th style="width:12.5%" class="r">Baki</th>
     </tr>
   </thead>
   <tbody>
@@ -188,10 +190,12 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
       </tr>
       <tr th:each="x : ${r.matches()}" class="sub">
         <td></td><td></td>
-        <td class="docno" th:text="${x.documentNo()}"></td>
+        <!-- documentNo null pada sub-baris INVOIS: ia pecahan caj dokumen
+             itu sendiri, bukan rujukan kepada dokumen lain. -->
+        <td class="docno" th:text="${x.documentNo()} ?: ''"></td>
         <td>
           <span th:text="${x.productName()}"></span>
-          <span th:if="${x.periodStart() != null}"
+          <span th:if="${x.periodStart() != null}" style="white-space:nowrap"
                 th:text="'  ' + ${fmt.period(x.periodStart(), x.periodEnd())}"></span>
         </td>
         <td></td>

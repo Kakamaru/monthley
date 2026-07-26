@@ -129,14 +129,40 @@ class StatementMatchTest {
     }
 
     @Test
-    @DisplayName("baris INVOIS menunjukkan resit yang membayarnya — legacy tidak boleh")
-    void invoisTunjukResit() {
+    @DisplayName("baris INVOIS menunjukkan PECAHAN CAJnya, bukan resit yang membayarnya")
+    void invoisTunjukPecahanCaj() {
         StatementModel m = statement.forYear(sp, acc, 2026);
         var inv = row(m, "T-INV-1");
 
+        // Sub-baris sentiasa menjawab: dokumen ini terdiri daripada apa.
+        // Invois RM150 dengan tiga baris bulanan mesti menunjukkan
+        // ketiga-tiganya — jika tidak pelanggan melihat 'Invois M01' dan
+        // tidak tahu dia dicaj untuk apa.
         assertThat(inv.matches()).hasSize(3);
+        assertThat(inv.matches()).extracting(x -> x.periodStart())
+                .doesNotContainNull()
+                .doesNotHaveDuplicates();
+
+        // documentNo null: ia baris dokumen itu sendiri, bukan rujukan
+        // kepada dokumen lain.
         assertThat(inv.matches()).allSatisfy(x ->
-                assertThat(x.documentNo()).isEqualTo("T-RCP-1"));
+                assertThat(x.documentNo()).isNull());
+
+        // Arah bertentangan TIDAK dipaparkan: resit sudah menyenaraikan
+        // apa yang dibayarnya, dan mengulanginya memaksa pembaca
+        // menghubungkan satu bayaran dua kali.
+        assertThat(inv.matches()).extracting(x -> x.documentNo())
+                .doesNotContain("T-RCP-1");
+    }
+
+    @Test
+    @DisplayName("invois SATU baris tidak dipecahkan — sub-baris akan mengulang dirinya")
+    void invoisSatuBarisTiadaSubBaris() {
+        long d = doc("T-INV-2", "INVOICE", "2026-06-01", "75.00", "Yuran Jun");
+        line(d, "Yuran", "75.00", "2026-06-01");
+
+        var inv = row(statement.forYear(sp, acc, 2026), "T-INV-2");
+        assertThat(inv.matches()).isEmpty();
     }
 
     @Test

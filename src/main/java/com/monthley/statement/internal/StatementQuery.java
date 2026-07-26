@@ -181,6 +181,44 @@ class StatementQuery {
                 .list();
     }
 
+    /**
+     * Baris dokumen bagi julat yang sama — pecahan caj invois.
+     *
+     * Tanpa ini, invois dengan 12 baris bulanan menjadi satu baris
+     * berbunyi 'Invois M01' dan pelanggan tidak nampak dia dicaj untuk apa.
+     */
+    List<DocumentLine> lines(String spCode, long accountId,
+                             LocalDate from, LocalDate to) {
+        return jdbc.sql("""
+                SELECT l.document_id, l.description,
+                       l.period_start, l.period_end, l.amount
+                FROM   account_document_line l
+                JOIN   account_document_entry e ON e.document_id = l.document_id
+                WHERE  l.sp_code    = :sp
+                  AND  l.account_id = :acc
+                  AND  e.doc_date BETWEEN :from AND :to
+                ORDER  BY l.document_id, l.period_start, l.line_id
+                """)
+                .param("sp", spCode)
+                .param("acc", accountId)
+                .param("from", from)
+                .param("to", to)
+                .query((rs, n) -> new DocumentLine(
+                        rs.getLong("document_id"),
+                        rs.getString("description"),
+                        rs.getDate("period_start") != null
+                                ? rs.getDate("period_start").toLocalDate() : null,
+                        rs.getDate("period_end") != null
+                                ? rs.getDate("period_end").toLocalDate() : null,
+                        rs.getBigDecimal("amount")))
+                .list();
+    }
+
+    record DocumentLine(long documentId, String description,
+                        LocalDate periodStart, LocalDate periodEnd,
+                        BigDecimal amount) {
+    }
+
     record AllocationMatch(long creditDocumentId, long debitDocumentId,
                            String creditDocNo, String debitDocNo,
                            LocalDate periodStart, LocalDate periodEnd,

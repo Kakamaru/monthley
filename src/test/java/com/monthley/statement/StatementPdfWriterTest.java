@@ -97,7 +97,10 @@ class StatementPdfWriterTest {
         // ialah ampersand terselamat dan render tidak gagal.
         String t = teks(pdf);
         assertThat(t).contains("Maintenance & Sinking Fund");
-        assertThat(t).contains("Penyelenggaraan & Kumpulan Wang");
+        // Serpihan PENDEK: teks sel membalut baris dan saiz fon boleh
+        // berubah, jadi frasa panjang bukan ujian escaping — ia ujian
+        // susun atur yang menyamar.
+        assertThat(t).contains("Penyelenggaraan &");
         assertThat(t).contains("<JMB>");
         assertThat(t).doesNotContain("&amp;").doesNotContain("&lt;");
     }
