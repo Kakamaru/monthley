@@ -275,32 +275,52 @@ class AccountControllerTest {
         assertThat(r.allocated()).isEqualByComparingTo("240.00");
         assertThat(r.deposit()).isEqualByComparingTo("60.00");   // advance (rename tertunggak)
 
-        var resp = controller.statement(accId, 0, 100);
+        var resp = controller.statement(accId, 2026, 0, 100);
 
-        // 3 baris invois + 3 knock + 1 advance = 7.
-        assertThat(resp.total()).isEqualTo(7);
-        assertThat(resp.lines()).hasSize(7);
+        // BENTUK BERUBAH (ADR 0010 keputusan 3). Versi terdahulu ujian ini
+        // menjangka 7 baris: 3 baris-invois + 3 knock alokasi + 1 baris
+        // 'advance' yang DIKARANG daripada (resit - SUM alokasi).
+        //
+        // Baris advance itu tidak wujud sebagai rekod. Ia jambatan antara
+        // susun-atur-ikut-alokasi dan baki-ikut-dokumen — corak legacy yang
+        // CASE-004 bedah. Di bawah ADR 0009 baki digerakkan oleh DOKUMEN
+        // sahaja, jadi jurang itu tidak wujud dan jambatan tidak diperlukan.
+        //
+        // Sekarang: 3 invois + 1 resit = 4 baris. Alokasi turun menjadi
+        // sub-baris yang tidak menggerakkan baki.
+        //
+        // BAKI PENUTUP TIDAK BERUBAH: -60.00 sebelum dan selepas. Hanya
+        // susun atur berbeza; angka yang SP lihat kekal sama.
+        assertThat(resp.total()).isEqualTo(4);
+        assertThat(resp.lines()).hasSize(4);
         assertThat(resp.closingBalance()).isEqualByComparingTo("-60.00");
 
-        // Descending: baris pertama = advance (kredit 60), baki -60.
+        // Descending: baris pertama = resit, amaun PENUH -300 (bukan -240
+        // diikuti baris advance -60).
         var first = resp.lines().get(0);
-        assertThat(first.item()).contains("advance");
-        assertThat(first.credit()).isEqualByComparingTo("60.00");
+        assertThat(first.docType()).isEqualTo("RECEIPT");
+        assertThat(first.amount()).isEqualByComparingTo("-300.00");
         assertThat(first.balance()).isEqualByComparingTo("-60.00");
 
-        // Baris terakhir = invois paling awal (debit 80), baki 80.
+        // Tiga alokasi @80 menjadi sub-baris resit, bukan baris sendiri.
+        assertThat(first.matches()).hasSize(3);
+        assertThat(first.matches()).allSatisfy(m ->
+                assertThat(m.amount()).isEqualByComparingTo("80.00"));
+
+        // Baris terakhir = invois paling awal, baki 80.
         var last = resp.lines().get(resp.lines().size() - 1);
-        assertThat(last.docType()).isEqualTo("Invoice");
-        assertThat(last.debit()).isEqualByComparingTo("80.00");
+        assertThat(last.docType()).isEqualTo("INVOICE");
+        assertThat(last.amount()).isEqualByComparingTo("80.00");
         assertThat(last.balance()).isEqualByComparingTo("80.00");
 
-        // Baki berjalan descending: setiap baris = baris_sebelum - debit_atas + credit_atas.
-        // Cukup sahkan monotonik: dari bawah (80) naik ke atas (-60) melalui knock.
-        long knocks = resp.lines().stream().filter(l -> l.credit().compareTo(new BigDecimal("80.00")) == 0).count();
-        assertThat(knocks).isEqualTo(3);   // 3 knock @80
+        // Tiada baris 'advance' di mana-mana.
+        assertThat(resp.lines())
+                .extracting(AccountController.StatementLine::item)
+                .noneMatch(x -> x != null && x.toLowerCase().contains("advance"));
 
-        long invLines = resp.lines().stream().filter(l -> "Invoice".equals(l.docType())).count();
-        assertThat(invLines).isEqualTo(3); // 3 baris invois
+        long invLines = resp.lines().stream()
+                .filter(l -> "INVOICE".equals(l.docType())).count();
+        assertThat(invLines).isEqualTo(3);
     }
 
     @Test

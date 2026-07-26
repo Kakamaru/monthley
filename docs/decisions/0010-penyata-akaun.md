@@ -61,9 +61,18 @@ Bawah ADR 0009 jurang itu tidak wujud, jadi jambatan tidak diperlukan.
 
 ## Keputusan
 
-**1. Satu StatementService, tiga pemanggil.** Ikon akaun, portal
-pelanggan dan tab Laporan memanggil perkhidmatan yang sama dengan
-parameter berbeza. Tiada query penyata di luar perkhidmatan ini.
+**1. Satu StatementService, EMPAT pemanggil.** Ikon akaun, portal
+pelanggan, tab Laporan, dan pautan e-mel awam (CASE-006) memanggil
+perkhidmatan yang sama dengan parameter berbeza. Tiada query penyata di
+luar perkhidmatan ini.
+
+Dua pemanggil sedia ada ditemui SELEPAS ADR ini ditulis dan kedua-duanya
+membina semula corak legacy: `/accounts/my` mengira baki dengan formula
+sendiri (CASE-005), dan `/{id}/statement` membina penyata baris-per-
+alokasi dengan baris 'advance' yang dikarang. Kedua-duanya kini
+dipetakan daripada perkhidmatan ini. Pengajaran: ADR yang ditulis
+selepas kod menerangkan niat, bukan keadaan — pemanggil mesti dicari,
+bukan diandaikan.
 
 **2. Penyata tidak menyoal pangkalan data sendiri.** Tiada enjin luar,
 tiada JDBC dalam templat. Templat menerima model yang sudah siap
