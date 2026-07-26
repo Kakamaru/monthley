@@ -458,13 +458,22 @@ class AccountController {
                         LocalDate.of(1900, 1, 1), LocalDate.of(2999, 12, 31))
                 : statements.forYear(acc.getSpCode(), id, year);
 
+        var fmt = statements.formatterFor(model);
+
         List<StatementLine> asc = new ArrayList<>();
         for (var r : model.rows()) {
             List<StatementMatchDto> m = new ArrayList<>();
             for (var x : r.matches()) {
+                // Tempoh diformat DI SINI, bukan di frontend. Peraturannya
+                // bukan remeh — bulan penuh dipendekkan kepada 'Julai 2026'
+                // manakala sebahagian bulan menunjukkan '19-31 Julai 2026',
+                // kerana satu akaun boleh mempunyai dua langganan produk
+                // yang sama dengan start_date berbeza. Jika frontend
+                // memformat sendiri, peraturan itu wujud di dua tempat dan
+                // akan menyimpang (guard 6).
                 m.add(new StatementMatchDto(
                         x.documentNo(), x.productName(),
-                        x.periodStart() == null ? null : x.periodStart().toString(),
+                        fmt.period(x.periodStart(), x.periodEnd()),
                         x.amount()));
             }
             asc.add(new StatementLine(

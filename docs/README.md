@@ -124,6 +124,7 @@ berulang. Baca sebelum menyentuh laluan berkaitan.
 | [CASE-004](evidence/CASE-004-ledger-line-taxonomy.md) | Jenis baris ledger tersembunyi dalam teks bebas — `prod_descr` mengandungi dua ejaan untuk konsep sama ("Advanced"/"Advance Payment"), tempoh ditanam dalam string, produk dinamakan semula memutuskan padanan | `line_type` eksplisit + `product_id`; `period_start`/`period_end` sebagai DATE; teks jadi snapshot papar, tidak pernah disoal |
 | CASE-005 | `/accounts/my` mengira baki dengan formula sendiri (invois tolak alokasi) — buta kepada kredit belum dipadankan. M04 dipaparkan berhutang RM200 LEBIH daripada sebenar; kredit RM38.41 M06 dipaparkan sebagai sifar | VIEW `account_balance` di SETIAP pemanggil; tunggakan dan baki dinamakan berasingan; `MyAccountsBalanceTest` mengunci perbezaan kedua-dua formula |
 | [CASE-006](evidence/CASE-006-aliran-emel-penyata.md) | Aliran e-mel legacy mencipta satu dokumen `P` hantu setiap penyata semata-mata untuk memegang UUID pautan — 51 rekod bukan-kewangan pada satu akaun sejak 2023 | Jadual token berasingan (ADR 0011); jangan letak bukan-dokumen dalam jadual dokumen |
+| [CASE-007](evidence/CASE-007-langganan-bertindih.md) | Dua langganan produk SAMA bertindih pada akaun sama dicaj penuh kedua-duanya dalam satu larian; tiada prorata. `uk_subscr` dan `idem_key` kedua-duanya membenarkannya | **BELUM DISIASAT** — enjin bil, perlukan ADR |
 
 ### Empat keluarga hanyutan (CASE-001)
 
@@ -195,6 +196,8 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 8 | **DISAHKAN 26 Julai 2026** — `application-test.yml` menunjuk ke `monthley_new`, DB sama dengan backend pembangunan. Dengan backend hidup, konteks Spring GAGAL naik (`Unable to determine Dialect`); `kill` proses backend → ujian lulus serta-merta. Ini punca `mvn test` gagal-lalu-lulus, dan ia jenis kegagalan yang mengajar orang abaikan hasil merah | DB ujian berasingan — bukan lagi pilihan |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |
+| 11 | **Peraturan tindihan langganan** — bolehkah satu pelanggan menyewa dua unit produk yang sama? Jawapannya menentukan sama ada `uk_subscr (account_id, product_id, start_date)` dan `idem_key` perlu diketatkan (CASE-007) | Keputusan produk, kemudian ADR |
+| 12 | Prorata tidak dikenakan pada langganan yang bermula pertengahan bulan, walaupun `proration_ratio` wujud (CASE-007) | Siasat bersama 11 |
 
 ---
 

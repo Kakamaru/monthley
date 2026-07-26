@@ -13,4 +13,13 @@ public interface StatementPort {
 
     /** Penyata bagi julat sebarang. Julat penuh = "semua rekod". */
     StatementModel forRange(String spCode, long accountId, LocalDate from, LocalDate to);
+
+    /**
+     * Pemformat mengikut tetapan SP model ini (bahasa, format tarikh).
+     *
+     * Pemanggil yang membina JSON menggunakannya supaya peraturan format
+     * hidup di SATU tempat sahaja. Frontend memaparkan rentetan yang
+     * diterima; ia tidak memformat tarikh sendiri.
+     */
+    StatementTextFormat formatterFor(StatementModel model);
 }

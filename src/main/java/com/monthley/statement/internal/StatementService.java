@@ -81,6 +81,11 @@ class StatementService implements StatementPort {
                 opening, rows, closing, arrears);
     }
 
+    @Override
+    public com.monthley.statement.api.StatementTextFormat formatterFor(StatementModel m) {
+        return new StatementFormatter(m.header().language(), m.header().dateFormat());
+    }
+
     /**
      * Sub-baris padanan bagi satu dokumen.
      *

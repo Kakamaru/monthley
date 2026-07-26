@@ -17,13 +17,13 @@ import java.util.Locale;
  * Legacy tidak boleh menyetempatkan — nama tempohnya ditaip semasa
  * posting, jadi 'July, 2026' kekal Inggeris untuk SP berbahasa Melayu.
  */
-public class StatementFormatter {
+public class StatementFormatter implements com.monthley.statement.api.StatementTextFormat {
 
     private final DateTimeFormatter dateFmt;
     private final DateTimeFormatter monthFmt;
     private final DecimalFormat money;
 
-    StatementFormatter(String language, String datePattern) {
+    public StatementFormatter(String language, String datePattern) {
         Locale locale = (language == null || language.isBlank())
                 ? Locale.forLanguageTag("en")
                 : Locale.forLanguageTag(language);
@@ -44,26 +44,48 @@ public class StatementFormatter {
         this.money = new DecimalFormat("#,##0.00;(#,##0.00)", sym);
     }
 
+    @Override
     public String date(LocalDate d) {
         return d == null ? "" : dateFmt.format(d);
     }
 
     /** Negatif dalam kurungan, mengikut legacy: (130.00) */
+    @Override
     public String money(BigDecimal v) {
         return v == null ? "" : money.format(v);
     }
 
     /**
-     * Tempoh daripada TARIKH, bukan nama tersimpan. Satu bulan dipendekkan
-     * kepada 'Januari 2026'; julat lebih panjang menunjukkan kedua-dua hujung.
+     * Tempoh daripada TARIKH, bukan nama tersimpan.
+     *
+     * Dipendekkan kepada 'Januari 2026' hanya apabila ia BULAN PENUH.
+     * Sebahagian bulan menunjukkan tarikhnya: satu akaun boleh mempunyai
+     * dua langganan produk yang sama dengan start_date berbeza —
+     * uk_subscr (account_id, product_id, start_date) membenarkannya
+     * dengan sengaja, kerana pelanggan boleh menyewa dua petak parking.
+     *
+     * Memendekkan kedua-duanya kepada 'Julai 2026' menjadikan dua baris
+     * sah kelihatan seperti pendua, dan pembaca tidak dapat membezakannya.
      */
+    @Override
     public String period(LocalDate start, LocalDate end) {
         if (start == null) {
             return "";
         }
-        if (end == null || (start.getYear() == end.getYear()
-                && start.getMonthValue() == end.getMonthValue())) {
+        boolean bulanSama = end != null
+                && start.getYear() == end.getYear()
+                && start.getMonthValue() == end.getMonthValue();
+
+        if (end == null) {
             return monthFmt.format(start);
+        }
+        if (bulanSama) {
+            boolean penuh = start.getDayOfMonth() == 1
+                    && end.getDayOfMonth() == end.lengthOfMonth();
+            return penuh
+                    ? monthFmt.format(start)
+                    : start.getDayOfMonth() + "-" + end.getDayOfMonth()
+                      + " " + monthFmt.format(start);
         }
         return monthFmt.format(start) + " - " + monthFmt.format(end);
     }

@@ -122,6 +122,36 @@ class StatementPdfWriterTest {
     }
 
     @Test
+    @DisplayName("sebahagian bulan menunjukkan tarikh, bukan nama bulan sahaja")
+    void sebahagianBulanTunjukTarikh() throws Exception {
+        var h = header("JMB", "ms", true);
+        var rows = List.of(
+                new StatementRow(LocalDate.of(2026, 7, 23), "INVOICE", "INV-P",
+                        "Invois", null, false,
+                        new BigDecimal("100.00"), new BigDecimal("100.00"),
+                        List.of(
+                                // bulan penuh -> 'Julai 2026'
+                                new StatementMatch(null, "Parking",
+                                        LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
+                                        new BigDecimal("50.00")),
+                                // sebahagian -> '19-31 Julai 2026'
+                                new StatementMatch(null, "Parking",
+                                        LocalDate.of(2026, 7, 19), LocalDate.of(2026, 7, 31),
+                                        new BigDecimal("50.00")))));
+        var m = new StatementModel(h, "TST", 1L,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
+                BigDecimal.ZERO, rows, new BigDecimal("100.00"),
+                new BigDecimal("100.00"));
+
+        String t = teks(writer.renderPdf(m));
+
+        // Dua langganan sah bagi produk yang sama mesti boleh dibezakan;
+        // uk_subscr membenarkan tindihan dengan sengaja.
+        assertThat(t).contains("19-31 Julai 2026");
+        assertThat(t).contains("Julai 2026");
+    }
+
+    @Test
     @DisplayName("dokumen batal ditanda; amaun sifar tidak menggerakkan baki")
     void batalDitanda() throws Exception {
         String t = teks(writer.renderPdf(model(header("JMB", "ms", true))));
