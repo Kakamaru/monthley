@@ -4,6 +4,7 @@ import com.monthley.statement.api.StatementMatch;
 import com.monthley.statement.api.StatementModel;
 import com.monthley.statement.api.StatementPort;
 import com.monthley.statement.api.StatementRow;
+import com.monthley.statement.api.StatementTextFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,10 @@ class StatementService implements StatementPort {
     public StatementModel forRange(String spCode, long accountId,
                                    LocalDate from, LocalDate to) {
         BigDecimal opening = query.openingBalance(spCode, accountId, from);
+        // Kepala diambil SEKALI: pemformat memerlukan bahasa dan format
+        // tarikh SP, dan model membawanya juga.
+        var header = query.header(spCode, accountId);
+        var fmt = new StatementFormatter(header.language(), header.dateFormat());
 
         // Padanan hanya pada baris KREDIT (resit, nota kredit): "invois mana
         // yang aku bayar".
@@ -61,7 +66,7 @@ class StatementService implements StatementPort {
                         e.docDate(),
                         e.docType(),
                         e.docNo(),
-                        keteranganFor(e, byDoc),
+                        keteranganFor(e, byDoc, fmt),
                         e.cancelReason(),
                         e.cancelled(),
                         e.signedAmount(),
@@ -76,7 +81,7 @@ class StatementService implements StatementPort {
         // Tunggakan tidak boleh negatif; baki boleh (ADR 0010 keputusan 9)
         BigDecimal arrears = closing.max(BigDecimal.ZERO);
 
-        return new StatementModel(query.header(spCode, accountId),
+        return new StatementModel(header,
                 spCode, accountId, from, to,
                 opening, rows, closing, arrears);
     }
@@ -99,13 +104,21 @@ class StatementService implements StatementPort {
      */
     private static String keteranganFor(
             StatementQuery.DocumentEntry e,
-            Map<Long, List<StatementQuery.DocumentLine>> byDoc) {
+            Map<Long, List<StatementQuery.DocumentLine>> byDoc,
+            StatementTextFormat fmt) {
 
         var lines = byDoc.getOrDefault(e.documentId(), List.of());
         if (lines.size() == 1) {
-            String d = lines.get(0).description();
+            var l = lines.get(0);
+            String d = l.description();
             if (d != null && !d.isBlank()) {
-                return d;
+                // Tempoh MESTI disertakan. Selepas split ikut tempoh (ADR 0011),
+                // dua belas invois bulanan bagi produk yang sama menghasilkan dua
+                // belas baris 'PARKING MOTOR' yang identik — pelanggan tidak dapat
+                // membezakan bulan mana. Tiada sub-baris untuk membawanya kerana
+                // invois satu baris tidak dipecahkan.
+                String tempoh = fmt.period(l.periodStart(), l.periodEnd());
+                return tempoh.isBlank() ? d : d + " \u00b7 " + tempoh;
             }
         }
         return e.title() != null ? e.title() : e.docType();

@@ -128,10 +128,29 @@ public class InvoiceGenerationService {
     }
 
     /**
-     * Cipta satu atau beberapa dokumen mengikut tetapan split (ADR 0008).
+     * Cipta satu atau beberapa dokumen mengikut tetapan split (ADR 0008,
+     * dipinda oleh ADR 0011).
      *
      * split = 0 -> SATU dokumen mengandungi semua baris
-     * split = 1 -> SATU dokumen per produk
+     * split = 1 -> SATU dokumen per PRODUK per TEMPOH
+     *
+     * Tempoh dalam kunci, bukan produk sahaja. Sebabnya pembatalan:
+     * apabila kadar berubah selepas AGM pertengahan tahun, SP mesti boleh
+     * membatalkan Ogos hingga Disember tanpa menyentuh Januari hingga
+     * Julai yang mungkin sudah dibayar. Dengan satu dokumen bagi dua belas
+     * bulan, itu mustahil.
+     *
+     * Legacy sudah berbuat demikian — Pandan Mewah 11/01/2020 09:24:47
+     * menghasilkan EMPAT invois dalam satu cap masa (2 produk x 2 bulan),
+     * bukan dua.
+     *
+     * Kesan pada operasi biasa: TIADA. invoice_gen_freq MONTHLY bermakna
+     * satu larian = satu tempoh, jadi produk x tempoh = produk x 1.
+     * Perbezaan hanya muncul semasa penjanaan pukal beberapa tempoh.
+     *
+     * split = 0 kekal SATU dokumen untuk seluruh larian — SP yang memilih
+     * itu menerima had pembatalan tersebut (dijelaskan semasa onboarding
+     * dan pada skrin tetapan).
      *
      * Baris transaksi sentiasa lengkap dalam kedua-dua kes; hanya bilangan
      * dokumen berbeza. SUM(baris) kekal sama, jadi ledger seimbang.
@@ -144,16 +163,26 @@ public class InvoiceGenerationService {
             return createAndPost(spCode, account, base, lines, ctx) ? 1 : 0;
         }
 
-        // Kumpul ikut produk, kekalkan susunan asal supaya nombor dokumen
-        // mengikut urutan yang boleh diramal.
-        Map<Long, List<CalculatedLine>> byProduct = new LinkedHashMap<>();
+        // Kunci = (tempoh liputan, produk). LinkedHashMap mengekalkan susunan
+        // asal supaya nombor dokumen boleh diramal.
+        record Kunci(long periodId, Long productId) {}
+        Map<Kunci, List<CalculatedLine>> kumpulan = new LinkedHashMap<>();
         for (CalculatedLine l : lines) {
-            byProduct.computeIfAbsent(l.productId(), k -> new ArrayList<>()).add(l);
+            kumpulan.computeIfAbsent(
+                    new Kunci(l.charge().periodId(), l.productId()),
+                    k -> new ArrayList<>()).add(l);
         }
 
         int created = 0;
-        for (List<CalculatedLine> group : byProduct.values()) {
-            if (createAndPost(spCode, account, base, group, ctx)) {
+        for (Map.Entry<Kunci, List<CalculatedLine>> e : kumpulan.entrySet()) {
+            // Dokumen membawa tempoh LIPUTANnya, bukan tempoh larian.
+            // ADR 0008 menetapkan tempoh larian kerana satu dokumen boleh
+            // merangkumi beberapa tempoh; setelah dipecah ikut tempoh,
+            // liputan dan dokumen adalah satu perkara yang sama. Tanpa ini
+            // dua belas invois bulanan semuanya bertanda '2025' dan tidak
+            // boleh dibezakan dalam senarai.
+            Charge tempohDok = e.getValue().get(0).charge();
+            if (createAndPost(spCode, account, tempohDok, e.getValue(), ctx)) {
                 created++;
             }
         }

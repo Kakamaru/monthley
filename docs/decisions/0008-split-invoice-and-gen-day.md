@@ -47,6 +47,15 @@ jumlah, sementara butiran setiap item kekal dalam baris transaksi.
 
 ### 2. Split mempengaruhi BILANGAN DOKUMEN sahaja, bukan baris
 
+> **DIPINDA oleh ADR 0011 (27 Julai 2026).** Kunci pengumpulan ialah
+> (TEMPOH, produk), bukan produk sahaja. Apabila satu larian
+> menghasilkan beberapa tempoh — akaun YEAR dengan produk MONTHLY —
+> memecah ikut produk sahaja meletakkan dua belas bulan dalam satu
+> dokumen, dan pembatalan separa menjadi mustahil.
+>
+> Ayat "dokumen simpan period larian" di bawah juga dipinda: dokumen
+> kini membawa tempoh LIPUTANnya.
+
 Titik paling penting dan paling mudah disalahfaham.
 
 | | split = 0 | split = 1 |

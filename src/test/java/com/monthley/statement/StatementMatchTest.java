@@ -164,12 +164,19 @@ class StatementMatchTest {
         var inv = row(statement.forYear(sp, acc, 2026), "T-INV-2");
         assertThat(inv.matches()).isEmpty();
 
-        // Tiada sub-baris bermakna nama produk mesti muncul pada baris
-        // utama — jika tidak pelanggan melihat 'Yuran Jun' sahaja dan
-        // tidak tahu dia dicaj untuk apa.
+        // Tiada sub-baris bermakna nama produk DAN tempoh mesti muncul pada
+        // baris utama.
+        //
+        // Nama sahaja tidak memadai selepas split ikut tempoh (ADR 0011):
+        // dua belas invois bulanan bagi produk yang sama menghasilkan dua
+        // belas baris identik, dan pelanggan tidak dapat membezakan bulan
+        // mana. Tiada sub-baris untuk membawanya kerana invois satu baris
+        // tidak dipecahkan.
         assertThat(inv.description())
-                .as("invois satu baris mesti menunjukkan nama produk, bukan tajuk dokumen")
-                .isEqualTo("Yuran");
+                .as("nama produk DAN tempoh — dua belas 'PARKING MOTOR' yang "
+                    + "identik tidak boleh dibezakan")
+                .startsWith("Yuran")
+                .contains("2026");
     }
 
     @Test
