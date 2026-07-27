@@ -1,0 +1,13 @@
+-- Gugurkan sp_document_setting.selective_payment — lajur MATI.
+--
+-- Dua lajur wujud untuk satu konsep:
+--   service_provider.allow_selective        (V7) — dibaca oleh PaymentService
+--   sp_document_setting.selective_payment   (V2) — TIADA siapa membacanya
+--
+-- Ditemui 27 Julai 2026 semasa menyiasat kenapa checkbox pemilihan invois
+-- pada Manual Payment tidak memberi kesan. Kedua-duanya 0 ketika itu, jadi
+-- perbezaan tidak kelihatan — tetapi apabila SP menghidupkan satu dan bukan
+-- satu lagi, tingkah laku bergantung pada yang mana kod kebetulan baca.
+--
+-- Satu keputusan, satu tempat (cara-kerja guard 6).
+ALTER TABLE sp_document_setting DROP COLUMN selective_payment;

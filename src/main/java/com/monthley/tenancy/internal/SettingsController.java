@@ -207,6 +207,10 @@ class SettingsController {
             String receiptTitle, String receiptPrefix,
             Integer receiptNoSize, Long receiptNoStart, String receiptTemplateId,
             Boolean enableManualPayment,
+            // allow_selective duduk pada service_provider, bukan
+            // sp_document_setting — di situlah PaymentService membacanya.
+            // Didedahkan di sini kerana ia tetapan RESIT dari sudut SP.
+            Boolean allowSelective,
             // Statement
             String statementTitle, String statementTemplateId) {}
 
@@ -222,9 +226,11 @@ class SettingsController {
                        n.whatsapp_on_invoice, n.whatsapp_on_reminder,
                        d.receipt_title, d.receipt_prefix, d.receipt_no_size, d.receipt_no_start,
                        d.receipt_template_id, d.enable_manual_payment,
+                       sp.allow_selective,
                        d.statement_title, d.statement_template_id
                 FROM sp_document_setting d
                 JOIN sp_notification_setting n ON n.sp_code = d.sp_code
+                JOIN service_provider sp ON sp.sp_code = d.sp_code
                 WHERE d.sp_code = :sp
                 """).setParameter("sp", sp()).getSingleResult();
 
@@ -240,7 +246,8 @@ class SettingsController {
                 r[16] == null ? null : ((Number) r[16]).intValue(),
                 r[17] == null ? null : ((Number) r[17]).longValue(),
                 (String) r[18], toBool(r[19]),
-                (String) r[20], (String) r[21]);
+                toBool(r[20]),                      // allow_selective
+                (String) r[21], (String) r[22]);
     }
 
     @PutMapping("/document")
@@ -279,6 +286,30 @@ class SettingsController {
                 .setParameter("rtp", d.receiptTemplateId())
                 .setParameter("emp", bit(d.enableManualPayment()))
                 .setParameter("st", d.statementTitle()).setParameter("stp", d.statementTemplateId())
+                .setParameter("sp", sp())
+                .executeUpdate();
+
+        // allow_selective hidup pada service_provider (V7), bukan
+        // sp_document_setting. Ditulis di sini supaya SP mengurusnya bersama
+        // tetapan resit yang lain.
+        //
+        // sp_document_setting.selective_payment (V2) ialah lajur MATI —
+        // tiada siapa membacanya. Digugurkan dalam V37.
+        em.createNativeQuery(
+                "UPDATE service_provider SET allow_selective = :sel WHERE sp_code = :sp")
+                .setParameter("sel", bit(d.allowSelective()))
+                .setParameter("sp", sp())
+                .executeUpdate();
+
+        // allow_selective hidup pada service_provider (V7), bukan
+        // sp_document_setting. Ditulis di sini supaya SP mengurusnya bersama
+        // tetapan resit yang lain.
+        //
+        // sp_document_setting.selective_payment (V2) ialah lajur MATI —
+        // tiada siapa membacanya. Digugurkan dalam V37.
+        em.createNativeQuery(
+                "UPDATE service_provider SET allow_selective = :sel WHERE sp_code = :sp")
+                .setParameter("sel", bit(d.allowSelective()))
                 .setParameter("sp", sp())
                 .executeUpdate();
 
