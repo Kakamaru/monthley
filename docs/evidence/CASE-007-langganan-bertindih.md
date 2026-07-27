@@ -1,7 +1,7 @@
 # CASE-007 — Langganan bertindih dicaj dua kali
 
 - **Tarikh ditemui:** 27 Julai 2026 (semasa kerja penyata ADR 0010)
-- **Status:** BELUM DISIASAT. Bukti dikumpul, punca belum disahkan.
+- **Status:** PUNCA DISAHKAN, GUARD DIPASANG (27 Julai 2026).
 - **Skop:** enjin bil, bukan penyata
 
 ## Bagaimana ia ditemui
@@ -84,3 +84,101 @@ penyata daripada menjadikan dua baris kelihatan seperti pendua.
 ## Rujukan
 - 0010-penyata-akaun.md
 - billing-rules.md
+
+---
+
+# PENYELESAIAN (27 Julai 2026)
+
+## Prorata: BUKAN pepijat
+
+Siasatan awal mendakwa "tiada prorata dikenakan walaupun proration_ratio
+wujud". Itu SALAH — dakwaan dibuat tanpa membaca kod.
+
+`InvoiceCalculator` baris 73:
+
+    boolean canProrate = account.startDate() != null && product.prorated();
+
+`account.start_date` pada akaun 260 ialah NULL, jadi prorata mati dengan
+sengaja. Komen di atasnya menerangkan sebabnya, dan ia kukuh:
+
+> Kosong -> sub.start_date hanya menentukan BILA. Kitaran berjalan dicaj
+> PENUH. Sebab: tanpa isytihar SP, satu-satunya tarikh yang kita ada
+> ialah bila kerani menaip. Memprorate berdasarkannya bermakna
+> mengenakan caj berdasarkan KELAJUAN KEMASUKAN DATA.
+
+Dirujuk dalam billing-rules.md §6. RM50 penuh untuk kedua-dua baris
+adalah tingkah laku yang ditulis. Soalan prorata DITUTUP.
+
+## Punca sebenar: peraturan hidup dalam UI sahaja
+
+Peraturan perniagaan disahkan pemilik produk: **satu akaun, satu produk,
+satu langganan**. Skrin "Add Subscription" hanya memaparkan produk yang
+belum dilanggan.
+
+Tetapi penapis itu wujud di FRONTEND SAHAJA. Backend menerima apa yang
+dihantar: `AccountController` laluan edit mencipta `AccountSubscription`
+apabila `line.id() == null`, tanpa menyemak produk sudah dilanggan.
+Grep untuk penapis di backend mengembalikan kosong.
+
+Akaun 260 mendapat dua langganan produk 197 melalui laluan itu.
+
+Ini corak cara-kerja guard 6: peraturan yang hidup hanya dalam UI bukan
+peraturan. DB tidak pernah dimaklumkan.
+
+## Guard dipasang
+
+`existsByAccountIdAndProductIdAndStatus` pada dua laluan cipta:
+
+- **Edit** — produk dengan langganan ACTIVE sedia ada ditolak
+- **Cipta** — permintaan sama membawa produk sama dua kali ditolak
+  (DB belum ada baris untuk disemak)
+
+ENDED tidak menyekat. Pelanggan boleh berhenti dan melanggan semula, dan
+setiap kitaran mendapat barisnya sendiri supaya sejarah kekal — corak
+sama seperti legacy (status D lawan A, add semula mencipta baris baharu
+status A).
+
+Tarikh TIDAK terlibat dalam guard. Tiga lapisan menjaga tiga perkara
+berbeza:
+
+| Lapisan | Menjaga |
+|---|---|
+| Guard langganan (ACTIVE) | satu produk, satu langganan hidup |
+| effStart/effEnd + PeriodResolver | tempoh MANA yang dicaj |
+| idem_key | tempoh itu dicaj sekali sahaja |
+
+Disahkan oleh ujian manual pemilik produk: mengubah start_date/end_date
+pada langganan SEDIA ADA tidak menjana pendua — sistem menolak dengan
+"invois dah dijana".
+
+`activeSubscriptions()` disahkan menapis `status = ACTIVE`, jadi
+langganan ENDED tidak pernah dicaj.
+
+## Keputusan tertunggak: idem_key
+
+`idem_key` menggunakan `period_start`, bukan `period_id`. Dua langganan
+menghasilkan `period_start` berbeza dalam `period_id` yang SAMA, jadi
+kunci membenarkan kedua-duanya:
+
+    260:197:2026-07-01
+    260:197:2026-07-19   <- period_id sama (2026230700)
+
+Menukarnya kepada `period_id` akan menjadikan DB menguatkuasakan
+peraturan secara muktamad. TIDAK dilakukan buat masa ini kerana:
+
+- Dengan guard di tempatnya, dua langganan produk sama tidak boleh wujud,
+  jadi kedua-dua medan akan memberi hasil sama
+- `period_start` mempunyai maksud untuk baris yang BUKAN daripada
+  langganan (pelarasan, caj sekali); menukar kunci menyentuh laluan yang
+  belum diperiksa
+- V18 sudah mencabangkan kunci ini untuk ONE_TIME; menambah cabang
+  ketiga memerlukan pemahaman penuh ketiga-tiganya
+
+Direkod sebagai pertahanan mendalam yang belum diperlukan. Jika guard
+pernah gagal, barulah ia berbaloi.
+
+## Data sedia ada
+
+Sub 250 dan 326 masih wujud; INV000032 masih mempunyai dua baris. Guard
+hanya menghalang yang BAHARU. Pembersihan dilakukan semasa reset data
+ujian seterusnya.

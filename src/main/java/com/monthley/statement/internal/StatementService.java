@@ -61,7 +61,7 @@ class StatementService implements StatementPort {
                         e.docDate(),
                         e.docType(),
                         e.docNo(),
-                        e.title() != null ? e.title() : e.docType(),
+                        keteranganFor(e, byDoc),
                         e.cancelReason(),
                         e.cancelled(),
                         e.signedAmount(),
@@ -84,6 +84,31 @@ class StatementService implements StatementPort {
     @Override
     public com.monthley.statement.api.StatementTextFormat formatterFor(StatementModel m) {
         return new StatementFormatter(m.header().language(), m.header().dateFormat());
+    }
+
+    /**
+     * Keterangan baris utama.
+     *
+     * Invois SATU baris tidak mendapat sub-baris (ia hanya akan mengulang
+     * dirinya), jadi nama produk mesti muncul DI SINI — jika tidak
+     * pelanggan melihat 'Invois M01' sahaja dan tidak tahu dia dicaj untuk
+     * apa. Corak sama seperti manual-payment (commit c60d7a5).
+     *
+     * Invois berbilang baris kekal menunjukkan tajuk dokumen; pecahannya
+     * ada dalam sub-baris.
+     */
+    private static String keteranganFor(
+            StatementQuery.DocumentEntry e,
+            Map<Long, List<StatementQuery.DocumentLine>> byDoc) {
+
+        var lines = byDoc.getOrDefault(e.documentId(), List.of());
+        if (lines.size() == 1) {
+            String d = lines.get(0).description();
+            if (d != null && !d.isBlank()) {
+                return d;
+            }
+        }
+        return e.title() != null ? e.title() : e.docType();
     }
 
     /**

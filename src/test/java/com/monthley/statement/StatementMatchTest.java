@@ -163,6 +163,13 @@ class StatementMatchTest {
 
         var inv = row(statement.forYear(sp, acc, 2026), "T-INV-2");
         assertThat(inv.matches()).isEmpty();
+
+        // Tiada sub-baris bermakna nama produk mesti muncul pada baris
+        // utama — jika tidak pelanggan melihat 'Yuran Jun' sahaja dan
+        // tidak tahu dia dicaj untuk apa.
+        assertThat(inv.description())
+                .as("invois satu baris mesti menunjukkan nama produk, bukan tajuk dokumen")
+                .isEqualTo("Yuran");
     }
 
     @Test

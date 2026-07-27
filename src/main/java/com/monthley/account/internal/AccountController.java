@@ -248,7 +248,14 @@ class AccountController {
         // Langganan produk: cipta account_subscription untuk setiap baris ditick
         int subCount = 0;
         if (r.subscriptions() != null) {
+            // Permintaan yang sama boleh membawa produk yang sama dua kali;
+            // guard DB belum membantu kerana tiada baris lagi.
+            var produkDilihat = new java.util.HashSet<Long>();
             for (SubLine line : r.subscriptions()) {
+                if (line.productId() != null && !produkDilihat.add(line.productId())) {
+                    throw new IllegalArgumentException(
+                            "Produk yang sama disenaraikan lebih daripada sekali.");
+                }
                 if (line.productId() == null) continue;
                 var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
                 var start = line.startDate();
@@ -358,6 +365,22 @@ class AccountController {
                     }
                     subscriptions.save(sub);
                 } else if (!line.deleted() && line.productId() != null) {
+                    // Satu akaun, satu produk, satu langganan HIDUP (CASE-007).
+                    //
+                    // Penapis 'produk belum dilanggan' wujud di frontend
+                    // SAHAJA; backend menerima apa yang dihantar. Akaun 260
+                    // berakhir dengan dua langganan produk 197 melalui laluan
+                    // ini, dan invoisnya mengecaj Julai 2026 dua kali.
+                    //
+                    // Peraturan yang hidup hanya dalam UI bukan peraturan
+                    // (cara-kerja guard 6).
+                    if (subscriptions.existsByAccountIdAndProductIdAndStatus(
+                            a.getId(), line.productId(), AccountSubscription.Status.ACTIVE)) {
+                        throw new IllegalArgumentException(
+                                "Produk ini sudah dilanggan oleh akaun " + a.getAccountNo()
+                                + ". Tamatkan langganan sedia ada dahulu sebelum menambah "
+                                + "yang baharu.");
+                    }
                     var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
                     var start = line.startDate();
                     var sub = new AccountSubscription(sp, a.getId(), line.productId(), qty, start);
