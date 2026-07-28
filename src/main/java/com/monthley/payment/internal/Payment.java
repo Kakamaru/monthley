@@ -68,14 +68,17 @@ public class Payment extends BaseEntity {
     protected Payment() {}
 
     public Payment(String spCode, Long receiptDocumentId, Long payerAccountId,
-                   BigDecimal amount, PaymentMethod method, String paymentRefNo) {
+                   BigDecimal amount, PaymentMethod method, String paymentRefNo,
+                   LocalDate paymentDate) {
         this.spCode = spCode;
         this.receiptDocumentId = receiptDocumentId;
         this.payerAccountId = payerAccountId;
         this.amount = amount;
         this.method = method;
         this.paymentRefNo = paymentRefNo;
-        this.paymentDate = LocalDate.now();
+        // Tarikh bayaran DITERIMA. created_at kekal masa sebenar rekod
+        // dicipta — itu 'Date of Issue' pada resit.
+        this.paymentDate = paymentDate == null ? LocalDate.now() : paymentDate;
         this.uuid = java.util.UUID.randomUUID().toString();
     }
 

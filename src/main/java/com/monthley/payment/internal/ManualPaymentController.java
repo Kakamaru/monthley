@@ -248,7 +248,14 @@ class ManualPaymentController {
                 PaymentMethod.valueOf(r.paymentType()),
                 r.paymentRefNo(),
                 r.documentIds() == null ? java.util.List.of() : r.documentIds(),   // invois dipilih (multi)
-                r.idempotencyKey()));
+                r.idempotencyKey(),
+                // Tarikh yang kerani masukkan. Sebelum ini diterima di sini
+                // dan DIBUANG — resit, ledger dan rekod bayaran semuanya
+                // menggunakan LocalDate.now(). Bayaran yang diterima dua hari
+                // lepas muncul pada tarikh rekod, bukan tarikh terima.
+                (r.paymentDate() == null || r.paymentDate().isBlank())
+                        ? null
+                        : java.time.LocalDate.parse(r.paymentDate())));
 
         return ResponseEntity.ok(result);
     }

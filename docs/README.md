@@ -197,6 +197,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 13 | Checkbox pilihan invois pada Manual Payment dihantar tetapi DIABAIKAN apabila `allow_selective = 0` — kerani tanda enam invois, sistem bayar yang ketujuh tanpa amaran (ADR 0011) | UI hormati tetapan |
 | 14 | `sp_document_setting.selective_payment` tiada siapa membacanya; `service_provider.allow_selective` yang digunakan. Dua lajur satu konsep | Gugurkan yang mati |
 | 15 | `allowSelective` menelan RuntimeException dan mengembalikan false — kegagalan query mematikan pemilihan secara senyap | Log, jangan telan |
+| 16 | `PaymentResult.receiptId()` mengembalikan `payment.id`, bukan `financial_document.id` — nama yang menyesatkan; nombor resit sebenar ada dalam `receiptNo` | Namakan semula |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |
 | 11 | `idem_key` guna `period_start`, bukan `period_id` — dua langganan menghasilkan kunci berbeza dalam tempoh sama. Guard aplikasi kini menghalangnya, jadi ini pertahanan mendalam yang belum diperlukan (CASE-007) | Tukar hanya jika guard pernah gagal |

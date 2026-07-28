@@ -96,7 +96,7 @@ class LineAllocationWiringTest {
 
     private void pay(String amount) {
         payment.receivePayment(new NewPayment("SPW", accountId, new BigDecimal(amount),
-                PaymentMethod.CASH, "REF", List.of(), null));
+                PaymentMethod.CASH, "REF", List.of(), null, null));
         em.flush();
     }
 

@@ -123,14 +123,25 @@ class PaymentService implements PaymentPort {
                 .map(FifoAllocator.Allocation::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Tarikh bayaran DITERIMA, bukan tarikh rekod dicipta. Kerani boleh
+        // merekod bayaran dua hari lepas; tarikh itu mesti sama pada resit,
+        // dalam ledger, dan pada rekod bayaran — jika tidak baki berjalan
+        // salah untuk hari-hari antara dan rekonsiliasi bank tidak tally.
+        //
+        // Diambil SEKALI di sini supaya ketiga-tiganya tidak boleh menyimpang.
+        LocalDate tarikhBayar = req.paymentDate() == null
+                ? LocalDate.now()
+                : req.paymentDate();
+
         // 1. Cipta resit sebagai dokumen
         Long receiptDocId = documents.createReceipt(new NewReceipt(
-                req.spCode(), req.payerAccountId(), LocalDate.now(),
+                req.spCode(), req.payerAccountId(), tarikhBayar,
                 "Resit bayaran", req.amount()));
 
         // 2. Rekod payment (detail kaedah/ref)
         Payment payment = new Payment(req.spCode(), receiptDocId,
-                req.payerAccountId(), req.amount(), req.method(), req.paymentRefNo());
+                req.payerAccountId(), req.amount(), req.method(), req.paymentRefNo(),
+                tarikhBayar);
         payment.setTotals(allocated, alloc.deposit());
 
         // 3. Post ledger: Dr Bank / Cr AR (+ Cr Deposit)
@@ -143,7 +154,7 @@ class PaymentService implements PaymentPort {
             pl.add(PostingLine.credit(GlAccounts.CUSTOMER_DEPOSIT, alloc.deposit(), null));
         }
         Long journalId = ledger.post(new PostingRequest(
-                req.spCode(), LocalDate.now(), SourceType.PAYMENT, receiptDocId,
+                req.spCode(), tarikhBayar, SourceType.PAYMENT, receiptDocId,
                 "Resit doc " + receiptDocId, pl, null));
         payment.setJournalEntryId(journalId);
         payment.setIdempotencyKey(req.idempotencyKey());

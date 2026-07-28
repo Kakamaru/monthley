@@ -79,7 +79,7 @@ class PaymentIdempotencyTest {
     @DisplayName("Key sama dua kali → satu resit sahaja (elak double-entry)")
     void duplicateKeyReturnsSameReceipt() {
         NewPayment req = new NewPayment("SPI", accountId, new BigDecimal("50.00"),
-                PaymentMethod.CASH, "REF-1", List.of(), "IDEM-TEST-001");
+                PaymentMethod.CASH, "REF-1", List.of(), "IDEM-TEST-001", null);
 
         PaymentResult r1 = payment.receivePayment(req);
         em.flush();
@@ -98,10 +98,10 @@ class PaymentIdempotencyTest {
     @DisplayName("Key berbeza → dua resit berasingan")
     void differentKeyTwoReceipts() {
         PaymentResult r1 = payment.receivePayment(new NewPayment("SPI", accountId,
-                new BigDecimal("20.00"), PaymentMethod.CASH, "REF-A", List.of(), "IDEM-A"));
+                new BigDecimal("20.00"), PaymentMethod.CASH, "REF-A", List.of(), "IDEM-A", null));
         em.flush();
         PaymentResult r2 = payment.receivePayment(new NewPayment("SPI", accountId,
-                new BigDecimal("20.00"), PaymentMethod.CASH, "REF-B", List.of(), "IDEM-B"));
+                new BigDecimal("20.00"), PaymentMethod.CASH, "REF-B", List.of(), "IDEM-B", null));
         em.flush();
         assertThat(r2.receiptId()).isNotEqualTo(r1.receiptId());
     }
@@ -110,7 +110,7 @@ class PaymentIdempotencyTest {
     @DisplayName("Tanpa key (null) → proses biasa")
     void nullKeyProcessesNormally() {
         PaymentResult r = payment.receivePayment(new NewPayment("SPI", accountId,
-                new BigDecimal("30.00"), PaymentMethod.CASH, "REF-N", List.of(), null));
+                new BigDecimal("30.00"), PaymentMethod.CASH, "REF-N", List.of(), null, null));
         em.flush();
         assertThat(r.receiptId()).isNotNull();
     }
