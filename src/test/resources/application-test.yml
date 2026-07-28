@@ -1,6 +1,22 @@
+# Pangkalan data UJIAN — berasingan daripada monthley_new yang backend guna.
+#
+# Bukan environment baharu: DB kedua pada MySQL yang sama, mesin yang sama.
+# Sebabnya ujian dan backend berkongsi jadual: ujian @Transactional menulis
+# dan roll back, tetapi ia memegang kunci baris sepanjang transaksi. Backend
+# yang hidup dan membaca jadual sama akan menunggu, kadang timeout.
+#
+# Gejalanya mengelirukan: konteks Spring gagal naik dengan
+# "Unable to determine Dialect without JDBC metadata" — bunyinya seperti
+# masalah konfigurasi, sebenarnya Hibernate tidak dapat satu sambungan pun.
+# Disahkan 26 Julai 2026: mematikan backend menjadikan ujian lulus
+# serta-merta.
+#
+# Cipta semula bila-bila masa:
+#     ./mb testdb
+#
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/monthley_new?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
+    url: jdbc:mysql://localhost:3306/monthley_test?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
     username: monthley
     password: devpass
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -8,4 +24,7 @@ spring:
     hibernate:
       ddl-auto: none
   flyway:
+    # Skema dibina oleh ./mb testdb, bukan semasa setiap larian ujian.
+    # Menghidupkannya di sini bermakna 37 migrasi disemak setiap kali
+    # konteks Spring naik.
     enabled: false

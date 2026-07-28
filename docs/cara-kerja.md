@@ -378,6 +378,40 @@ Sama juga untuk `mvn -q test` — `-q` menyenyapkan baris ringkasan
 `Tests run:`. Ketiadaan `[ERROR]` bukan bukti kelulusan. Jalankan tanpa
 `-q`, atau grep `BUILD SUCCESS` secara khusus.
 
+### 9. Ujian menggunakan pangkalan data sendiri
+
+`mvn test` guna `monthley_test`, bukan `monthley_new` yang backend guna.
+Bukan environment baharu — DB kedua pada MySQL yang sama.
+
+Sebabnya kunci baris. Ujian `@Transactional` menulis dan roll back,
+tetapi ia memegang kunci sepanjang transaksi. Backend yang hidup dan
+membaca jadual sama akan menunggu, kadang timeout. Gejalanya
+mengelirukan:
+
+    Unable to determine Dialect without JDBC metadata
+
+Bunyinya seperti masalah konfigurasi; sebenarnya Hibernate tidak dapat
+satu sambungan pun semasa permulaan. Kau boleh menghabiskan sejam
+menyemak `application.yml` sedangkan puncanya proses lain.
+
+Cipta semula bila-bila masa:
+
+    ./mb testdb
+
+Ia menjalankan SEMUA migrasi mengikut urutan versi pada DB kosong, jadi
+ia turut mengesahkan migrasi boleh membina sistem dari sifar — bukan
+hanya menampal DB sedia ada.
+
+**Ujian tidak boleh meminjam data.** Corak ini rosak:
+
+    sp = SELECT sp_code FROM service_provider ORDER BY sp_code LIMIT 1
+
+Keputusannya bergantung pada data yang kebetulan ada, dan gagal dalam DB
+kosong. Setiap ujian mencipta SP sendiri:
+
+    INSERT IGNORE INTO service_provider (...) VALUES ('SXXX', ...)
+    seeder.seedFor("SXXX");   // jika menyentuh ledger
+
 ## 5. Persekitaran
 
 ### Backend
