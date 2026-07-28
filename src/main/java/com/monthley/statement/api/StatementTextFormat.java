@@ -18,4 +18,15 @@ public interface StatementTextFormat {
 
     /** Negatif dalam kurungan, ikut konvensyen perakaunan. */
     String money(BigDecimal v);
+
+    /** Tarikh DAN masa — 'Date of Issue' pada resit. */
+    String dateTime(java.time.LocalDateTime d);
+
+    /**
+     * Kaedah bayaran dalam bahasa SP.
+     *
+     * Enum disimpan sebagai CASH/TRANSFER/FPX; pelanggan tidak sepatutnya
+     * melihat nama enum pada resit.
+     */
+    String paymentMethod(String kod);
 }

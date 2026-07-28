@@ -22,4 +22,13 @@ public interface StatementPort {
      * diterima; ia tidak memformat tarikh sendiri.
      */
     StatementTextFormat formatterFor(StatementModel model);
+
+    /**
+     * Resit tunggal.
+     *
+     * @param receiptDocumentId id DOKUMEN resit (financial_document.id),
+     *        bukan payment.id — PaymentResult.receiptId() mengembalikan
+     *        payment.id, yang menyesatkan (soalan terbuka 16).
+     */
+    ReceiptModel receipt(String spCode, long receiptDocumentId);
 }

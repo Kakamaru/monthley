@@ -17,6 +17,15 @@ public interface StatementRenderPort {
      * menghantar kepada pengguna, supaya penamaan tidak menyimpang antara
      * ikon akaun, portal pelanggan dan tab Laporan.
      */
+    /** Resit PDF. */
+    byte[] renderReceiptPdf(ReceiptModel model);
+
+    default StatementFile renderReceiptPdfFile(ReceiptModel m) {
+        String name = ("resit-" + m.receiptNo() + ".pdf")
+                .replaceAll("[^A-Za-z0-9._-]", "_");
+        return new StatementFile(name, "application/pdf", renderReceiptPdf(m));
+    }
+
     default StatementFile renderXlsxFile(StatementModel m) {
         String akaun = m.header().accountNo() == null
                 ? String.valueOf(m.accountId())

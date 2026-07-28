@@ -87,6 +87,31 @@ class StatementService implements StatementPort {
     }
 
     @Override
+    public com.monthley.statement.api.ReceiptModel receipt(String spCode, long receiptDocumentId) {
+        var head = query.receiptHead(spCode, receiptDocumentId);
+        var header = query.header(spCode, head.accountId());
+
+        var items = query.receiptItems(spCode, receiptDocumentId).stream()
+                .map(l -> new com.monthley.statement.api.ReceiptItem(
+                        l.invoiceNo(), l.description(),
+                        l.periodStart(), l.periodEnd(),
+                        // Kuantiti dan harga seunit tidak disimpan pada
+                        // alokasi — satu alokasi boleh menutup SEBAHAGIAN
+                        // baris invois. Legacy memaparkan 1.00 dan amaun
+                        // penuh; kita buat sama.
+                        java.math.BigDecimal.ONE, l.amount(), l.amount()))
+                .toList();
+
+        return new com.monthley.statement.api.ReceiptModel(
+                header, spCode, head.accountId(),
+                head.receiptNo(), head.receiptDate(), head.issuedAt(),
+                head.paymentMethod(), head.paymentRefNo(),
+                head.amountPaid(),
+                head.advance() == null ? java.math.BigDecimal.ZERO : head.advance(),
+                head.cancelled(), items);
+    }
+
+    @Override
     public com.monthley.statement.api.StatementTextFormat formatterFor(StatementModel m) {
         return new StatementFormatter(m.header().language(), m.header().dateFormat());
     }

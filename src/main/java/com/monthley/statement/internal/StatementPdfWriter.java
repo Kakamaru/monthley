@@ -88,6 +88,26 @@ class StatementPdfWriter {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             PdfRendererBuilder b = new PdfRendererBuilder();
             b.useFastMode();
+            daftarFon(b);
+            b.withHtmlContent(html, null);
+            b.toStream(os);
+            b.run();
+            return os.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Gagal render penyata untuk akaun " + model.accountId(), e);
+        }
+    }
+
+    /**
+     * Daftarkan semua fon terbenam pada pembina.
+     *
+     * Dikongsi dengan ReceiptPdfWriter — resit dan penyata mesti kelihatan
+     * sama, dan senarai fon yang disalin akan menyimpang. Fon MESTI
+     * dibenamkan: Helvetica terbina PDFBox ialah WinAnsi sahaja, dan
+     * aksara di luarnya dilukis sebagai '#' TANPA ralat.
+     */
+    void daftarFon(PdfRendererBuilder b) {
             b.useFont(fontFiles[0], "DejaVu Sans", 400,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             b.useFont(fontFiles[1], "DejaVu Sans", 700,
@@ -116,13 +136,5 @@ class StatementPdfWriter {
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             b.useFont(fontFiles[6], "Monthley", 700,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
-            b.withHtmlContent(html, null);
-            b.toStream(os);
-            b.run();
-            return os.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Gagal render penyata untuk akaun " + model.accountId(), e);
-        }
     }
 }

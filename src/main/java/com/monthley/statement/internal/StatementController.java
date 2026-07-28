@@ -94,6 +94,25 @@ class StatementController {
                 .body(f.content());
     }
 
+    /**
+     * Resit PDF.
+     *
+     * @param receiptId id DOKUMEN resit (financial_document.id) — bukan
+     *        payment.id yang PaymentResult.receiptId() kembalikan.
+     */
+    @GetMapping(value = "/receipts/{receiptId}", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> receipt(@PathVariable long receiptId) {
+        var m = statements.receipt(sp(), receiptId);
+        var f = renderer.renderReceiptPdfFile(m);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(f.filename(), StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
     private ResponseEntity<byte[]> pdfResponse(StatementModel m) {
         var f = renderer.renderPdfFile(m);
         return ResponseEntity.ok()

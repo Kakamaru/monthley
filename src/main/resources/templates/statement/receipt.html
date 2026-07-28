@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Resit — susun atur mengikut legacy.
+
+  KETAT: openhtmltopdf menghurai XHTML. TIADA entiti HTML bernama;
+  gunakan rujukan aksara berangka. Setiap nilai DB melalui th:text.
+
+  Medan bersyarat: Payment Ref No. hanya untuk pindahan/FPX, Bank hanya
+  untuk pindahan. 'Issued By' dan 'Bank' belum wujud dalam skema —
+  th:if sudah di tempatnya supaya ia muncul sebaik sahaja medan ada.
+-->
+<style>
+@page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
+       color: #1a1a1a; }
+
+.hdr        { width: 100%; }
+.hdr td     { vertical-align: top; }
+.sp-name    { font-size: 15pt; font-weight: bold; line-height: 1.15; }
+.sp-detail  { font-size: 8.5pt; color: #444; line-height: 1.35; }
+.title      { font-size: 18pt; font-weight: bold; text-align: right; }
+
+.box        { border-collapse: collapse; width: 100%; }
+.box td     { border: 0.6pt solid #555; padding: 1.4mm 2mm; }
+.box .lbl   { background: #f0f0f0; width: 42%; font-size: 9pt; text-align: right; }
+.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 9.5pt; }
+
+.bar        { background: #16324a; color: #fff; padding: 1.2mm 2mm;
+              font-size: 10pt; }
+.notes      { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              margin-top: 6mm; }
+
+table.item      { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+table.item thead { display: table-header-group; }
+table.item th   { background: #16324a; color: #fff; font-size: 9.5pt;
+                  padding: 1.8mm 2mm; text-align: left; font-weight: normal; }
+table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
+                  vertical-align: top; }
+.r          { text-align: right; }
+.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              white-space: nowrap; }
+.jumlah td  { padding: 1.8mm 2mm; font-weight: bold; }
+.grand td   { background: #16324a; color: #fff; padding: 2mm;
+              font-weight: bold; }
+.batal      { color: #c0392b; font-weight: bold; font-size: 12pt;
+              margin-top: 4mm; }
+</style>
+</head>
+<body>
+
+<table class="hdr">
+  <tr>
+    <td style="width:62%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine2())}" th:text="${h.spAddrLine2()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+        <div>
+          <span th:if="${fmt.has(h.spPhone())}" th:text="${h.spPhone()} + '  '"></span>
+          <span th:if="${fmt.has(h.spEmail())}" th:text="${h.spEmail()} + '  '"></span>
+          <span th:if="${fmt.has(h.spWebsite())}" th:text="${h.spWebsite()}"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:38%">
+      <div class="title">RESIT</div>
+    </td>
+  </tr>
+</table>
+
+<table class="hdr" style="margin-top:8mm">
+  <tr>
+    <td style="width:52%; padding-right:6mm">
+      <div class="bar">Terima Daripada</div>
+      <div style="margin-top:2.5mm; line-height:1.45">
+        <div th:text="${h.billtoName()}"></div>
+        <div th:if="${fmt.has(h.billtoEmail())}" th:text="${h.billtoEmail()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine1())}" th:text="${h.billtoAddrLine1()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine2())}" th:text="${h.billtoAddrLine2()}"></div>
+        <div>
+          <span th:if="${fmt.has(h.billtoPostcode())}" th:text="${h.billtoPostcode()} + ' '"></span>
+          <span th:if="${fmt.has(h.billtoState())}"    th:text="${h.billtoState()}"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:48%">
+      <table class="box">
+        <tr><td class="lbl">No. Resit</td>
+            <td class="val" th:text="${m.receiptNo()}"></td></tr>
+        <tr><td class="lbl">No. Akaun</td>
+            <td class="val" th:text="${h.accountNo()}"></td></tr>
+        <tr><td class="lbl">Tarikh Dikeluarkan</td>
+            <td class="val" th:text="${fmt.dateTime(m.issuedAt())}"></td></tr>
+        <tr><td class="lbl">Tarikh Resit</td>
+            <td class="val" th:text="${fmt.date(m.receiptDate())}"></td></tr>
+        <tr><td class="lbl">Jenis Bayaran</td>
+            <td class="val" th:text="${fmt.paymentMethod(m.paymentMethod())}"></td></tr>
+        <tr><td class="lbl">Jumlah Dibayar</td>
+            <td class="val" th:text="${h.currency()} + ' ' + ${fmt.money(m.amountPaid())}"></td></tr>
+        <tr th:if="${fmt.has(m.paymentRefNo())}">
+            <td class="lbl">No. Rujukan</td>
+            <td class="val" th:text="${m.paymentRefNo()}"></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div th:if="${m.cancelled()}" class="batal">&#x2715; RESIT INI TELAH DIBATALKAN</div>
+
+<table class="item">
+  <thead>
+    <tr>
+      <th style="width:44%">Item</th>
+      <th style="width:14%">No. Invois</th>
+      <th style="width:12%" class="r">Kuantiti</th>
+      <th style="width:15%" class="r">Harga</th>
+      <th style="width:15%" class="r">Amaun</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="i : ${m.items()}">
+      <td>
+        <span th:text="${i.description()}"></span>
+        <span th:if="${i.periodStart() != null}" style="white-space:nowrap"
+              th:text="'  ' + ${fmt.period(i.periodStart(), i.periodEnd())}"></span>
+      </td>
+      <td class="mono" th:text="${i.invoiceNo()}"></td>
+      <td class="r mono" th:text="${fmt.money(i.quantity())}"></td>
+      <td class="r mono" th:text="${fmt.money(i.unitPrice())}"></td>
+      <td class="r mono" th:text="${fmt.money(i.amount())}"></td>
+    </tr>
+
+    <!-- Bayaran lebihan: item sahaja tidak akan berjumlah dengan amaun
+         dibayar. Tunjukkan bakinya, jangan biarkan pembaca mengira. -->
+    <tr th:if="${m.advance() != null and m.advance().signum() > 0}">
+      <td colspan="4">Bayaran pendahuluan (belum dipadankan)</td>
+      <td class="r mono" th:text="${fmt.money(m.advance())}"></td>
+    </tr>
+
+    <tr class="grand">
+      <td colspan="4" class="r">Jumlah Besar</td>
+      <td class="r mono" th:text="${fmt.money(m.amountPaid())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

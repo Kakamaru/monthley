@@ -74,6 +74,66 @@ class StatementQuery {
                 .single();
     }
 
+    /** Kepala resit daripada VIEW receipt_header (V38). */
+    ReceiptHead receiptHead(String spCode, long receiptDocumentId) {
+        return jdbc.sql("SELECT * FROM receipt_header "
+                        + "WHERE sp_code = :sp AND receipt_id = :id")
+                .param("sp", spCode)
+                .param("id", receiptDocumentId)
+                .query((rs, n) -> new ReceiptHead(
+                        rs.getLong("account_id"),
+                        rs.getString("receipt_no"),
+                        rs.getDate("receipt_date").toLocalDate(),
+                        rs.getTimestamp("issued_at").toLocalDateTime(),
+                        rs.getString("payment_method"),
+                        rs.getString("payment_ref_no"),
+                        rs.getBigDecimal("amount_paid"),
+                        rs.getBigDecimal("deposit_amount"),
+                        "CANCELLED".equals(rs.getString("status"))))
+                .single();
+    }
+
+    record ReceiptHead(long accountId, String receiptNo, LocalDate receiptDate,
+                       java.time.LocalDateTime issuedAt, String paymentMethod,
+                       String paymentRefNo, BigDecimal amountPaid,
+                       BigDecimal advance, boolean cancelled) {
+    }
+
+    /**
+     * Item resit — baris invois yang resit ini tutup.
+     *
+     * Datang daripada account_allocation_match, VIEW yang sama seperti
+     * sub-baris penyata. Satu sumber, dua penggunaan.
+     */
+    List<ReceiptLine> receiptItems(String spCode, long receiptDocumentId) {
+        return jdbc.sql("""
+                SELECT m.debit_doc_no,
+                       COALESCE(m.product_name, m.line_description, m.debit_title)
+                           AS keterangan,
+                       m.debit_period_start, m.debit_period_end, m.amount
+                FROM   account_allocation_match m
+                WHERE  m.sp_code = :sp AND m.credit_document_id = :id
+                ORDER  BY m.debit_period_start, m.debit_doc_no,
+                          m.debit_document_line_id
+                """)
+                .param("sp", spCode)
+                .param("id", receiptDocumentId)
+                .query((rs, n) -> new ReceiptLine(
+                        rs.getString("debit_doc_no"),
+                        rs.getString("keterangan"),
+                        rs.getDate("debit_period_start") != null
+                                ? rs.getDate("debit_period_start").toLocalDate() : null,
+                        rs.getDate("debit_period_end") != null
+                                ? rs.getDate("debit_period_end").toLocalDate() : null,
+                        rs.getBigDecimal("amount")))
+                .list();
+    }
+
+    record ReceiptLine(String invoiceNo, String description,
+                       LocalDate periodStart, LocalDate periodEnd,
+                       BigDecimal amount) {
+    }
+
     /** Baki sebelum tarikh mula — baki bawa ke hadapan. */
     BigDecimal openingBalance(String spCode, long accountId, LocalDate from) {
         return jdbc.sql("""

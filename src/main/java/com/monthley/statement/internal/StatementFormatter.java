@@ -21,6 +21,7 @@ public class StatementFormatter implements com.monthley.statement.api.StatementT
 
     private final DateTimeFormatter dateFmt;
     private final DateTimeFormatter monthFmt;
+    private final DateTimeFormatter timeFmt;
     private final DecimalFormat money;
 
     public StatementFormatter(String language, String datePattern) {
@@ -39,6 +40,10 @@ public class StatementFormatter implements com.monthley.statement.api.StatementT
         }
         this.dateFmt = d;
         this.monthFmt = DateTimeFormatter.ofPattern("MMMM yyyy", locale);
+        // Locale Melayu memberi "PG"/"PTG" untuk penanda AM/PM. Resit
+        // kewangan menggunakan AM/PM di seluruh dunia, dan legacy pun
+        // begitu — kekalkan Locale.US untuk penanda itu sahaja.
+        this.timeFmt = DateTimeFormatter.ofPattern("hh:mm a", Locale.US);
 
         DecimalFormatSymbols sym = new DecimalFormatSymbols(Locale.US);
         this.money = new DecimalFormat("#,##0.00;(#,##0.00)", sym);
@@ -88,6 +93,25 @@ public class StatementFormatter implements com.monthley.statement.api.StatementT
                       + " " + monthFmt.format(start);
         }
         return monthFmt.format(start) + " - " + monthFmt.format(end);
+    }
+
+    @Override
+    public String dateTime(java.time.LocalDateTime d) {
+        return d == null ? "" : dateFmt.format(d.toLocalDate())
+                + " " + timeFmt.format(d.toLocalTime());
+    }
+
+    @Override
+    public String paymentMethod(String kod) {
+        if (kod == null) return "";
+        return switch (kod) {
+            case "CASH"       -> "Tunai";
+            case "CHEQUE"     -> "Cek";
+            case "TRANSFER"   -> "Pindahan Bank";
+            case "FPX"        -> "FPX / Dalam Talian";
+            case "ADJUSTMENT" -> "Penyelarasan";
+            default           -> kod;
+        };
     }
 
     /** Baris kosong dilangkau, bukan dicetak sebagai ruang atau 'null'. */
