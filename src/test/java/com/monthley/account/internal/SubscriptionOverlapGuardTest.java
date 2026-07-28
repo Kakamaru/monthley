@@ -40,8 +40,14 @@ class SubscriptionOverlapGuardTest {
 
     @BeforeEach
     void seed() {
-        sp = jdbc.sql("SELECT sp_code FROM service_provider ORDER BY sp_code LIMIT 1")
-                .query(String.class).single();
+        // SP sendiri, bukan yang kebetulan wujud. Meminjam SP pertama
+        // dalam jadual menjadikan keputusan ujian bergantung pada data
+        // yang ada — dan gagal sepenuhnya dalam DB kosong.
+        jdbc.sql("""
+                INSERT IGNORE INTO service_provider (sp_code, name, status, version)
+                VALUES (:sp, 'SP Ujian Tindihan', 'ACTIVE', 0)
+                """).param("sp", "SOVL").update();
+        sp = "SOVL";
         TenantContext.set(sp);
 
         String kod = "OVL-" + System.nanoTime();

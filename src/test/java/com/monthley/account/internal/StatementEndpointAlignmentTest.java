@@ -54,8 +54,14 @@ class StatementEndpointAlignmentTest {
 
     @BeforeEach
     void seed() {
-        sp = jdbc.sql("SELECT sp_code FROM service_provider ORDER BY sp_code LIMIT 1")
-                .query(String.class).single();
+        // SP sendiri, bukan yang kebetulan wujud. Meminjam SP pertama
+        // dalam jadual menjadikan keputusan ujian bergantung pada data
+        // yang ada — dan gagal sepenuhnya dalam DB kosong.
+        jdbc.sql("""
+                INSERT IGNORE INTO service_provider (sp_code, name, status, version)
+                VALUES (:sp, 'SP Ujian Selaras', 'ACTIVE', 0)
+                """).param("sp", "SALN").update();
+        sp = "SALN";
         String no = "ALIGN-" + System.nanoTime();
         jdbc.sql("""
                 INSERT INTO account (sp_code, account_no, account_name, status)
