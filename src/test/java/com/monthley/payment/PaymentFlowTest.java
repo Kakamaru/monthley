@@ -124,7 +124,7 @@ class PaymentFlowTest {
         em.flush();
         assertThat(payment.outstandingFor(accountId)).isEmpty();
 
-        payment.cancelReceipt(r.receiptId(), "ujian batal");
+        payment.cancelReceipt(r.paymentId(), "ujian batal");
         em.flush();
 
         // Invois terbuka semula — baki kembali RM80

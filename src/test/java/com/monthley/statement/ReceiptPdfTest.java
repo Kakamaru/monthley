@@ -105,8 +105,7 @@ class ReceiptPdfTest {
         var r = payment.receivePayment(new NewPayment(SP, acc, new BigDecimal(amaun),
                 cara, ref, List.of(), null, tarikh));
         em.flush();
-        return jdbc.sql("SELECT receipt_document_id FROM payment WHERE id = :id")
-                .param("id", r.receiptId()).query(Long.class).single();
+        return r.receiptDocumentId();
     }
 
     private String teks(byte[] pdf) throws Exception {

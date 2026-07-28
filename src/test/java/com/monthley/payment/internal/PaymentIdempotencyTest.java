@@ -86,7 +86,7 @@ class PaymentIdempotencyTest {
         PaymentResult r2 = payment.receivePayment(req);   // key sama
         em.flush();
 
-        assertThat(r2.receiptId()).isEqualTo(r1.receiptId());   // resit sama
+        assertThat(r2.paymentId()).isEqualTo(r1.paymentId());   // resit sama
 
         long cnt = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM payment WHERE sp_code='SPI' AND idempotency_key=:k")
@@ -103,7 +103,7 @@ class PaymentIdempotencyTest {
         PaymentResult r2 = payment.receivePayment(new NewPayment("SPI", accountId,
                 new BigDecimal("20.00"), PaymentMethod.CASH, "REF-B", List.of(), "IDEM-B", null));
         em.flush();
-        assertThat(r2.receiptId()).isNotEqualTo(r1.receiptId());
+        assertThat(r2.paymentId()).isNotEqualTo(r1.paymentId());
     }
 
     @Test
@@ -112,6 +112,6 @@ class PaymentIdempotencyTest {
         PaymentResult r = payment.receivePayment(new NewPayment("SPI", accountId,
                 new BigDecimal("30.00"), PaymentMethod.CASH, "REF-N", List.of(), null, null));
         em.flush();
-        assertThat(r.receiptId()).isNotNull();
+        assertThat(r.paymentId()).isNotNull();
     }
 }

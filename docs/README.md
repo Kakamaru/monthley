@@ -125,6 +125,7 @@ berulang. Baca sebelum menyentuh laluan berkaitan.
 | CASE-005 | `/accounts/my` mengira baki dengan formula sendiri (invois tolak alokasi) — buta kepada kredit belum dipadankan. M04 dipaparkan berhutang RM200 LEBIH daripada sebenar; kredit RM38.41 M06 dipaparkan sebagai sifar | VIEW `account_balance` di SETIAP pemanggil; tunggakan dan baki dinamakan berasingan; `MyAccountsBalanceTest` mengunci perbezaan kedua-dua formula |
 | [CASE-006](evidence/CASE-006-aliran-emel-penyata.md) | Aliran e-mel legacy mencipta satu dokumen `P` hantu setiap penyata semata-mata untuk memegang UUID pautan — 51 rekod bukan-kewangan pada satu akaun sejak 2023 | Jadual token berasingan (ADR 0011); jangan letak bukan-dokumen dalam jadual dokumen |
 | [CASE-007](evidence/CASE-007-langganan-bertindih.md) | Dua langganan produk SAMA bertindih pada akaun sama dicaj penuh kedua-duanya dalam satu larian; tiada prorata. `uk_subscr` dan `idem_key` kedua-duanya membenarkannya | Guard `ACTIVE` pada dua laluan cipta; prorata disahkan BUKAN pepijat (`account.start_date` NULL mematikannya dengan sengaja, billing-rules §6) |
+| [CASE-008](evidence/CASE-008-tetapan-tidak-dikuatkuasakan.md) | Tetapan dikumpul dalam UI tetapi diabaikan senyap oleh backend — ENAM kes dalam dua hari, termasuk tarikh bayaran dan pemilihan invois | 2/6 dibetulkan; setiap tetapan perlukan ujian penguatkuasaan |
 
 ### Empat keluarga hanyutan (CASE-001)
 
@@ -197,7 +198,10 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 13 | Checkbox pilihan invois pada Manual Payment dihantar tetapi DIABAIKAN apabila `allow_selective = 0` — kerani tanda enam invois, sistem bayar yang ketujuh tanpa amaran (ADR 0011) | UI hormati tetapan |
 | 14 | `sp_document_setting.selective_payment` tiada siapa membacanya; `service_provider.allow_selective` yang digunakan. Dua lajur satu konsep | Gugurkan yang mati |
 | 15 | `allowSelective` menelan RuntimeException dan mengembalikan false — kegagalan query mematikan pemilihan secara senyap | Log, jangan telan |
-| 16 | `PaymentResult.receiptId()` mengembalikan `payment.id`, bukan `financial_document.id` — nama yang menyesatkan; nombor resit sebenar ada dalam `receiptNo` | Namakan semula |
+| 17 | **Penomboran dokumen** tidak membaca `sp_document_setting` — prefix, size dan starts-from diabaikan untuk SEMUA jenis dokumen (CASE-008 kes 5) | Perlukan ADR |
+| 18 | `enable_manual_payment` tidak dikuatkuasakan — kerani boleh merekod bayaran walaupun SP mematikannya (CASE-008 kes 6) | Semakan dalam ManualPaymentController |
+| 19 | `remarks` daripada Manual Payment dibuang — resit legacy memaparkannya sebagai 'Payment Notes' (CASE-008 kes 4) | Medan dalam NewPayment + payment |
+| 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |
 | 11 | `idem_key` guna `period_start`, bukan `period_id` — dua langganan menghasilkan kunci berbeza dalam tempoh sama. Guard aplikasi kini menghalangnya, jadi ini pertahanan mendalam yang belum diperlukan (CASE-007) | Tukar hanya jika guard pernah gagal |

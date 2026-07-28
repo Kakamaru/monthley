@@ -67,19 +67,12 @@ class PaymentDateTest {
                 .param("sp", SP).param("no", no).query(Long.class).single();
     }
 
-    /**
-     * @return id DOKUMEN resit.
-     *
-     * PaymentResult.receiptId() mengembalikan payment.id, bukan
-     * financial_document.id — nama medan yang mengelirukan. Dokumen dicari
-     * melalui payment.receipt_document_id.
-     */
+    /** @return id DOKUMEN resit. */
     private long bayar(String amaun, LocalDate tarikh, String ref) {
         var r = payment.receivePayment(new NewPayment(SP, acc, new BigDecimal(amaun),
                 PaymentMethod.TRANSFER, ref, List.of(), null, tarikh));
         em.flush();
-        return jdbc.sql("SELECT receipt_document_id FROM payment WHERE id = :id")
-                .param("id", r.receiptId()).query(Long.class).single();
+        return r.receiptDocumentId();
     }
 
     @Test

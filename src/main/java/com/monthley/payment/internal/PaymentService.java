@@ -103,7 +103,8 @@ class PaymentService implements PaymentPort {
             var existing = payments.findBySpCodeAndIdempotencyKey(req.spCode(), req.idempotencyKey());
             if (existing.isPresent()) {
                 Payment pmt = existing.get();
-                return new PaymentResult(pmt.getId(), "RCP-" + pmt.getReceiptDocumentId(),
+                return new PaymentResult(pmt.getId(), pmt.getReceiptDocumentId(),
+                        docNoFor(pmt.getReceiptDocumentId()),
                         pmt.getAllocatedAmount(), pmt.getDepositAmount());
             }
         }
@@ -166,7 +167,8 @@ class PaymentService implements PaymentPort {
                 var won = payments.findBySpCodeAndIdempotencyKey(req.spCode(), req.idempotencyKey());
                 if (won.isPresent()) {
                     Payment w = won.get();
-                    return new PaymentResult(w.getId(), "RCP-" + w.getReceiptDocumentId(),
+                    return new PaymentResult(w.getId(), w.getReceiptDocumentId(),
+                            docNoFor(w.getReceiptDocumentId()),
                             w.getAllocatedAmount(), w.getDepositAmount());
                 }
             }
@@ -182,7 +184,8 @@ class PaymentService implements PaymentPort {
                     a.documentId(), receiptDocId, a.amount());
         }
 
-        return new PaymentResult(payment.getId(), "RCP-" + receiptDocId, allocated, alloc.deposit());
+        return new PaymentResult(payment.getId(), receiptDocId,
+                docNoFor(receiptDocId), allocated, alloc.deposit());
     }
 
     @Override
@@ -234,5 +237,24 @@ class PaymentService implements PaymentPort {
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    /**
+     * Nombor resit sebenar daripada dokumen.
+     *
+     * Sebelum ini PaymentResult mengembalikan "RCP-" + id — rentetan yang
+     * dikarang, bukan doc_no. Itu mengabaikan penomboran dokumen
+     * sepenuhnya: SP menetapkan prefix 'R26' dalam Tetapan Resit dan
+     * melihat 'RCP-123' pada skrin.
+     *
+     * (Penomboran itu sendiri masih tidak membaca sp_document_setting —
+     * kerja berasingan yang menyentuh semua jenis dokumen.)
+     */
+    private String docNoFor(Long documentId) {
+        Object v = em.createNativeQuery(
+                "SELECT doc_no FROM financial_document WHERE id = :id")
+                .setParameter("id", documentId)
+                .getSingleResult();
+        return v == null ? null : v.toString();
     }
 }
