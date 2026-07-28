@@ -52,4 +52,24 @@ public record StatementHeader(
         String billtoPostcode,
         String billtoState,
         String billtoCountry) {
+
+    /**
+     * Salinan dengan corak tarikh berbeza.
+     *
+     * Record dengan 33 medan bermakna menukar satu medan memerlukan
+     * menaip 32 yang lain — dan setiap kali medan ditambah, setiap
+     * pembinaan sedemikian pecah. Kaedah ini menyimpan senarai medan
+     * di SATU tempat.
+     */
+    public StatementHeader withDateFormat(String pattern) {
+        return new StatementHeader(
+                statementTitle, currency, language, pattern, taxName,
+                spName, spRegistrationNo, spAddrLine1, spAddrLine2, spAddrLine3,
+                spPostcode, spCity, spState, spCountry, spPhone, spWebsite,
+                spEmail, spHelpdeskEmail, spHelpdeskPhone, spLogoUrl,
+                spBankCode, spBankAccountNo, spBankAccountName,
+                accountNo, accountName, memberName,
+                billtoName, billtoEmail, billtoAddrLine1, billtoAddrLine2,
+                billtoAddrLine3, billtoPostcode, billtoState, billtoCountry);
+    }
 }

@@ -106,6 +106,34 @@ class StatementXlsxWriterTest {
     }
 
     @Test
+    @DisplayName("corak tarikh IKUT tetapan SP, bukan ditulis keras")
+    void corakTarikhIkutTetapan() throws Exception {
+        // model() menggunakan dd/MM/yyyy
+        try (Workbook wb = buka(writer.renderXlsx(model()))) {
+            String f = cariBarisPertamaData(wb.getSheet("Transaksi"))
+                    .getCell(1).getCellStyle().getDataFormatString();
+            assertThat(f).isEqualTo("dd/mm/yyyy");
+        }
+
+        // SP yang menggunakan corak lain mesti mendapat corak itu — jika
+        // tidak PDF dan XLSX menunjukkan tarikh berbeza untuk akaun yang
+        // sama (CASE-008).
+        var m = model();
+        var mLain = new StatementModel(
+                m.header().withDateFormat("dd MMM yyyy"),
+                m.spCode(), m.accountId(), m.from(), m.to(),
+                m.openingBalance(), m.rows(), m.closingBalance(), m.arrears());
+
+        try (Workbook wb = buka(writer.renderXlsx(mLain))) {
+            String f = cariBarisPertamaData(wb.getSheet("Transaksi"))
+                    .getCell(1).getCellStyle().getDataFormatString();
+            assertThat(f)
+                    .as("corak ditulis keras bermakna tetapan SP diabaikan")
+                    .isEqualTo("dd mmm yyyy");
+        }
+    }
+
+    @Test
     @DisplayName("amaun NUMERIC supaya boleh dijumlah dan dipivot")
     void amaunNumeric() throws Exception {
         try (Workbook wb = buka(writer.renderXlsx(model()))) {

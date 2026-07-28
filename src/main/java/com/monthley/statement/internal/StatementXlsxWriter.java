@@ -37,7 +37,7 @@ class StatementXlsxWriter {
         try (Workbook wb = new XSSFWorkbook();
              ByteArrayOutputStream os = new ByteArrayOutputStream()) {
 
-            Gaya g = new Gaya(wb);
+            Gaya g = new Gaya(wb, m.header().dateFormat());
             transaksi(wb, g, m);
             padanan(wb, g, m);
             wb.write(os);
@@ -197,11 +197,28 @@ class StatementXlsxWriter {
         return b == null ? a.toString() : a + " - " + b;
     }
 
+    /**
+     * Terjemah corak Java kepada corak Excel.
+     *
+     * Kedua-duanya serupa tetapi tidak sama: Excel tidak memahami 'yyyy'
+     * dalam semua konteks dan menggunakan huruf kecil untuk bulan.
+     * Corak yang tidak dikenali jatuh ke dd/mm/yyyy, sama seperti
+     * StatementFormatter jatuh ke dd/MM/yyyy.
+     */
+    private static String excelDateFormat(String java) {
+        if (java == null || java.isBlank()) return "dd/mm/yyyy";
+        return java.replace("MMMM", "mmmm")
+                   .replace("MMM", "mmm")
+                   .replace("MM", "mm")
+                   .replace("dd", "dd")
+                   .replace("yyyy", "yyyy");
+    }
+
     /** Gaya dicipta SEKALI per buku — POI mengehadkan bilangan gaya. */
     private static final class Gaya {
         final CellStyle tajuk, wang, wangTebal, tarikh, tebal, besar;
 
-        Gaya(Workbook wb) {
+        Gaya(Workbook wb, String corakTarikh) {
             DataFormat fmt = wb.createDataFormat();
 
             Font fTebal = wb.createFont();
@@ -230,8 +247,17 @@ class StatementXlsxWriter {
             wangTebal.setDataFormat(fmt.getFormat("#,##0.00;(#,##0.00)"));
             wangTebal.setFont(fTebal);
 
+            // Ikut sp_billing_setting.date_format, sama seperti PDF. Corak
+            // yang ditulis keras di sini bermakna PDF dan XLSX menunjukkan
+            // tarikh berbeza untuk SP yang tidak menggunakan dd/MM/yyyy —
+            // corak CASE-008, kali ini diperkenalkan oleh penulis Excel.
+            //
+            // Java DateTimeFormatter dan Excel menggunakan huruf berbeza:
+            // Java 'MM' ialah bulan, Excel 'mm' ialah bulan dalam konteks
+            // tarikh tetapi minit selepas jam. Tiada jam di sini, jadi
+            // huruf kecil selamat.
             tarikh = wb.createCellStyle();
-            tarikh.setDataFormat(fmt.getFormat("dd/mm/yyyy"));
+            tarikh.setDataFormat(fmt.getFormat(excelDateFormat(corakTarikh)));
         }
     }
 }
