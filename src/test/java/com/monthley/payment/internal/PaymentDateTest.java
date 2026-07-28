@@ -70,7 +70,7 @@ class PaymentDateTest {
     /** @return id DOKUMEN resit. */
     private long bayar(String amaun, LocalDate tarikh, String ref) {
         var r = payment.receivePayment(new NewPayment(SP, acc, new BigDecimal(amaun),
-                PaymentMethod.TRANSFER, ref, List.of(), null, tarikh));
+                PaymentMethod.TRANSFER, ref, List.of(), null, tarikh, null));
         em.flush();
         return r.receiptDocumentId();
     }

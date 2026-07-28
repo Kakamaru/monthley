@@ -82,6 +82,12 @@ public class Payment extends BaseEntity {
         this.uuid = java.util.UUID.randomUUID().toString();
     }
 
+    @Column(name = "remarks", length = 255)
+    private String remarks;
+
+    public String getRemarks() { return remarks; }
+    public void setRemarks(String remarks) { this.remarks = remarks; }
+
     public void setTotals(BigDecimal allocated, BigDecimal deposit) {
         this.allocatedAmount = allocated;
         this.depositAmount = deposit;

@@ -1,7 +1,7 @@
 # CASE-008 — Tetapan dikumpul tetapi tidak dikuatkuasakan
 
 - **Tarikh:** 28 Julai 2026
-- **Status:** CORAK DIKENAL PASTI. Dua daripada enam dibetulkan.
+- **Status:** CORAK DIKENAL PASTI. EMPAT daripada enam dibetulkan (28 Julai). Tinggal kes 1 (penapis UI) dan kes 5 (penomboran dokumen).
 - **Skop:** sistemik, bukan modul tunggal
 
 ## Corak
@@ -18,9 +18,9 @@ Pengguna melihat kawalan, menggunakannya, dan menganggap ia berkesan.
 | 1 | Penapis "produk belum dilanggan" | Skrin langganan | TIDAK — penapis hidup dalam frontend sahaja (CASE-007) |
 | 2 | `allow_selective` | Tetapan Resit | TIDAK — dibetulkan 45589ef |
 | 3 | `paymentDate` | Manual Payment | TIDAK — dibetulkan 374e3c4 |
-| 4 | `remarks` | Manual Payment | TIDAK — diterima controller, tiada dalam NewPayment |
+| 4 | `remarks` | Manual Payment | ~~TIDAK~~ **DIBETULKAN** — V39 + resit PDF |
 | 5 | `receipt_prefix`, `invoice_prefix`, size, starts-from | Tetapan Resit/Invois | TIDAK — DocumentNumberService tidak membaca sp_document_setting |
-| 6 | `enable_manual_payment` | Tetapan Resit | TIDAK — hanya muncul dalam SettingsController |
+| 6 | `enable_manual_payment` | Tetapan Resit | ~~TIDAK~~ **DIBETULKAN** — semakan dalam ManualPaymentController |
 
 ## Kesan mengikut keterukan
 

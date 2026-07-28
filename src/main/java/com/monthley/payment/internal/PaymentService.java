@@ -143,6 +143,7 @@ class PaymentService implements PaymentPort {
         Payment payment = new Payment(req.spCode(), receiptDocId,
                 req.payerAccountId(), req.amount(), req.method(), req.paymentRefNo(),
                 tarikhBayar);
+        payment.setRemarks(req.remarks());
         payment.setTotals(allocated, alloc.deposit());
 
         // 3. Post ledger: Dr Bank / Cr AR (+ Cr Deposit)

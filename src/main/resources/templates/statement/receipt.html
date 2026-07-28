@@ -111,6 +111,12 @@ table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
   </tr>
 </table>
 
+<!-- Catatan kerani. Baris kosong dilangkau, bukan dicetak sebagai
+     'Payment Notes : -' seperti legacy. -->
+<div th:if="${fmt.has(m.remarks())}" class="notes">
+  <b>Catatan:</b> <span th:text="${m.remarks()}"></span>
+</div>
+
 <div th:if="${m.cancelled()}" class="batal">&#x2715; RESIT INI TELAH DIBATALKAN</div>
 
 <table class="item">

@@ -105,7 +105,7 @@ class StatementService implements StatementPort {
         return new com.monthley.statement.api.ReceiptModel(
                 header, spCode, head.accountId(),
                 head.receiptNo(), head.receiptDate(), head.issuedAt(),
-                head.paymentMethod(), head.paymentRefNo(),
+                head.paymentMethod(), head.paymentRefNo(), head.remarks(),
                 head.amountPaid(),
                 head.advance() == null ? java.math.BigDecimal.ZERO : head.advance(),
                 head.cancelled(), items);

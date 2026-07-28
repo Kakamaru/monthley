@@ -239,9 +239,37 @@ class ManualPaymentController {
         return new PageResponse<>(items, total, page, size);
     }
 
+    /**
+     * SP boleh mematikan bayaran manual — sesetengah hanya menerima
+     * bayaran dalam talian dan tidak mahu kaunter tunai.
+     *
+     * Tetapan itu wujud dalam Tetapan Resit sejak V14 tetapi TIDAK PERNAH
+     * disemak: ia hanya muncul dalam SettingsController, dibaca dan
+     * ditulis. Kerani boleh merekod bayaran walaupun SP mematikannya
+     * (CASE-008 kes 6).
+     *
+     * Pengecualian TIDAK ditelan. allowSelective menelannya dan
+     * mengembalikan false, yang bermakna kegagalan query kelihatan seperti
+     * tetapan dimatikan — bayaran ditolak tanpa sebab yang jelas
+     * (soalan terbuka 15).
+     */
+    private boolean manualPaymentDibenarkan(String spCode) {
+        Object v = em.createNativeQuery(
+                "SELECT enable_manual_payment FROM sp_document_setting WHERE sp_code = :sp")
+                .setParameter("sp", spCode)
+                .getResultList().stream().findFirst().orElse(null);
+        return v != null && ("1".equals(v.toString()) || "true".equalsIgnoreCase(v.toString()));
+    }
+
     @PostMapping("/manual")
     ResponseEntity<?> recordPayment(@Valid @RequestBody ManualPaymentRequest r) {
         Access.requireRole("CLERK", "merekod bayaran");
+
+        if (!manualPaymentDibenarkan(sp())) {
+            throw new IllegalStateException(
+                    "Bayaran manual dimatikan untuk SP ini. Hidupkan "
+                    + "'Enable Manual Payment' dalam Tetapan \u2192 Resit.");
+        }
 
         PaymentResult result = payments.receivePayment(new NewPayment(
                 sp(), r.accountId(), r.amount(),
@@ -255,7 +283,8 @@ class ManualPaymentController {
                 // lepas muncul pada tarikh rekod, bukan tarikh terima.
                 (r.paymentDate() == null || r.paymentDate().isBlank())
                         ? null
-                        : java.time.LocalDate.parse(r.paymentDate())));
+                        : java.time.LocalDate.parse(r.paymentDate()),
+                r.remarks()));
 
         return ResponseEntity.ok(result);
     }

@@ -85,7 +85,7 @@ class CreditInvariantTest {
     /** Bayar dan pulangkan id DOKUMEN resit (bukan id payment). */
     private Long payAndGetReceiptDoc(String amount) {
         payment.receivePayment(new NewPayment("SPC", accountId, new BigDecimal(amount),
-                PaymentMethod.CASH, "REF", List.of(), null, null));
+                PaymentMethod.CASH, "REF", List.of(), null, null, null));
         em.flush();
         return ((Number) em.createNativeQuery("""
                 SELECT id FROM financial_document

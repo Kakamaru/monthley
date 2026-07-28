@@ -26,6 +26,8 @@ public record ReceiptModel(
         LocalDateTime issuedAt,
         String paymentMethod,
         String paymentRefNo,
+        /** Catatan kerani — 'Payment Notes' pada resit legacy. */
+        String remarks,
         BigDecimal amountPaid,
         BigDecimal advance,
         boolean cancelled,

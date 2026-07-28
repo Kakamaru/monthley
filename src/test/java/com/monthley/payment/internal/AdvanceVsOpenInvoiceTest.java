@@ -133,7 +133,7 @@ class AdvanceVsOpenInvoiceTest {
         em.flush();
 
         payment.receivePayment(new NewPayment(SP, acc, new BigDecimal("500.00"),
-                PaymentMethod.FPX, "ADV-MP-1", List.of(), null, null));
+                PaymentMethod.FPX, "ADV-MP-1", List.of(), null, null, null));
         em.flush();
 
         assertThat(tunggakan())
@@ -150,7 +150,7 @@ class AdvanceVsOpenInvoiceTest {
         invois("ADV-INV-2", "300.00", 8);
         em.flush();
         payment.receivePayment(new NewPayment(SP, acc, new BigDecimal("500.00"),
-                PaymentMethod.FPX, "ADV-MP-2", List.of(), null, null));
+                PaymentMethod.FPX, "ADV-MP-2", List.of(), null, null, null));
         em.flush();
 
         assertThat(advance()).isEqualByComparingTo("200.00");

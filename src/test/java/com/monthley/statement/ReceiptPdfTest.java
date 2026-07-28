@@ -102,8 +102,13 @@ class ReceiptPdfTest {
     }
 
     private long bayar(String amaun, LocalDate tarikh, PaymentMethod cara, String ref) {
+        return bayar(amaun, tarikh, cara, ref, null);
+    }
+
+    private long bayar(String amaun, LocalDate tarikh, PaymentMethod cara,
+                       String ref, String catatan) {
         var r = payment.receivePayment(new NewPayment(SP, acc, new BigDecimal(amaun),
-                cara, ref, List.of(), null, tarikh));
+                cara, ref, List.of(), null, tarikh, catatan));
         em.flush();
         return r.receiptDocumentId();
     }
@@ -175,6 +180,27 @@ class ReceiptPdfTest {
                 .as("pelanggan tidak sepatutnya melihat nama enum 'CASH'")
                 .contains("Tunai")
                 .doesNotContain("CASH");
+    }
+
+    @Test
+    @DisplayName("catatan kerani muncul pada resit; tiada baris kosong bila kosong")
+    void catatanMuncul() throws Exception {
+        invois("RC-INV-5", "45.00");
+        em.flush();
+
+        long dengan = bayar("45.00", null, PaymentMethod.CASH, null,
+                "Bayaran diterima di kaunter oleh Pn. Salmah");
+        String t1 = teks(renderer.renderReceiptPdf(statements.receipt(SP, dengan)));
+        assertThat(t1)
+                .as("kerani menaip catatan; sebelum ini ia dibuang di controller")
+                .contains("Bayaran diterima di kaunter oleh Pn. Salmah")
+                .contains("Catatan");
+
+        long tanpa = bayar("30.00", null, PaymentMethod.CASH, null);
+        String t2 = teks(renderer.renderReceiptPdf(statements.receipt(SP, tanpa)));
+        assertThat(t2)
+                .as("legacy mencetak 'Payment Notes : -' yang kelihatan seperti data")
+                .doesNotContain("Catatan");
     }
 
     @Test

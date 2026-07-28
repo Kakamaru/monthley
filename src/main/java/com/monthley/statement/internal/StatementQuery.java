@@ -87,6 +87,7 @@ class StatementQuery {
                         rs.getTimestamp("issued_at").toLocalDateTime(),
                         rs.getString("payment_method"),
                         rs.getString("payment_ref_no"),
+                        rs.getString("remarks"),
                         rs.getBigDecimal("amount_paid"),
                         rs.getBigDecimal("deposit_amount"),
                         "CANCELLED".equals(rs.getString("status"))))
@@ -95,7 +96,7 @@ class StatementQuery {
 
     record ReceiptHead(long accountId, String receiptNo, LocalDate receiptDate,
                        java.time.LocalDateTime issuedAt, String paymentMethod,
-                       String paymentRefNo, BigDecimal amountPaid,
+                       String paymentRefNo, String remarks, BigDecimal amountPaid,
                        BigDecimal advance, boolean cancelled) {
     }
 

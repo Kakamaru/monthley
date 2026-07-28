@@ -199,8 +199,8 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 14 | `sp_document_setting.selective_payment` tiada siapa membacanya; `service_provider.allow_selective` yang digunakan. Dua lajur satu konsep | Gugurkan yang mati |
 | 15 | `allowSelective` menelan RuntimeException dan mengembalikan false — kegagalan query mematikan pemilihan secara senyap | Log, jangan telan |
 | 17 | **Penomboran dokumen** tidak membaca `sp_document_setting` — prefix, size dan starts-from diabaikan untuk SEMUA jenis dokumen (CASE-008 kes 5) | Perlukan ADR |
-| 18 | `enable_manual_payment` tidak dikuatkuasakan — kerani boleh merekod bayaran walaupun SP mematikannya (CASE-008 kes 6) | Semakan dalam ManualPaymentController |
-| 19 | `remarks` daripada Manual Payment dibuang — resit legacy memaparkannya sebagai 'Payment Notes' (CASE-008 kes 4) | Medan dalam NewPayment + payment |
+| 18 | ~~`enable_manual_payment` tidak dikuatkuasakan~~ **SELESAI 28 Julai** — semakan dalam ManualPaymentController, diuji hidup/mati | ✓ |
+| 19 | ~~`remarks` dibuang~~ **SELESAI 28 Julai** — V39 `payment.remarks`, dipaparkan pada resit PDF | ✓ |
 | 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |

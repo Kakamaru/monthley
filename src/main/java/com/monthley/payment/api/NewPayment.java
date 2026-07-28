@@ -29,5 +29,13 @@ public record NewPayment(
          *
          * null = hari ini.
          */
-        LocalDate paymentDate) {
+        LocalDate paymentDate,
+        /**
+         * Catatan kerani — 'Payment Notes' pada resit.
+         *
+         * Diterima oleh controller sejak awal dan DIBUANG di situ: tiada
+         * medan di sini, tiada lajur dalam payment. Kerani menaip catatan
+         * dan ia hilang (CASE-008 kes 4).
+         */
+        String remarks) {
 }
