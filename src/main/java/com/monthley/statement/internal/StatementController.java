@@ -68,6 +68,32 @@ class StatementController {
         return pdfResponse(m);
     }
 
+    /**
+     * XLSX untuk tab Laporan. Model yang SAMA seperti PDF; hanya penulis
+     * berbeza (ADR 0010 keputusan 7).
+     */
+    @GetMapping(value = "/accounts/{accountId}/xlsx")
+    ResponseEntity<byte[]> xlsx(
+            @PathVariable long accountId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to) {
+
+        StatementModel m = (from != null && to != null)
+                ? statements.forRange(sp(), accountId, from, to)
+                : statements.forYear(sp(), accountId,
+                        year != null ? year : Year.now().getValue());
+
+        var f = renderer.renderXlsxFile(m);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(f.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(f.filename(), StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
     private ResponseEntity<byte[]> pdfResponse(StatementModel m) {
         var f = renderer.renderPdfFile(m);
         return ResponseEntity.ok()

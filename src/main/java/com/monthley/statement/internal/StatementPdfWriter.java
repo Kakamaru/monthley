@@ -1,7 +1,6 @@
 package com.monthley.statement.internal;
 
 import com.monthley.statement.api.StatementModel;
-import com.monthley.statement.api.StatementRenderPort;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.TemplateEngine;
@@ -36,7 +35,7 @@ import java.nio.file.StandardCopyOption;
  * DejaVu Sans (lesen bebas) merangkumi Latin lanjutan dan simbol.
  */
 @Component
-class StatementPdfWriter implements StatementRenderPort {
+class StatementPdfWriter {
 
     private static final String TEMPLATE = "statement/statement";
 
@@ -77,8 +76,7 @@ class StatementPdfWriter implements StatementRenderPort {
         }
     }
 
-    @Override
-    public byte[] renderPdf(StatementModel model) {
+    byte[] renderPdf(StatementModel model) {
         var h = model.header();
         Context ctx = new Context();
         ctx.setVariable("m", model);

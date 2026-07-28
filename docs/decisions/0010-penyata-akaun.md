@@ -201,7 +201,10 @@ R242390, doc A dengan ledger dan link semuanya C).
   Font DejaVu DIBENAMKAN — wajib, bukan hiasan (lihat nota pelaksanaan).
   Ambang keputusan 6 masih perlu diukur pada data sebenar.
 - **P4** Sambung tiga pemanggil kepada satu perkhidmatan.
-- **P5** StatementXlsxWriter dua sheet.
+- **P5** SELESAI. StatementXlsxWriter dua sheet rata + endpoint
+  `/statements/accounts/{id}/xlsx`. StatementModel mencukupi TANPA
+  perubahan — reka bentuk 'satu model, banyak penulis' terbukti kali
+  ketiga (PDF, JSON, XLSX).
 - **P6** Ambang baris + laluan tak segerak.
 
 ## Sasaran prestasi

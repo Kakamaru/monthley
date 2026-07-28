@@ -145,6 +145,12 @@
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- ADR 0010 P5 — penulis XLSX penyata -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.5.1</version>
+        </dependency>
         <!-- ADR 0010 P3b — templat penyata boleh diedit tanpa recompile -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
