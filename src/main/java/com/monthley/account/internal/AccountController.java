@@ -827,6 +827,44 @@ class AccountController {
                 .body(f.content());
     }
 
+    /**
+     * Resit PDF untuk pelanggan.
+     *
+     * Pemilikan disemak melalui RESIT, bukan akaun: pembayar boleh melihat
+     * resit bagi akaun yang dibayarnya. Satu query menyemak kedua-duanya
+     * sekali gus.
+     *
+     * 404 dan bukan 403 — 403 membenarkan penyerang membilang ID resit.
+     */
+    @GetMapping(value = "/my/receipts/{receiptId}",
+                produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> myReceipt(@PathVariable Long receiptId) {
+        Long uid = currentUserId();
+        List<?> owned = em.createNativeQuery(
+                "SELECT d.sp_code FROM financial_document d "
+                + "JOIN account a ON a.id = d.account_id "
+                + "WHERE d.id = :id AND d.doc_type = 'RECEIPT' "
+                + "  AND a.payer_user_id = :uid AND a.status = 'ACTIVE'")
+                .setParameter("id", receiptId)
+                .setParameter("uid", uid)
+                .getResultList();
+        if (owned.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        String spCode = (String) owned.get(0);
+
+        var m = statements.receipt(spCode, receiptId);
+        var f = statementRenderer.renderReceiptPdfFile(m);
+
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename(f.filename(), java.nio.charset.StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
     /** User id dari JWT subject (JwtAuthFilter set principal = subject). */
     private Long currentUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();

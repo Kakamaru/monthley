@@ -131,6 +131,49 @@ class MyStatementAccessTest {
         assertThat(res.getBody()).isNull();
     }
 
+    /** Resit milik akaun; pembayar melihat resit bagi akaun yang dibayarnya. */
+    private long resit(long accountId, String docNo) {
+        String sp = jdbc.sql("SELECT sp_code FROM account WHERE id = :a")
+                .param("a", accountId).query(String.class).single();
+        jdbc.sql("""
+                INSERT INTO financial_document
+                  (sp_code, doc_no, doc_type, account_id, doc_date,
+                   amount, tax_amount, status, title, currency)
+                VALUES (:sp, :no, 'RECEIPT', :acc, :d, 50.00, 0, 'ACTIVE',
+                        'Resit bayaran', 'MYR')
+                """)
+                .param("sp", sp).param("no", docNo)
+                .param("acc", accountId).param("d", LocalDate.of(2026, 3, 10))
+                .update();
+        return jdbc.sql("SELECT id FROM financial_document WHERE sp_code=:sp AND doc_no=:no")
+                .param("sp", sp).param("no", docNo).query(Long.class).single();
+    }
+
+    @Test
+    @DisplayName("pembayar boleh memuat turun resit akaunnya sendiri")
+    void resitSendiriDibenarkan() {
+        long r = resit(accA, "ACL-RCP-A-" + System.nanoTime());
+        var res = controller.myReceipt(r);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getBody()).isNotNull();
+        assertThat(new String(res.getBody(), 0, 5)).startsWith("%PDF");
+    }
+
+    @Test
+    @DisplayName("resit pembayar LAIN mengembalikan 404, sama seperti resit hantu")
+    void resitOrangLainDitolak() {
+        long r = resit(accB, "ACL-RCP-B-" + System.nanoTime());
+
+        var lain = controller.myReceipt(r);
+        var hantu = controller.myReceipt(99999999L);
+
+        assertThat(lain.getStatusCode())
+                .as("403 membenarkan penyerang membilang ID resit")
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(hantu.getStatusCode()).isEqualTo(lain.getStatusCode());
+    }
+
     @Test
     @DisplayName("akaun tidak wujud memberi respons SAMA dengan akaun orang lain")
     void tidakWujudSamaSepertiDitolak() {
