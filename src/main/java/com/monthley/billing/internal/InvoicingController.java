@@ -100,7 +100,20 @@ class InvoicingController {
     }
 
     record GenerateSingleRequest(Long accountId, String period, String mode) {}
-    record GenerateSingleResult(Long accountId, String period, String mode, int invoicesPosted) {}
+    record GenerateSingleResult(Long accountId, String period, String mode,
+                               int invoicesPosted,
+                               /**
+                                * Tempoh LIPUTAN yang dibilkan, tersusun.
+                                *
+                                * 'period' ialah bulan LARIAN yang kerani pilih.
+                                * Untuk postpaid ia satu bulan ke hadapan
+                                * daripada liputan, dan untuk akaun YEAR satu
+                                * larian menghasilkan dua belas tempoh.
+                                * Melaporkan bulan larian sahaja memberitahu
+                                * kerani sesuatu yang tidak muncul pada
+                                * mana-mana invois.
+                                */
+                               java.util.List<String> billedPeriods) {}
 
     @PostMapping("/generate-single")
     GenerateSingleResult generateSingle(@RequestBody GenerateSingleRequest req) {
@@ -137,8 +150,32 @@ class InvoicingController {
                 incomeGl,
                 cfg.splitInvoiceByProduct());
 
-        int posted = billing.generateForAccount(sp, req.accountId(), runMonth, mode, ctx);
-        return new GenerateSingleResult(req.accountId(), runMonth.toString(), mode.name(), posted);
+        var hasil = billing.generateForAccountDetailed(
+                sp, req.accountId(), runMonth, mode, ctx);
+
+        return new GenerateSingleResult(req.accountId(), runMonth.toString(),
+                mode.name(), hasil.invoicesPosted(),
+                namaTempoh(hasil.billedPeriodIds()));
+    }
+
+    /**
+     * Nama tempoh daripada fi_period, tersusun ikut masa.
+     *
+     * Kerani melihat 'Julai 2026', bukan 2026230700.
+     */
+    @SuppressWarnings("unchecked")
+    private java.util.List<String> namaTempoh(java.util.Set<Long> periodIds) {
+        if (periodIds == null || periodIds.isEmpty()) return java.util.List.of();
+        var rows = em.createNativeQuery(
+                "SELECT name_ FROM fi_period WHERE period_id IN (:ids) "
+                + "ORDER BY start_dt")
+                .setParameter("ids", periodIds)
+                .getResultList();
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (Object r : rows) {
+            if (r != null) out.add(r.toString());
+        }
+        return out;
     }
 
     /** period_id BULAN yang dikecualikan untuk SP ini (invoice_exclude_period). */

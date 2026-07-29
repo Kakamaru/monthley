@@ -1,7 +1,7 @@
 # CASE-008 — Tetapan dikumpul tetapi tidak dikuatkuasakan
 
 - **Tarikh:** 28 Julai 2026
-- **Status:** CORAK DIKENAL PASTI. EMPAT daripada enam dibetulkan (28 Julai). Tinggal kes 1 (penapis UI) dan kes 5 (penomboran dokumen).
+- **Status:** CORAK DIKENAL PASTI. LIMA daripada enam dibetulkan. Tinggal kes 1 (penapis produk pada skrin langganan masih hidup dalam UI sahaja; guard backend dipasang dalam CASE-007).
 - **Skop:** sistemik, bukan modul tunggal
 
 ## Corak
@@ -19,7 +19,7 @@ Pengguna melihat kawalan, menggunakannya, dan menganggap ia berkesan.
 | 2 | `allow_selective` | Tetapan Resit | TIDAK — dibetulkan 45589ef |
 | 3 | `paymentDate` | Manual Payment | TIDAK — dibetulkan 374e3c4 |
 | 4 | `remarks` | Manual Payment | ~~TIDAK~~ **DIBETULKAN** — V39 + resit PDF |
-| 5 | `receipt_prefix`, `invoice_prefix`, size, starts-from | Tetapan Resit/Invois | TIDAK — DocumentNumberService tidak membaca sp_document_setting |
+| 5 | `receipt_prefix`, `invoice_prefix`, size, starts-from | Tetapan Resit/Invois | ~~TIDAK~~ **DIBETULKAN** — ADR 0012 |
 | 6 | `enable_manual_payment` | Tetapan Resit | ~~TIDAK~~ **DIBETULKAN** — semakan dalam ManualPaymentController |
 
 ## Kesan mengikut keterukan

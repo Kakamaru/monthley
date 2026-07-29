@@ -80,20 +80,37 @@ Legacy tidak pernah reset kerana formula COUNTnya tidak boleh. Ini
 keputusan baharu, disahkan pemilik produk: prefix menandakan tahun
 (`K19` = 2019 dalam data produksi), dan setiap tahun bermula semula.
 
-**3. Tembung dikendalikan dengan RETRY, bukan gelung semakan.**
+**3. Tembung dikendalikan dengan SEMAK-DAN-LANGKAU, di bawah kunci.**
+
+> **PINDAAN 29 Julai 2026.** Draf asal menyatakan "kekangan menolak, kita
+> bertindak balas" dan menolak gelung semakan legacy kerana ia berlumba.
+> Kedua-dua bahagian itu SALAH:
+>
+> 1. Lubang race legacy datang daripada **tiada kunci**, bukan daripada
+>    menyemak. Kita memegang `SELECT ... FOR UPDATE` pada baris turutan
+>    sehingga transaksi commit — iaitu SELEPAS dokumen dimasukkan — jadi
+>    setiap panggilan `next()` untuk kunci yang sama disiri sepenuhnya.
+>    Menyemak selamat di sini walaupun tidak selamat di sana.
+>
+> 2. Bertindak balas kepada penolakan kekangan TIDAK berfungsi dalam
+>    Spring: selepas `DataIntegrityViolationException`, transaksi ditanda
+>    rollback-only dan operasi seterusnya gagal. Retry memerlukan
+>    transaksi baharu, yang bermakna melepaskan kunci.
 
 Menukar prefix BALIK kepada yang pernah digunakan menghasilkan nombor
 yang sudah wujud:
 
-    INV -> I26 -> INV    (SP tersilap taip dan membetulkannya)
+    INV -> I27 -> INV    (SP tersilap taip dan membetulkannya)
 
-Jarang, tetapi mungkin. `uk_doc_no` menolak INSERT; `next()` menaikkan
-`next_value` dan mencuba semula, terhad kepada bilangan percubaan yang
-munasabah.
+`next()` menyemak `financial_document` dan melangkau nombor yang sudah
+digunakan. Dalam operasi biasa gelung itu tidak pernah berjalan —
+`next_value` hanya naik.
 
-Kita TIDAK menyalin gelung `isDocumentExists` legacy: menyemak sebelum
-menulis mempunyai lubang race yang tepat sama seperti COUNT. Kekangan
-menolak, kita bertindak balas.
+Terhad kepada 1000 percubaan supaya tetapan yang salah (contoh
+`no_start` menunjuk ke julat yang sudah penuh) gagal dengan mesej yang
+berguna dan bukan menggantung.
+
+`uk_doc_no` kekal sebagai jaminan muktamad.
 
 **4. Nilai lalai kekal untuk SP yang tidak menetapkan apa-apa.**
 

@@ -198,7 +198,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 13 | Checkbox pilihan invois pada Manual Payment dihantar tetapi DIABAIKAN apabila `allow_selective = 0` — kerani tanda enam invois, sistem bayar yang ketujuh tanpa amaran (ADR 0011) | UI hormati tetapan |
 | 14 | `sp_document_setting.selective_payment` tiada siapa membacanya; `service_provider.allow_selective` yang digunakan. Dua lajur satu konsep | Gugurkan yang mati |
 | 15 | `allowSelective` menelan RuntimeException dan mengembalikan false — kegagalan query mematikan pemilihan secara senyap | Log, jangan telan |
-| 17 | **Penomboran dokumen** tidak membaca `sp_document_setting` (CASE-008 kes 5) | **ADR 0012 ditulis** — reset ke `no_start` bila prefix berubah; `uk_doc_no` sudah jamin tiada pendua. Belum dilaksana |
+| 17 | ~~**Penomboran dokumen** tidak membaca `sp_document_setting`~~ **SELESAI 29 Julai** — ADR 0012 dilaksana; prefix, saiz dan nombor mula daripada tetapan, reset bila prefix berubah | ✓ |
 | 18 | ~~`enable_manual_payment` tidak dikuatkuasakan~~ **SELESAI 28 Julai** — semakan dalam ManualPaymentController, diuji hidup/mati | ✓ |
 | 19 | ~~`remarks` dibuang~~ **SELESAI 28 Julai** — V39 `payment.remarks`, dipaparkan pada resit PDF | ✓ |
 | 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |

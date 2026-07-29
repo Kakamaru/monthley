@@ -92,7 +92,13 @@ public class InvoiceGenerationService {
 
             int created = createGrouped(spCode, account, base, lines, ctx);
             if (created == 0) already++;
-            else periods.add(base.periodId());
+            else {
+                // Tempoh LIPUTAN, bukan tempoh larian. Akaun YEAR dengan
+                // produk MONTHLY menghasilkan dua belas invois Jan-Dis
+                // dalam satu larian; merekod base.periodId() melaporkan
+                // SATU tempoh dan menyembunyikan sebelas yang lain.
+                lines.forEach(l -> periods.add(l.charge().periodId()));
+            }
             posted += created;
         }
         return new GenerationOutcome(posted, scanned, noSub, nothing, already, periods);
@@ -106,25 +112,51 @@ public class InvoiceGenerationService {
     }
 
     /**
+     * Satu akaun, dengan butiran tempoh.
+     *
+     * generateForAccount kekal sebagai pembalut nipis supaya pemanggil
+     * sedia ada tidak berubah — corak yang sama seperti generateForSp.
+     */
+    @Transactional
+    public GenerationOutcome generateForAccountDetailed(
+            String spCode, Long accountId, YearMonth runMonth,
+            GenMode mode, BillingContext ctx) {
+
+        AccountView account = accounts.activeAccountsFor(spCode).stream()
+                .filter(a -> a.id().equals(accountId))
+                .findFirst().orElse(null);
+        if (account == null) {
+            return new GenerationOutcome(0, 0, 0, 0, 0, java.util.Set.of());
+        }
+
+        List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
+        if (subs.isEmpty()) {
+            return new GenerationOutcome(0, 1, 1, 0, 0, java.util.Set.of());
+        }
+
+        Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
+        List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
+        if (lines.isEmpty()) {
+            return new GenerationOutcome(0, 1, 0, 1, 0, java.util.Set.of());
+        }
+
+        int created = createGrouped(spCode, account, base, lines, ctx);
+        java.util.Set<Long> periods = new java.util.LinkedHashSet<>();
+        if (created > 0) {
+            lines.forEach(l -> periods.add(l.charge().periodId()));
+        }
+        return new GenerationOutcome(created, 1, 0, 0, created == 0 ? 1 : 0, periods);
+    }
+
+    /**
      * Jana invois untuk SATU akaun sahaja (Generate Single Invoice).
      * Logik sama dengan generateForSp — cuma tapis satu akaun (WHERE), bukan loop semua.
      * createAndPost kekal idempotent (skip kalau period sudah dijana).
      */
     public int generateForAccount(String spCode, Long accountId, YearMonth runMonth,
                                   GenMode mode, BillingContext ctx) {
-        AccountView account = accounts.activeAccountsFor(spCode).stream()
-                .filter(a -> a.id().equals(accountId))
-                .findFirst().orElse(null);
-        if (account == null) return 0;
-
-        List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
-        if (subs.isEmpty()) return 0;
-
-        Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
-        List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
-        if (lines.isEmpty()) return 0;
-
-        return createGrouped(spCode, account, base, lines, ctx);
+        return generateForAccountDetailed(spCode, accountId, runMonth, mode, ctx)
+                .invoicesPosted();
     }
 
     /**

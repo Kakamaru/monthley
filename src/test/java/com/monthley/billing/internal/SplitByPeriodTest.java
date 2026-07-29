@@ -153,6 +153,23 @@ class SplitByPeriodTest {
     }
 
     @Test
+    @DisplayName("SEMUA tempoh liputan dilaporkan, bukan tempoh larian sahaja")
+    void tempohDilaporkan() {
+        var hasil = billing.generateForAccountDetailed(
+                SP, accountId, YearMonth.of(2026, 3), GenMode.CURRENT, ctx(true));
+        em.flush();
+
+        assertThat(hasil.billedPeriodIds())
+                .as("akaun YEAR + produk MONTHLY menghasilkan dua belas tempoh "
+                    + "dalam satu larian; melaporkan base.periodId() sahaja "
+                    + "menyembunyikan sebelas daripadanya")
+                .hasSize(hasil.invoicesPosted())
+                .doesNotHaveDuplicates();
+
+        assertThat(hasil.invoicesPosted()).isGreaterThan(1);
+    }
+
+    @Test
     @DisplayName("SEBAB perubahan ini: batal satu tempoh, yang lain tidak tersentuh")
     void batalSatuTempohSahaja() {
         billing.generateForSp(SP, YearMonth.of(2026, 3), GenMode.CURRENT, ctx(true));
