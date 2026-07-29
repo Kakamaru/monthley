@@ -132,6 +132,41 @@ final class EmailTemplates {
             "Simpan e-mel ini sebagai rujukan. Pautan di atas kekal sah.");
     }
 
+    /**
+     * Dokumen dihantar semula — resit atau invois.
+     *
+     * Ayat pembuka berbeza mengikut jenis: resit mengesahkan bayaran
+     * DITERIMA, invois memberitahu ada jumlah yang PERLU DIBAYAR.
+     * Menghantar 'Terima kasih, bayaran anda telah diterima' bersama
+     * invois akan mengelirukan pelanggan sepenuhnya.
+     */
+    static String document(String name, String spName, String docLabel,
+                           String docNo, String amount, String tarikh, String url) {
+        boolean resit = docLabel != null
+                && docLabel.toLowerCase().contains("resit");
+
+        String pembuka = resit
+                ? "Berikut ialah salinan resit bayaran anda kepada <strong>"
+                  + esc(spName) + "</strong>."
+                : "Berikut ialah salinan invois anda daripada <strong>"
+                  + esc(spName) + "</strong>.";
+
+        return shell(
+            esc(docLabel),
+            "Hai <strong>" + esc(name) + "</strong>,<br><br>"
+            + pembuka + "<br><br>"
+            + "<table style=\"font-size:14px;line-height:1.8\">"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">No. Dokumen</td>"
+            + "<td><strong>" + esc(docNo) + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tarikh</td>"
+            + "<td>" + esc(tarikh) + "</td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Jumlah</td>"
+            + "<td><strong>" + esc(amount) + "</strong></td></tr>"
+            + "</table>",
+            "Lihat " + esc(docLabel), url,
+            "Simpan e-mel ini sebagai rujukan. Pautan di atas kekal sah.");
+    }
+
     private static String esc(String s) {
         return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }

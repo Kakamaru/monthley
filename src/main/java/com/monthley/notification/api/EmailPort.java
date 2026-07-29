@@ -35,4 +35,23 @@ public interface EmailPort {
     void sendReceipt(String to, String name, String spName,
                      String receiptNo, String amount, String tarikh,
                      String receiptUrl);
+
+    /**
+     * Hantar semula dokumen — resit atau invois — kepada satu atau lebih
+     * alamat.
+     *
+     * BEBERAPA PENERIMA: dialog Resend membenarkan kerani menambah
+     * alamat. Alamat pada akaun mungkin salah, atau pelanggan mahu
+     * salinan ke alamat kedua.
+     *
+     * SATU kaedah untuk kedua-dua jenis. Badan e-mel hampir sama —
+     * butiran dan butang 'Lihat'. Yang berbeza cuma label dan ayat
+     * pembuka, dan dua templat yang sembilan puluh peratus sama akan
+     * menyimpang.
+     *
+     * @param docLabel 'Resit' atau 'Invois' daripada tetapan SP
+     */
+    void resendDocument(java.util.List<String> to, String name, String spName,
+                        String docLabel, String docNo, String amount,
+                        String tarikh, String url);
 }

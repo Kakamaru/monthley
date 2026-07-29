@@ -62,6 +62,27 @@ class ResendEmailService implements EmailPort {
                         tarikh, receiptUrl));
     }
 
+    @Override
+    public void resendDocument(List<String> to, String name, String spName,
+                               String docLabel, String docNo, String amount,
+                               String tarikh, String url) {
+        if (to == null || to.isEmpty()) {
+            return;
+        }
+        String subject = docLabel + " " + docNo + " \u2014 " + spName;
+        String html = EmailTemplates.document(name, spName, docLabel, docNo,
+                amount, tarikh, url);
+
+        // Satu e-mel setiap penerima, bukan satu dengan senarai 'to'.
+        // Penerima tidak sepatutnya melihat alamat satu sama lain —
+        // pelanggan berbeza boleh berkongsi satu akaun.
+        for (String alamat : to) {
+            if (alamat != null && !alamat.isBlank()) {
+                send(alamat.trim(), subject, html, null, null);
+            }
+        }
+    }
+
     private void send(String to, String subject, String html) {
         send(to, subject, html, null, null);
     }

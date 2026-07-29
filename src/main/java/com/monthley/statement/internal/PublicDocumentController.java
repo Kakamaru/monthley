@@ -38,6 +38,30 @@ class PublicDocumentController {
         this.renderer = renderer;
     }
 
+    /**
+     * Invois awam. Nota debit turut menggunakan laluan ini — ia invois
+     * dari sudut pelanggan.
+     */
+    @GetMapping(value = "/invoices/{token}", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> invoice(@PathVariable String token) {
+        var d = access.resolve(token).orElse(null);
+        if (d == null
+                || (d.type() != DocumentType.INVOICE && d.type() != DocumentType.DEBIT_NOTE)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        var m = statements.invoice(d.spCode(), d.documentId());
+        var f = renderer.renderInvoicePdfFile(m);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(f.filename(), StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
     @GetMapping(value = "/receipts/{token}", produces = MediaType.APPLICATION_PDF_VALUE)
     ResponseEntity<byte[]> receipt(@PathVariable String token) {
         var d = access.resolve(token).orElse(null);

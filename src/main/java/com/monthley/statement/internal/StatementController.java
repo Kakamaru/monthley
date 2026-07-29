@@ -33,8 +33,18 @@ class StatementController {
 
     private final StatementPort statements;
     private final StatementRenderPort renderer;
+    private final com.monthley.document.api.DocumentAccessPort access;
+    private final com.monthley.notification.api.EmailPort email;
+    private final String appUrl;
 
-    StatementController(StatementPort statements, StatementRenderPort renderer) {
+    StatementController(StatementPort statements, StatementRenderPort renderer,
+                        com.monthley.document.api.DocumentAccessPort access,
+                        com.monthley.notification.api.EmailPort email,
+                        @org.springframework.beans.factory.annotation.Value(
+                                "${monthley.app-url:http://localhost:4200}") String appUrl) {
+        this.access = access;
+        this.email = email;
+        this.appUrl = appUrl;
         this.statements = statements;
         this.renderer = renderer;
     }
@@ -125,6 +135,86 @@ class StatementController {
                                 .filename(f.filename(), StandardCharsets.UTF_8)
                                 .build().toString())
                 .body(f.content());
+    }
+
+    record ResendRequest(java.util.List<String> emails) {}
+    record ResendResult(int sent, java.util.List<String> recipients) {}
+
+    /**
+     * Hantar semula dokumen — resit atau invois — kepada satu atau lebih
+     * alamat.
+     *
+     * DUDUK DI SINI, bukan dalam document. Modul document memiliki DATA
+     * dokumen dan tidak tahu bagaimana ia dirender atau dihantar.
+     * Percubaan pertama meletakkannya di sana dan ModularityTests
+     * menolaknya: statement sudah bergantung pada document::api untuk
+     * pautan awam, jadi document -> statement ialah kitaran.
+     *
+     * Alamat datang daripada PERMINTAAN, bukan akaun: alamat pada akaun
+     * mungkin salah, atau pelanggan mahu salinan ke alamat kedua.
+     * Alamat TIDAK disimpan — ini hantaran sekali; menukar alamat akaun
+     * ialah tindakan berasingan pada skrin Akaun.
+     *
+     * Token pautan ialah token yang SAMA seperti penghantaran asal
+     * (satu token per dokumen), jadi e-mel lama kekal berfungsi.
+     */
+    @PostMapping("/documents/{id}/resend")
+    ResendResult resend(@PathVariable Long id, @RequestBody ResendRequest r) {
+        com.monthley.shared.Access.requireAnyRole(
+                "menghantar semula dokumen", "SP_ADMIN", "CLERK");
+
+        java.util.List<String> alamat = (r == null || r.emails() == null)
+                ? java.util.List.of()
+                : r.emails().stream()
+                        .filter(e -> e != null && !e.isBlank())
+                        .map(String::trim)
+                        .distinct()
+                        .toList();
+        if (alamat.isEmpty()) {
+            throw new IllegalStateException(
+                    "Sekurang-kurangnya satu alamat e-mel diperlukan.");
+        }
+
+        var d = access.describe(sp(), id).orElseThrow(() ->
+                new IllegalStateException("Dokumen tidak dijumpai."));
+        if (d.cancelled()) {
+            // Pelanggan akan menerima dokumen yang tidak lagi sah dan
+            // menganggapnya bukti bayaran.
+            throw new IllegalStateException(
+                    "Dokumen " + d.docNo() + " telah dibatalkan dan tidak boleh dihantar.");
+        }
+
+        String label, docNo, amount, tarikh, nama, spName, laluan;
+        if (d.type() == com.monthley.document.api.DocumentType.RECEIPT) {
+            var m = statements.receipt(sp(), id);
+            label = "Resit";
+            docNo = m.receiptNo();
+            amount = m.header().currency() + " " + m.amountPaid().toPlainString();
+            tarikh = m.receiptDate().toString();
+            nama = pilihNama(m.header());
+            spName = m.header().spName();
+            laluan = "receipts";
+        } else {
+            var m = statements.invoice(sp(), id);
+            label = m.documentTitle();
+            docNo = m.invoiceNo();
+            amount = m.header().currency() + " " + m.totalDue().toPlainString();
+            tarikh = m.invoiceDate().toString();
+            nama = pilihNama(m.header());
+            spName = m.header().spName();
+            laluan = "invoices";
+        }
+
+        String token = access.tokenFor(sp(), id, d.type());
+        email.resendDocument(alamat, nama, spName, label, docNo, amount, tarikh,
+                appUrl + "/api/v1/pub/" + laluan + "/" + token);
+
+        return new ResendResult(alamat.size(), alamat);
+    }
+
+    private static String pilihNama(com.monthley.statement.api.StatementHeader h) {
+        return (h.billtoName() == null || h.billtoName().isBlank())
+                ? h.accountName() : h.billtoName();
     }
 
     private ResponseEntity<byte[]> pdfResponse(StatementModel m) {

@@ -92,6 +92,24 @@ class DocumentAccessService implements DocumentAccessPort {
     }
 
     @Override
+    public Optional<DocumentInfo> describe(String spCode, long documentId) {
+        var rows = em.createNativeQuery(
+                "SELECT doc_type, doc_no, status FROM financial_document "
+                + "WHERE id = :id AND sp_code = :sp")
+                .setParameter("id", documentId)
+                .setParameter("sp", spCode)
+                .getResultList();
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+        Object[] r = (Object[]) rows.get(0);
+        return Optional.of(new DocumentInfo(
+                DocumentType.valueOf((String) r[0]),
+                (String) r[1],
+                "CANCELLED".equals(r[2])));
+    }
+
+    @Override
     @Transactional
     public void revoke(long documentId) {
         em.createNativeQuery("""

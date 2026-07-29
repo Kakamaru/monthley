@@ -37,4 +37,15 @@ public interface DocumentAccessPort {
 
     /** Matikan pautan — dipanggil apabila dokumen dibatalkan. */
     void revoke(long documentId);
+
+    /**
+     * Jenis, nombor dan status dokumen.
+     *
+     * Pemanggil di luar modul ini memerlukan ketiga-tiganya untuk
+     * memutuskan cara merender dan sama ada boleh dihantar. Mereka tidak
+     * sepatutnya menyoal financial_document sendiri.
+     */
+    Optional<DocumentInfo> describe(String spCode, long documentId);
+
+    record DocumentInfo(DocumentType type, String docNo, boolean cancelled) {}
 }
