@@ -1,6 +1,6 @@
 # ADR 0010 — Penyata akaun: satu perkhidmatan, baris ikut dokumen
 
-- **Status:** Diterima (25 Julai 2026) — P1 disahkan, P2-P6 belum dilaksana
+- **Status:** Diterima (25 Julai 2026). P1-P5 SELESAI; P6 ditangguh selepas diukur (29 Julai).
 - **Berkait:** ADR 0006 (alokasi peringkat line), ADR 0009 (satu takrifan baki)
 - **Bukti:** evidence/CASE-004-ledger-line-taxonomy.md
 
@@ -205,7 +205,28 @@ R242390, doc A dengan ledger dan link semuanya C).
   `/statements/accounts/{id}/xlsx`. StatementModel mencukupi TANPA
   perubahan — reka bentuk 'satu model, banyak penulis' terbukti kali
   ketiga (PDF, JSON, XLSX).
-- **P6** Ambang baris + laluan tak segerak.
+- **P6** DITANGGUH — diukur, tidak diperlukan.
+
+  StatementPerformanceTest menjana 1000 baris (dua puluh kali ganda
+  penyata terbesar pengeluaran) dan mengukur:
+
+  | | 1000 baris | pada saiz sebenar (~53) |
+  |---|---|---|
+  | Query | 28 ms | ~2 ms |
+  | Render PDF | 1,157 ms | ~60 ms |
+  | Render XLSX | 493 ms | ~26 ms |
+
+  Render ialah 97% kos, bukan query. Jika ambang diperlukan kelak, ia
+  melindungi RENDER dan bukan pangkalan data.
+
+  Linear pada ~1.2 ms sebaris. Ambang berguna bermula sekitar 2,500
+  baris (≈3 saat) — akaun dengan lebih empat puluh tahun sejarah
+  bulanan.
+
+  Membina ambang sekarang bermakna meneka nilainya, membina laluan tak
+  segerak yang tiada pemanggil, dan menambah keadaan 'sedang diproses'
+  pada UI untuk kes yang tidak berlaku. Ujian dikekalkan supaya nombor
+  boleh disemak semula apabila data sebenar membesar.
 
 ## Sasaran prestasi
 
@@ -218,7 +239,7 @@ FA10-1-10 setahun ialah 20-40 baris, bukan 262.
 |---|---|
 | SP biasa bentuk lama | Lajur baki menghasilkan angka sama pada setiap sempadan dokumen; hanya bilangan baris berkurang dan nombor invois bertambah |
 | counter(pages) tidak disokong | P1 spike sebelum apa-apa kod ditulis |
-| Penyata besar | Ambang baris + laluan tak segerak (P6) |
+| Penyata besar | ~~Ambang baris + laluan tak segerak (P6)~~ Diukur: 1000 baris = 1.2 saat, dua puluh kali ganda saiz pengeluaran. Ditangguh sehingga data mewajarkannya |
 | Pengguna sort Excel | Dua sheet rata, bukan sub-baris |
 | Baki pembukaan menyimpang | VIEW yang sama; ujian membandingkan penutup tahun N dengan pembukaan tahun N+1 |
 | Migrasi ikut teks | prod_descr tidak boleh dipercayai — M2000 mengandungi kedua-dua "Advanced Payment" dan "Advance Payment". Migrasi ikut txn_code + prod_id sahaja |
