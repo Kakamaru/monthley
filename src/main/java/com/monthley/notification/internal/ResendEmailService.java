@@ -53,10 +53,27 @@ class ResendEmailService implements EmailPort {
         send(to, "Jemputan ke Monthley — " + spName, EmailTemplates.invitation(spName, registerUrl));
     }
 
+    @Override
+    public void sendReceipt(String to, String name, String spName,
+                            String receiptNo, String amount, String tarikh,
+                            String receiptUrl) {
+        send(to, "Resit " + receiptNo + " — " + spName,
+                EmailTemplates.receipt(name, spName, receiptNo, amount,
+                        tarikh, receiptUrl));
+    }
+
     private void send(String to, String subject, String html) {
+        send(to, subject, html, null, null);
+    }
+
+    private void send(String to, String subject, String html,
+                      byte[] lampiran, String namaFail) {
         if (apiKey == null || apiKey.isBlank()) {
             // Mod dev — tiada kunci. Log sahaja supaya pembangunan boleh diteruskan.
             log.warn(">>> [E-MEL DEV] kepada={} subjek={}", to, subject);
+            if (lampiran != null) {
+                log.warn(">>> lampiran: {} ({} KB)", namaFail, lampiran.length / 1024);
+            }
             log.warn(">>> Tetapkan MONTHLEY_RESEND_KEY untuk menghantar sebenar.");
             logLinks(html);
             return;
@@ -65,11 +82,7 @@ class ResendEmailService implements EmailPort {
             http.post().uri(API)
                     .header("Authorization", "Bearer " + apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "from", from,
-                            "to", List.of(to),
-                            "subject", subject,
-                            "html", html))
+                    .body(muatan(to, subject, html, lampiran, namaFail))
                     .retrieve()
                     .toBodilessEntity();
             log.info("E-mel dihantar: {} → {}", subject, to);
@@ -78,6 +91,27 @@ class ResendEmailService implements EmailPort {
             log.error("Gagal hantar e-mel kepada {}: {}", to, e.getMessage());
             logLinks(html);
         }
+    }
+
+    /**
+     * Muatan Resend. Lampiran ialah base64 dalam medan 'content'.
+     *
+     * Map.of tidak boleh digunakan apabila lampiran hadir kerana bilangan
+     * kunci berbeza; HashMap dibina secara berperingkat.
+     */
+    private Map<String, Object> muatan(String to, String subject, String html,
+                                       byte[] lampiran, String namaFail) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("from", from);
+        body.put("to", List.of(to));
+        body.put("subject", subject);
+        body.put("html", html);
+        if (lampiran != null && lampiran.length > 0) {
+            body.put("attachments", List.of(Map.of(
+                    "filename", namaFail == null ? "lampiran.pdf" : namaFail,
+                    "content", java.util.Base64.getEncoder().encodeToString(lampiran))));
+        }
+        return body;
     }
 
     /** Papar pautan dalam log supaya boleh diuji tanpa e-mel sebenar. */

@@ -107,6 +107,31 @@ final class EmailTemplates {
             "Jika anda tidak mengenali jemputan ini, abaikan e-mel ini.");
     }
 
+    /**
+     * Resit — PAUTAN, bukan lampiran.
+     *
+     * Butiran utama dalam badan e-mel supaya pelanggan boleh mengesahkan
+     * bayaran tanpa mengklik. Pautan untuk resit penuh.
+     */
+    static String receipt(String name, String spName, String receiptNo,
+                          String amount, String tarikh, String url) {
+        return shell(
+            "Resit Bayaran",
+            "Hai <strong>" + esc(name) + "</strong>,<br><br>"
+            + "Terima kasih. Bayaran anda kepada <strong>" + esc(spName)
+            + "</strong> telah diterima.<br><br>"
+            + "<table style=\"font-size:14px;line-height:1.8\">"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">No. Resit</td>"
+            + "<td><strong>" + esc(receiptNo) + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tarikh</td>"
+            + "<td>" + esc(tarikh) + "</td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Jumlah</td>"
+            + "<td><strong>" + esc(amount) + "</strong></td></tr>"
+            + "</table>",
+            "Lihat Resit", url,
+            "Simpan e-mel ini sebagai rujukan. Pautan di atas kekal sah.");
+    }
+
     private static String esc(String s) {
         return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }

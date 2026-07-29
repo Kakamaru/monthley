@@ -40,6 +40,13 @@ public class TenantFilter implements Filter {
                     return;
                 }
 
+                // Pautan awam dokumen: penerima e-mel tiada header X-SP-Id
+                // dan tiada sesi. spCode datang daripada token itu sendiri.
+                if (http.getRequestURI().startsWith("/api/v1/pub/")) {
+                    chain.doFilter(req, res);
+                    return;
+                }
+
                 String sp = http.getHeader(HEADER);
 
                 if (sp != null && !sp.isBlank()) {

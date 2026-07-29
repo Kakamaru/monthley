@@ -122,8 +122,10 @@ table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
 <table class="item">
   <thead>
     <tr>
-      <th style="width:44%">Item</th>
-      <th style="width:14%">No. Invois</th>
+      <!-- No. Invois dahulu: ia rujukan yang pelanggan cari untuk
+           memadankan resit dengan bilnya. -->
+      <th style="width:16%">No. Invois</th>
+      <th style="width:42%">Item</th>
       <th style="width:12%" class="r">Kuantiti</th>
       <th style="width:15%" class="r">Harga</th>
       <th style="width:15%" class="r">Amaun</th>
@@ -131,12 +133,12 @@ table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
   </thead>
   <tbody>
     <tr th:each="i : ${m.items()}">
+      <td class="mono" th:text="${i.invoiceNo()}"></td>
       <td>
         <span th:text="${i.description()}"></span>
         <span th:if="${i.periodStart() != null}" style="white-space:nowrap"
               th:text="'  ' + ${fmt.period(i.periodStart(), i.periodEnd())}"></span>
       </td>
-      <td class="mono" th:text="${i.invoiceNo()}"></td>
       <td class="r mono" th:text="${fmt.money(i.quantity())}"></td>
       <td class="r mono" th:text="${fmt.money(i.unitPrice())}"></td>
       <td class="r mono" th:text="${fmt.money(i.amount())}"></td>

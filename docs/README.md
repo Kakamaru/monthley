@@ -201,6 +201,9 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 17 | ~~**Penomboran dokumen** tidak membaca `sp_document_setting`~~ **SELESAI 29 Julai** — ADR 0012 dilaksana; prefix, saiz dan nombor mula daripada tetapan, reset bila prefix berubah | ✓ |
 | 18 | ~~`enable_manual_payment` tidak dikuatkuasakan~~ **SELESAI 28 Julai** — semakan dalam ManualPaymentController, diuji hidup/mati | ✓ |
 | 19 | ~~`remarks` dibuang~~ **SELESAI 28 Julai** — V39 `payment.remarks`, dipaparkan pada resit PDF | ✓ |
+| 20 | Pautan resit e-mel guna `monthley.app-url` (port 4200 dalam pembangunan). Berfungsi kerana proxy Angular memajukan `/api/**`; dalam pengeluaran backend mesti berada di belakang proxy yang sama, ATAU laluan Angular `/resit/{token}` diperlukan | Semak semasa deploy |
+| 21 | `IllegalArgumentException` digunakan untuk DUA perkara: validasi input (`accountId diperlukan`) dan keadaan mustahil (`Dokumen tak wujud`, `anchor_month mesti 1-12`). Yang pertama patut 400, yang kedua ialah pepijat dan patut kekal 500 | Pengecualian berasingan untuk validasi |
+| 22 | UI tidak menyemak `enable_manual_payment` sebelum kerani mengisi borang — dia menaip amaun, menanda invois, kemudian ditolak | Semak semasa membuka skrin bayaran |
 | 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |

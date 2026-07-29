@@ -31,13 +31,29 @@ import java.util.List;
 @RequestMapping("/api/v1/payments")
 class ManualPaymentController {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(ManualPaymentController.class);
+
     private final PaymentPort payments;
+    private final com.monthley.statement.api.StatementPort statements;
+    private final com.monthley.document.api.DocumentAccessPort access;
+    private final com.monthley.notification.api.EmailPort email;
+    private final String appUrl;
 
     @PersistenceContext
     private EntityManager em;
 
-    ManualPaymentController(PaymentPort payments) {
+    ManualPaymentController(PaymentPort payments,
+                            com.monthley.statement.api.StatementPort statements,
+                            com.monthley.document.api.DocumentAccessPort access,
+                            com.monthley.notification.api.EmailPort email,
+                            @org.springframework.beans.factory.annotation.Value(
+                                    "${monthley.app-url:http://localhost:4200}") String appUrl) {
         this.payments = payments;
+        this.statements = statements;
+        this.access = access;
+        this.email = email;
+        this.appUrl = appUrl;
     }
 
     // ---------- DTO ----------
@@ -266,12 +282,30 @@ class ManualPaymentController {
         Access.requireRole("CLERK", "merekod bayaran");
 
         if (!manualPaymentDibenarkan(sp())) {
+            // Kerani berperanan CLERK sahaja dan TIADA menu Tetapan.
+            // Menyuruhnya membuka Tetapan -> Resit menghantarnya mencari
+            // menu yang tidak wujud, kemudian menelefon admin.
             throw new IllegalStateException(
-                    "Bayaran manual dimatikan untuk SP ini. Hidupkan "
-                    + "'Enable Manual Payment' dalam Tetapan \u2192 Resit.");
+                    "Bayaran manual dimatikan untuk SP ini. "
+                    + "Hubungi pentadbir untuk menghidupkannya.");
         }
 
-        PaymentResult result = payments.receivePayment(new NewPayment(
+        PaymentResult result = terimaBayaran(r);
+
+        // SELEPAS commit. receivePayment mempunyai transaksinya sendiri dan
+        // sudah commit di sini; menghantar dari dalamnya akan menahan kunci
+        // baris sepanjang panggilan HTTP ke penyedia e-mel.
+        //
+        // Kegagalan e-mel TIDAK menggagalkan bayaran — duit sudah diterima
+        // dan resit sudah wujud. Corak sama seperti ResendEmailService yang
+        // tidak menggagalkan pendaftaran kerana e-mel gagal.
+        hantarResit(result);
+
+        return ResponseEntity.ok(result);
+    }
+
+    private PaymentResult terimaBayaran(ManualPaymentRequest r) {
+        return payments.receivePayment(new NewPayment(
                 sp(), r.accountId(), r.amount(),
                 PaymentMethod.valueOf(r.paymentType()),
                 r.paymentRefNo(),
@@ -285,8 +319,44 @@ class ManualPaymentController {
                         ? null
                         : java.time.LocalDate.parse(r.paymentDate()),
                 r.remarks()));
+    }
 
-        return ResponseEntity.ok(result);
+    /**
+     * Hantar resit sebagai PAUTAN, bukan lampiran.
+     *
+     * PDF tidak dilampirkan: e-mel menjadi berat, dan resit yang dibatalkan
+     * kekal dalam peti masuk pelanggan selama-lamanya. Pautan berhenti
+     * berfungsi apabila token dibatalkan.
+     *
+     * Senyap jika pelanggan tiada e-mel — SP boleh memautkan akaun tanpa
+     * alamat, dan itu bukan ralat.
+     */
+    private void hantarResit(PaymentResult result) {
+        try {
+            var m = statements.receipt(sp(), result.receiptDocumentId());
+            String to = m.header().billtoEmail();
+            if (to == null || to.isBlank()) {
+                return;
+            }
+
+            String token = access.tokenFor(sp(), result.receiptDocumentId(),
+                    com.monthley.document.api.DocumentType.RECEIPT);
+
+            email.sendReceipt(
+                    to,
+                    m.header().billtoName() == null
+                            ? m.header().accountName() : m.header().billtoName(),
+                    m.header().spName(),
+                    m.receiptNo(),
+                    m.header().currency() + " " + m.amountPaid().toPlainString(),
+                    m.receiptDate().toString(),
+                    appUrl + "/api/v1/pub/receipts/" + token);
+
+        } catch (RuntimeException e) {
+            // Bayaran sudah selamat. Jangan biarkan e-mel menggagalkannya.
+            log.error("Gagal hantar e-mel resit untuk dokumen {}: {}",
+                    result.receiptDocumentId(), e.getMessage());
+        }
     }
 
     // ---------- helper ----------

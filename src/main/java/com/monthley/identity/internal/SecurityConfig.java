@@ -47,7 +47,11 @@ class SecurityConfig {
                 // terbuka — daftar, log masuk, sahkan e-mel, reset kata laluan
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/lookup/**").permitAll()
-                .requestMatchers("/api/v1/lookup/**").permitAll()
+
+                // Pautan awam dokumen — pelanggan yang menerima e-mel resit
+                // mungkin TIADA akaun portal. Keselamatan bergantung pada
+                // entropi token (256 bit, V42), bukan pada sesi.
+                .requestMatchers("/api/v1/pub/**").permitAll()
 
                 // platform — superadmin sahaja
                 .requestMatchers("/api/v1/platform/**").hasRole("SUPERADMIN")

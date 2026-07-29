@@ -17,4 +17,22 @@ public interface EmailPort {
 
     /** Jemputan pautkan akaun (SP link akaun ke email belum berdaftar). */
     void sendInvitation(String to, String spName, String registerUrl);
+
+    /**
+     * Resit selepas bayaran — PAUTAN, bukan lampiran.
+     *
+     * PDF tidak dilampirkan: e-mel menjadi berat, resit yang dibatalkan
+     * kekal dalam peti masuk selama-lamanya, dan penghantaran pukal
+     * kemudian akan menjana ratusan PDF sebelum menghantar.
+     *
+     * Pautan berfungsi tanpa log masuk — pelanggan yang menerima e-mel
+     * mungkin tiada akaun portal (DocumentAccessPort, V42).
+     *
+     * Panggil SELEPAS transaksi bayaran commit. Menghantar dari dalam
+     * transaksi menahan kunci baris sepanjang panggilan HTTP ke penyedia
+     * e-mel.
+     */
+    void sendReceipt(String to, String name, String spName,
+                     String receiptNo, String amount, String tarikh,
+                     String receiptUrl);
 }
