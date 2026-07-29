@@ -74,6 +74,69 @@ class StatementQuery {
                 .single();
     }
 
+    /** Kepala invois daripada VIEW invoice_header (V43). */
+    InvoiceHead invoiceHead(String spCode, long invoiceDocumentId) {
+        return jdbc.sql("SELECT * FROM invoice_header "
+                        + "WHERE sp_code = :sp AND invoice_id = :id")
+                .param("sp", spCode)
+                .param("id", invoiceDocumentId)
+                .query((rs, n) -> new InvoiceHead(
+                        rs.getLong("account_id"),
+                        rs.getString("invoice_title"),
+                        rs.getString("invoice_no"),
+                        rs.getDate("invoice_date").toLocalDate(),
+                        rs.getDate("due_date") != null
+                                ? rs.getDate("due_date").toLocalDate() : null,
+                        rs.getTimestamp("issued_at").toLocalDateTime(),
+                        rs.getString("period_name"),
+                        rs.getBigDecimal("balance_before"),
+                        rs.getBigDecimal("new_charges"),
+                        rs.getBigDecimal("tax_amount"),
+                        "CANCELLED".equals(rs.getString("status"))))
+                .single();
+    }
+
+    record InvoiceHead(long accountId, String documentTitle, String invoiceNo, LocalDate invoiceDate,
+                       LocalDate dueDate, java.time.LocalDateTime issuedAt,
+                       String periodName, BigDecimal balanceBefore,
+                       BigDecimal newCharges, BigDecimal taxAmount,
+                       boolean cancelled) {
+    }
+
+    /**
+     * Baris invois.
+     *
+     * Guna VIEW account_document_line yang SAMA seperti sub-baris
+     * penyata (V36) — satu sumber, dua penggunaan.
+     */
+    List<InvoiceLine> invoiceItems(String spCode, long invoiceDocumentId) {
+        return jdbc.sql("""
+                SELECT l.description, l.period_start, l.period_end, l.amount,
+                       COALESCE(fl.quantity, 1)   AS quantity,
+                       COALESCE(fl.unit_price, l.amount) AS unit_price
+                FROM   account_document_line l
+                LEFT   JOIN financial_document_line fl ON fl.id = l.line_id
+                WHERE  l.sp_code = :sp AND l.document_id = :id
+                ORDER  BY l.period_start, l.line_id
+                """)
+                .param("sp", spCode)
+                .param("id", invoiceDocumentId)
+                .query((rs, n) -> new InvoiceLine(
+                        rs.getString("description"),
+                        rs.getDate("period_start") != null
+                                ? rs.getDate("period_start").toLocalDate() : null,
+                        rs.getDate("period_end") != null
+                                ? rs.getDate("period_end").toLocalDate() : null,
+                        rs.getBigDecimal("quantity"),
+                        rs.getBigDecimal("unit_price"),
+                        rs.getBigDecimal("amount")))
+                .list();
+    }
+
+    record InvoiceLine(String description, LocalDate periodStart, LocalDate periodEnd,
+                       BigDecimal quantity, BigDecimal unitPrice, BigDecimal amount) {
+    }
+
     /** Kepala resit daripada VIEW receipt_header (V38). */
     ReceiptHead receiptHead(String spCode, long receiptDocumentId) {
         return jdbc.sql("SELECT * FROM receipt_header "

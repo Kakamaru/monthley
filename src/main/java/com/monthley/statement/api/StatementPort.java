@@ -31,4 +31,12 @@ public interface StatementPort {
      *        payment.id, yang menyesatkan (soalan terbuka 16).
      */
     ReceiptModel receipt(String spCode, long receiptDocumentId);
+
+    /**
+     * Invois tunggal.
+     *
+     * @param invoiceDocumentId financial_document.id. Nota debit turut
+     *        diterima — ia invois dari sudut pelanggan.
+     */
+    InvoiceModel invoice(String spCode, long invoiceDocumentId);
 }

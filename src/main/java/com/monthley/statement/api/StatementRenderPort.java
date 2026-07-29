@@ -20,6 +20,15 @@ public interface StatementRenderPort {
     /** Resit PDF. */
     byte[] renderReceiptPdf(ReceiptModel model);
 
+    /** Invois PDF. */
+    byte[] renderInvoicePdf(InvoiceModel model);
+
+    default StatementFile renderInvoicePdfFile(InvoiceModel m) {
+        String name = ("invois-" + m.invoiceNo() + ".pdf")
+                .replaceAll("[^A-Za-z0-9._-]", "_");
+        return new StatementFile(name, "application/pdf", renderInvoicePdf(m));
+    }
+
     default StatementFile renderReceiptPdfFile(ReceiptModel m) {
         String name = ("resit-" + m.receiptNo() + ".pdf")
                 .replaceAll("[^A-Za-z0-9._-]", "_");

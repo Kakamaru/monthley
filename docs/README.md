@@ -205,7 +205,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 21 | `IllegalArgumentException` digunakan untuk DUA perkara: validasi input (`accountId diperlukan`) dan keadaan mustahil (`Dokumen tak wujud`, `anchor_month mesti 1-12`). Yang pertama patut 400, yang kedua ialah pepijat dan patut kekal 500 | Pengecualian berasingan untuk validasi |
 | 22 | UI tidak menyemak `enable_manual_payment` sebelum kerani mengisi borang — dia menaip amaun, menanda invois, kemudian ditolak | Semak semasa membuka skrin bayaran |
 | 23 | **`cancelDocument` tidak membalikkan alokasi** — ia hanya menanda dokumen CANCELLED. Bentuk SAMA dengan pepijat RM9.70 produksi (pautan aktif pada resit dibatalkan). Belum menggigit: 0 dokumen pernah dibatalkan. MESTI dibetulkan sebelum butang Cancel pada Finance Documents dihidupkan | Perlukan ADR — menyentuh ledger |
-| 24 | Tiada penulis PDF **invois** — hanya resit dan penyata. Butang 'Papar Dokumen' pada Finance Documents hanya berfungsi separuh | Templat + penulis, ikut corak resit |
+| 24 | ~~Tiada penulis PDF **invois**~~ **SELESAI 29 Julai** — V43/V44 `invoice_header`, templat, penulis, endpoint. Nota kredit/debit masih menggunakan templat invois; nota kredit belum ada bentuk sendiri | ✓ separa |
 | 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |
 | 9 | Frontend portal masih membaca `balance` sahaja; medan `arrears` baharu belum dipapar. Selepas deploy, baki negatif muncul di tempat tunggakan dahulu berada | Kemas kini portal UI |
 | 10 | Adakah versi lama `/accounts/my` pernah tersiar kepada pelanggan produksi? Jika ya, siapa nampak nombor salah | Semakan produksi |

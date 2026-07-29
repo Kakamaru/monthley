@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Invois — susun atur mengikut legacy, dengan tiga pembetulan:
+
+    'Account Namer'  -> Nama Akaun          (typo legacy)
+    'All transaction' -> jamak              (typo legacy)
+    Adjustments / New Charges Due DIBUANG   (tidak pernah boleh berisi)
+
+  Label mengikut bahasa SP, bukan Inggeris tetap — sp_billing_setting
+  .language sudah menentukan segalanya dalam penyata dan resit.
+
+  KETAT: openhtmltopdf menghurai XHTML. TIADA entiti bernama.
+-->
+<style>
+@page { size: A4; margin: 14mm 12mm 18mm 12mm;
+        @bottom-center { content: element(kaki); vertical-align: top; } }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
+       color: #1a1a1a; }
+
+.hdr        { width: 100%; }
+.hdr td     { vertical-align: top; }
+.sp-name    { font-size: 15pt; font-weight: bold; line-height: 1.15; }
+.sp-detail  { font-size: 8.5pt; color: #444; line-height: 1.35; }
+.title      { font-size: 18pt; font-weight: bold; text-align: right; }
+
+.box        { border-collapse: collapse; width: 100%; }
+.box td     { border: 0.6pt solid #555; padding: 1.4mm 2mm; }
+.box .lbl   { background: #16324a; color: #fff; width: 44%;
+              font-size: 9pt; text-align: right; border-color: #16324a; }
+.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 9.5pt; }
+
+.bar        { background: #16324a; color: #fff; padding: 1.2mm 2mm;
+              font-size: 10pt; }
+.sect       { font-weight: bold; font-size: 10.5pt; margin-top: 6mm; }
+.note       { font-size: 8pt; color: #555; margin-top: 1mm; }
+
+table.ring      { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+table.ring th   { border: 0.6pt solid #ccc; padding: 2mm; font-size: 9.5pt;
+                  font-weight: normal; text-align: center; }
+table.ring td   { border: 0.6pt solid #ccc; padding: 2.2mm;
+                  font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt;
+                  text-align: center; }
+
+table.item      { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+table.item thead { display: table-header-group; }
+table.item th   { background: #16324a; color: #fff; font-size: 9.5pt;
+                  padding: 1.8mm 2mm; text-align: left; font-weight: normal; }
+table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
+                  vertical-align: top; }
+.r          { text-align: right; }
+.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              white-space: nowrap; }
+.grand td   { background: #16324a; color: #fff; padding: 2mm;
+              font-weight: bold; }
+.batal      { color: #c0392b; font-weight: bold; font-size: 12pt;
+              margin-top: 4mm; }
+#kaki       { position: running(kaki); font-size: 7.5pt; color: #555;
+              text-align: center; width: 100%; }
+</style>
+</head>
+<body>
+
+<table class="hdr">
+  <tr>
+    <td style="width:62%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine2())}" th:text="${h.spAddrLine2()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+        <div>
+          <span th:if="${fmt.has(h.spPhone())}" th:text="${h.spPhone()} + '  '"></span>
+          <span th:if="${fmt.has(h.spEmail())}" th:text="${h.spEmail()} + '  '"></span>
+          <span th:if="${fmt.has(h.spWebsite())}" th:text="${h.spWebsite()}"></span>
+        </div>
+        <div th:if="${fmt.has(h.spBankAccountNo())}">
+          <span th:text="${h.spBankAccountNo()}"></span>
+          <span th:if="${fmt.has(h.spBankCode())}" th:text="' (' + ${h.spBankCode()} + ')'"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:38%">
+      <!-- Tajuk INVOIS, bukan statementTitle — itu tajuk penyata. -->
+      <div class="title" th:text="${m.documentTitle()}">INVOIS</div>
+    </td>
+  </tr>
+</table>
+
+<table class="hdr" style="margin-top:8mm">
+  <tr>
+    <td style="width:50%; padding-right:6mm">
+      <div class="bar">BILL TO</div>
+      <div style="margin-top:2.5mm; line-height:1.45">
+        <div th:text="${h.billtoName()}"></div>
+        <div th:if="${fmt.has(h.billtoEmail())}" th:text="${h.billtoEmail()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine1())}" th:text="${h.billtoAddrLine1()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine2())}" th:text="${h.billtoAddrLine2()}"></div>
+        <div th:if="${fmt.has(h.billtoAddrLine3())}" th:text="${h.billtoAddrLine3()}"></div>
+        <div>
+          <span th:if="${fmt.has(h.billtoPostcode())}" th:text="${h.billtoPostcode()} + ' '"></span>
+          <span th:if="${fmt.has(h.billtoState())}"    th:text="${h.billtoState()}"></span>
+        </div>
+      </div>
+    </td>
+    <td style="width:50%">
+      <table class="box">
+        <tr><td class="lbl">No. Invois</td>
+            <td class="val" th:text="${m.invoiceNo()}"></td></tr>
+        <tr><td class="lbl">No. Akaun</td>
+            <td class="val" th:text="${h.accountNo()}"></td></tr>
+        <!-- Legacy menulis 'Account Namer'. Typo dibetulkan. -->
+        <tr><td class="lbl">Nama Akaun</td>
+            <td class="val" th:text="${h.accountName()}"></td></tr>
+        <tr><td class="lbl">Tempoh Invois</td>
+            <td class="val" th:text="${m.periodName()}"></td></tr>
+        <tr><td class="lbl">Tarikh Invois</td>
+            <td class="val" th:text="${fmt.date(m.invoiceDate())}"></td></tr>
+        <tr th:if="${m.dueDate() != null}">
+            <td class="lbl">Tarikh Akhir</td>
+            <td class="val" th:text="${fmt.date(m.dueDate())}"></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div th:if="${m.cancelled()}" class="batal">&#x2715; INVOIS INI TELAH DIBATALKAN</div>
+
+<div class="sect">Ringkasan Invois</div>
+<div class="note">Semua transaksi dalam mata wang
+  <span th:text="${h.currency()}"></span>.</div>
+
+<!--
+  TIGA lajur, bukan lima. Legacy mempunyai 'Adjustments' dan 'New
+  Charges Due' juga, tetapi pelarasan ialah DOKUMEN berasingan dan bukan
+  sesuatu yang diubah pada invois — ketiga-tiga sampel produksi
+  menunjukkan 0.00 dan 'New Charges Due' sentiasa sama dengan 'New
+  Charges'.
+-->
+<table class="ring">
+  <tr>
+    <th style="width:34%">Baki Sebelum Ini</th>
+    <th style="width:33%">Caj Baharu</th>
+    <th style="width:33%">Jumlah Perlu Dibayar</th>
+  </tr>
+  <tr>
+    <td th:text="${fmt.money(m.balanceBefore())}"></td>
+    <td th:text="${fmt.money(m.newCharges())}"></td>
+    <td style="font-weight:bold" th:text="${fmt.money(m.totalDue())}"></td>
+  </tr>
+</table>
+
+<table class="item">
+  <thead>
+    <tr>
+      <th style="width:52%">Item</th>
+      <th style="width:14%" class="r">Kuantiti</th>
+      <th style="width:17%" class="r">Harga</th>
+      <th style="width:17%" class="r">Amaun</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="i : ${m.items()}">
+      <td>
+        <span th:text="${i.description()}"></span>
+        <!-- Tempoh HANYA apabila baris mempunyai tempoh berbeza. Invois
+             sebulan tidak memerlukannya; invois dua belas bulan
+             memerlukannya, jika tidak barisnya kelihatan sama. -->
+        <span th:if="${m.showItemPeriods() and i.periodStart() != null}"
+              style="white-space:nowrap"
+              th:text="'  ' + ${fmt.period(i.periodStart(), i.periodEnd())}"></span>
+      </td>
+      <td class="r mono" th:text="${fmt.money(i.quantity())}"></td>
+      <td class="r mono" th:text="${fmt.money(i.unitPrice())}"></td>
+      <td class="r mono" th:text="${fmt.money(i.amount())}"></td>
+    </tr>
+
+    <tr th:if="${m.taxAmount() != null and m.taxAmount().signum() > 0}">
+      <td colspan="3" class="r" th:text="${h.taxName()} ?: 'Cukai'"></td>
+      <td class="r mono" th:text="${fmt.money(m.taxAmount())}"></td>
+    </tr>
+
+    <tr class="grand">
+      <td colspan="3" class="r">Jumlah</td>
+      <td class="r mono" th:text="${fmt.money(m.newCharges())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div id="kaki">
+  Dokumen ini dijana oleh Monthley.com. Sebarang pertanyaan, sila hubungi
+  <span th:text="${h.spName()}"></span><span
+    th:if="${fmt.has(h.spPhone())}" th:text="' di ' + ${h.spPhone()}"></span>.
+</div>
+
+</body>
+</html>

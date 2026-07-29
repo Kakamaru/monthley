@@ -21,12 +21,14 @@ class StatementRenderService implements StatementRenderPort {
     private final StatementPdfWriter pdf;
     private final StatementXlsxWriter xlsx;
     private final ReceiptPdfWriter receipt;
+    private final InvoicePdfWriter invoice;
 
     StatementRenderService(StatementPdfWriter pdf, StatementXlsxWriter xlsx,
-                           ReceiptPdfWriter receipt) {
+                           ReceiptPdfWriter receipt, InvoicePdfWriter invoice) {
         this.pdf = pdf;
         this.xlsx = xlsx;
         this.receipt = receipt;
+        this.invoice = invoice;
     }
 
     @Override
@@ -42,5 +44,10 @@ class StatementRenderService implements StatementRenderPort {
     @Override
     public byte[] renderReceiptPdf(com.monthley.statement.api.ReceiptModel model) {
         return receipt.render(model);
+    }
+
+    @Override
+    public byte[] renderInvoicePdf(com.monthley.statement.api.InvoiceModel model) {
+        return invoice.render(model);
     }
 }

@@ -113,6 +113,20 @@ class StatementController {
                 .body(f.content());
     }
 
+    /** Invois PDF. Nota debit turut diterima — ia invois dari sudut pelanggan. */
+    @GetMapping(value = "/invoices/{invoiceId}", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> invoice(@PathVariable long invoiceId) {
+        var m = statements.invoice(sp(), invoiceId);
+        var f = renderer.renderInvoicePdfFile(m);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(f.filename(), StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
     private ResponseEntity<byte[]> pdfResponse(StatementModel m) {
         var f = renderer.renderPdfFile(m);
         return ResponseEntity.ok()

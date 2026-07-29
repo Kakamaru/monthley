@@ -87,6 +87,25 @@ class StatementService implements StatementPort {
     }
 
     @Override
+    public com.monthley.statement.api.InvoiceModel invoice(String spCode, long invoiceDocumentId) {
+        var head = query.invoiceHead(spCode, invoiceDocumentId);
+        var header = query.header(spCode, head.accountId());
+
+        var items = query.invoiceItems(spCode, invoiceDocumentId).stream()
+                .map(l -> new com.monthley.statement.api.InvoiceItem(
+                        l.description(), l.periodStart(), l.periodEnd(),
+                        l.quantity(), l.unitPrice(), l.amount()))
+                .toList();
+
+        return new com.monthley.statement.api.InvoiceModel(
+                header, spCode, head.accountId(),
+                head.documentTitle(), head.invoiceNo(), head.invoiceDate(), head.dueDate(),
+                head.issuedAt(), head.periodName(),
+                head.balanceBefore(), head.newCharges(), head.taxAmount(),
+                head.cancelled(), items);
+    }
+
+    @Override
     public com.monthley.statement.api.ReceiptModel receipt(String spCode, long receiptDocumentId) {
         var head = query.receiptHead(spCode, receiptDocumentId);
         var header = query.header(spCode, head.accountId());
