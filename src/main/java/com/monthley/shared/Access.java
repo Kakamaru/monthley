@@ -39,6 +39,22 @@ public final class Access {
         }
     }
 
+    /**
+     * Tolak jika tiada SEBARANG peranan yang disenaraikan.
+     *
+     * Sesetengah skrin dikongsi antara peranan dengan sebab yang berbeza:
+     * Finance Documents diperlukan oleh CLERK untuk mencetak semula resit
+     * dan oleh SP_ADMIN untuk membatalkan dokumen.
+     */
+    public static void requireAnyRole(String action, String... roles) {
+        for (String r : roles) {
+            if (hasRole(r)) return;
+        }
+        throw new AccessDeniedException(
+                "Anda tiada kebenaran untuk " + action
+                + ". Peranan diperlukan: " + String.join(" atau ", roles) + ".");
+    }
+
     private static boolean has(String authority) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
