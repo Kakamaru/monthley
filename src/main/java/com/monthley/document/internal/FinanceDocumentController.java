@@ -47,7 +47,17 @@ class FinanceDocumentController {
             String period,
             String status,
             BigDecimal amount,
-            String paymentRefNo) {}
+            String paymentRefNo,
+            /**
+             * PAID | PARTIAL | UNPAID | ACTIVE | CANCELLED (V45/V46).
+             *
+             * 'Aktif' pada invois tidak memberitahu apa-apa — SEMUA invois
+             * aktif sampai dibatalkan. Yang SP mahu tahu ialah invois mana
+             * belum dibayar.
+             */
+            String paymentStatus,
+            BigDecimal paid,
+            BigDecimal outstanding) {}
 
     record LineRow(
             String productCode,
@@ -68,6 +78,10 @@ class FinanceDocumentController {
             @RequestParam(required = false) String paymentRefNo,
             @RequestParam(required = false) LocalDate issuedFrom,
             @RequestParam(required = false) LocalDate issuedTo,
+            // Tapis ikut status bayaran dan produk — SP bertanya 'bayaran
+            // produk mana yang belum masuk', bukan 'dokumen mana aktif'.
+            @RequestParam(required = false) String paymentStatus,
+            @RequestParam(required = false) Long productId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -84,12 +98,20 @@ class FinanceDocumentController {
               AND (:payRef IS NULL OR LOWER(COALESCE(d.payment_ref_no,'')) LIKE :payRef)
               AND (:from IS NULL OR d.doc_date >= :from)
               AND (:to   IS NULL OR d.doc_date <= :to)
+              AND (:payStatus IS NULL OR ps.payment_status = :payStatus)
+              AND (:productId IS NULL OR EXISTS (
+                    SELECT 1 FROM financial_document_line l
+                    WHERE l.document_id = d.id AND l.product_id = :productId
+                      AND l.active = 1))
             """;
 
         Query countQ = em.createNativeQuery(
                 "SELECT COUNT(*) FROM financial_document d "
-                + "JOIN account a ON a.id = d.account_id " + where);
-        bind(countQ, docNo, account, periodId, docType, paymentRefNo, issuedFrom, issuedTo);
+                + "JOIN account a ON a.id = d.account_id "
+                + "LEFT JOIN document_payment_status ps ON ps.document_id = d.id "
+                + where);
+        bind(countQ, docNo, account, periodId, docType, paymentRefNo, issuedFrom, issuedTo,
+                paymentStatus, productId);
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         Query q = em.createNativeQuery("""
@@ -102,16 +124,21 @@ class FinanceDocumentController {
                        d.amount + d.tax_amount AS amount,
                        COALESCE(d.payment_ref_no, '') AS pay_ref,
                        COALESCE(s.invoice_title, 'Invois')  AS inv_title,
-                       COALESCE(s.receipt_title, 'Resit')   AS rcp_title
+                       COALESCE(s.receipt_title, 'Resit')   AS rcp_title,
+                       COALESCE(ps.payment_status, 'ACTIVE') AS pay_status,
+                       COALESCE(ps.paid, 0)                  AS paid,
+                       COALESCE(ps.outstanding, 0)           AS outstanding
                 FROM   financial_document d
                 JOIN   account a ON a.id = d.account_id
                 LEFT   JOIN fi_period fp ON fp.period_id = d.period_id
                 LEFT   JOIN sp_document_setting s ON s.sp_code = d.sp_code
+                LEFT   JOIN document_payment_status ps ON ps.document_id = d.id
                 """ + where + """
                 ORDER BY d.doc_date DESC, d.id DESC
                 LIMIT :size OFFSET :offset
                 """);
-        bind(q, docNo, account, periodId, docType, paymentRefNo, issuedFrom, issuedTo);
+        bind(q, docNo, account, periodId, docType, paymentRefNo, issuedFrom, issuedTo,
+                paymentStatus, productId);
         q.setParameter("size", size);
         q.setParameter("offset", page * size);
 
@@ -130,7 +157,10 @@ class FinanceDocumentController {
                     (String) r[6],
                     (String) r[7],
                     (BigDecimal) r[8],
-                    (String) r[9]));
+                    (String) r[9],
+                    (String) r[12],
+                    (BigDecimal) r[13],
+                    (BigDecimal) r[14]));
         }
         return new PageResponse<>(items, total, page, size);
     }
@@ -241,7 +271,8 @@ class FinanceDocumentController {
     }
 
     private void bind(Query q, String docNo, String account, Long periodId,
-                      String docType, String payRef, LocalDate from, LocalDate to) {
+                      String docType, String payRef, LocalDate from, LocalDate to,
+                      String payStatus, Long productId) {
         q.setParameter("sp", sp());
         q.setParameter("docNo", like(docNo));
         q.setParameter("acc", like(account));
@@ -250,6 +281,8 @@ class FinanceDocumentController {
         q.setParameter("payRef", like(payRef));
         q.setParameter("from", from);
         q.setParameter("to", to);
+        q.setParameter("payStatus", blankToNull(payStatus));
+        q.setParameter("productId", productId);
     }
 
     private static String like(String v) {

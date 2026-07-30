@@ -11,6 +11,21 @@
 # Disahkan 26 Julai 2026: mematikan backend menjadikan ujian lulus
 # serta-merta.
 #
+# AMARAN, 30 Julai 2026: mesej yang SAMA muncul untuk punca yang sama
+# sekali berbeza — SQL rosak dalam @BeforeEach. Satu INSERT ujian
+# menamakan enam lajur yang tidak wujud, dan Spring melaporkannya sebagai
+# kegagalan permulaan.
+#
+# Empat teori disiasat sebelum puncanya ditemui (kebenaran MySQL, kolam
+# sambungan, checksum Flyway, lajur VIEW). Semuanya boleh dielakkan
+# dengan membaca 'Caused by' dahulu:
+#
+#     mvn test -Dtest=X 2>&1 | grep -A3 "Caused by"
+#
+# 'Unable to determine Dialect' bermakna Hibernate tidak mendapat
+# sambungan yang berguna. SEBABNYA ada di bawahnya, bukan dalam mesej
+# itu.
+#
 # Cipta semula bila-bila masa:
 #     ./mb testdb
 #
