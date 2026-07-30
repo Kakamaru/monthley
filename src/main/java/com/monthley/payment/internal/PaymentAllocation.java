@@ -23,7 +23,15 @@ public class PaymentAllocation extends BaseEntity {
     @Column(name = "sp_code", nullable = false, length = 20)
     private String spCode;
 
-    @Column(name = "account_id", nullable = false)
+    /**
+     * NULL untuk invois adhoc — invois kepada orang yang bukan pelanggan
+     * berdaftar (V48).
+     *
+     * Lajur ini TURUNAN: ia sentiasa sepadan dengan account_id dokumen
+     * debit. Tiada VIEW menggunakannya, dan setiap query mencapai alokasi
+     * melalui debit_document_id atau credit_document_id.
+     */
+    @Column(name = "account_id")
     private Long accountId;
 
     @Column(name = "debit_document_id", nullable = false)
