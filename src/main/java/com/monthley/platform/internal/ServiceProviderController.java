@@ -61,7 +61,8 @@ class ServiceProviderController {
                    sp.state, sp.city, sp.status,
                    pl.name AS plan_name, pl.account_limit,
                    COALESCE((SELECT COUNT(*) FROM account a
-                             WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'), 0) AS acc_count,
+                             WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
+                               AND COALESCE(a.account_type,'') <> 'ADHOC'), 0) AS acc_count,
                    sp.billing_plan,
                    CASE WHEN sp.billing_plan = 'YEARLY' THEN pl.price_yearly ELSE pl.price_monthly END AS price,
                    sp.contact_email, sp.approved_at

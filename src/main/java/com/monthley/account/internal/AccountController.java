@@ -77,6 +77,10 @@ class AccountController {
         String where = """
             WHERE a.sp_code = :sp
               AND a.status = :status
+              -- ADHOC ialah akaun TEKNIKAL untuk memenuhi FK sub-ledger
+              -- (V50), bukan pelanggan. Ia tidak sepatutnya muncul dalam
+              -- senarai akaun mahupun kiraan.
+              AND COALESCE(a.account_type,'') <> 'ADHOC'
               AND (:category IS NULL OR a.category_id = :category)
               AND (:linkedFlag IS NULL
                    OR (:linkedFlag = 1 AND a.payer_user_id IS NOT NULL)

@@ -54,6 +54,7 @@ class DashboardController {
                 FROM account a
                 JOIN account_balance ab ON ab.account_id = a.id
                 WHERE a.sp_code = :sp
+                  AND COALESCE(a.account_type,'') <> 'ADHOC'
                 """).setParameter("sp", sp).getSingleResult());
 
         // 3. Akaun aktif + tak aktif.
@@ -117,6 +118,7 @@ class DashboardController {
                 SELECT COUNT(*) FROM account a
                 JOIN account_balance ab ON ab.account_id = a.id
                 WHERE a.sp_code = :sp AND ab.balance > 0
+                  AND COALESCE(a.account_type,'') <> 'ADHOC'
                 """).setParameter("sp", sp).getSingleResult()).longValue();
 
         return new Summary(collected, outstanding, active, inactive, bills,

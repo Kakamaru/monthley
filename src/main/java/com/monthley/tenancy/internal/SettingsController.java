@@ -389,7 +389,8 @@ class SettingsController {
         Object[] r = (Object[]) em.createNativeQuery("""
                 SELECT pl.name, pl.account_limit,
                        COALESCE((SELECT COUNT(*) FROM account a
-                                 WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'), 0),
+                                 WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
+                                   AND COALESCE(a.account_type,'') <> 'ADHOC'), 0),
                        sp.billing_plan,
                        CASE WHEN sp.billing_plan = 'YEARLY' THEN pl.price_yearly ELSE pl.price_monthly END,
                        sp.est_invoices_month

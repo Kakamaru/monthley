@@ -92,7 +92,8 @@ class PlatformUserController {
                     FROM sp_membership m JOIN service_provider sp ON sp.sp_code = m.sp_code
                     WHERE m.user_id = u.id AND m.status = 'ACTIVE') AS sp_names,
                    COALESCE((SELECT COUNT(*) FROM account a
-                             WHERE a.payer_user_id = u.id), 0) AS acc_count,
+                             WHERE a.payer_user_id = u.id
+                               AND COALESCE(a.account_type,'') <> 'ADHOC'), 0) AS acc_count,
                    u.created_at
             FROM app_user u
             """ + where + " ORDER BY u.id DESC LIMIT :lim OFFSET :off";
