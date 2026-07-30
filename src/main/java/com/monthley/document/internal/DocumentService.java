@@ -35,6 +35,7 @@ class DocumentService implements DocumentPort {
         //       satu senarai, dua penggunaan. Menapis di sini sahaja akan buat
         //       ledger tak padan dokumen.
         for (NewDocumentLine l : inv.lines()) {
+            if (inv.skipDuplicateCheck()) break;
             boolean exists = l.onceOnly()
                     ? lines.existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrue(
                             l.accountId(), l.productId())

@@ -2,6 +2,7 @@ package com.monthley.billing.internal;
 
 import com.monthley.ledger.api.GlAccounts;
 import com.monthley.ledger.api.LedgerPort;
+import com.monthley.shared.Access;
 import com.monthley.tenancy.api.BillingSettingsPort;
 import com.monthley.tenancy.api.BillingSettingsPort.BillingSettings;
 import com.monthley.shared.TenantContext;
@@ -28,15 +29,18 @@ class InvoicingController {
     private final InvoiceGenerationService billing;
     private final BillingSettingsPort settings;
     private final LedgerPort ledger;
+    private final AdhocInvoiceService adhoc;
 
     @PersistenceContext private EntityManager em;
 
     InvoicingController(InvoiceGenerationService billing,
                         BillingSettingsPort settings,
-                        LedgerPort ledger) {
+                        LedgerPort ledger,
+                        AdhocInvoiceService adhoc) {
         this.billing = billing;
         this.settings = settings;
         this.ledger = ledger;
+        this.adhoc = adhoc;
     }
 
     record GenerateRequest(
@@ -176,6 +180,20 @@ class InvoicingController {
             if (r != null) out.add(r.toString());
         }
         return out;
+    }
+
+    /**
+     * Invois adhoc — kepada orang yang BUKAN pelanggan berdaftar.
+     *
+     * Caj clamp kepada pemandu luar; jualan buku pada pameran sekolah.
+     * Semua berkongsi satu akaun ADHOC-SALES (V50) dan butiran penerima
+     * duduk pada dokumen.
+     */
+    @PostMapping("/adhoc-invoice")
+    AdhocInvoiceService.Result adhocInvoice(
+            @RequestBody AdhocInvoiceService.Request req) {
+        Access.requireAnyRole("menjana invois adhoc", "SP_ADMIN", "CLERK");
+        return adhoc.create(sp(), req);
     }
 
     /** period_id BULAN yang dikecualikan untuk SP ini (invoice_exclude_period). */

@@ -109,9 +109,24 @@ class PaymentService implements PaymentPort {
             }
         }
 
+        // AKAUN ADHOC — semua invois adhoc SP berkongsi satu akaun (V50),
+        // jadi FIFO merentasi invois orang yang tiada kaitan. Bayaran
+        // pembeli buku A akan menutup invois pembeli B, dan tiada apa
+        // yang kelihatan salah sehingga seseorang mengadu.
+        boolean adhoc = akaunAdhoc(req.payerAccountId());
+        if (adhoc
+                && (req.targetDocumentIds() == null || req.targetDocumentIds().isEmpty())) {
+            throw new IllegalStateException(
+                    "Bayaran untuk invois adhoc mesti menyatakan invois. "
+                    + "Gunakan tab Cari Invois.");
+        }
+
         // Calon invois (hormati selective gate)
         List<OutstandingInvoice> candidates = outstandingFor(req.payerAccountId());
-        if (allowSelective(req.spCode())
+        // Untuk akaun adhoc penapis WAJIB, tanpa mengira allow_selective:
+        // tetapan itu tentang keselesaan kerani, bukan tentang duit
+        // berpindah antara orang asing.
+        if ((adhoc || allowSelective(req.spCode()))
                 && req.targetDocumentIds() != null && !req.targetDocumentIds().isEmpty()) {
             candidates = candidates.stream()
                     .filter(i -> req.targetDocumentIds().contains(i.documentId()))
@@ -123,6 +138,15 @@ class PaymentService implements PaymentPort {
         BigDecimal allocated = alloc.allocations().stream()
                 .map(FifoAllocator.Allocation::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // LEBIHAN DITOLAK untuk adhoc. Advance pada akaun kongsi ialah
+        // duit orang lain: pembeli seterusnya akan menggunakannya, dan
+        // memulangkannya kepada pembayar asal memerlukan menjejak siapa
+        // membayar apa — yang akaun kongsi tidak boleh lakukan.
+        if (adhoc && allocated.compareTo(req.amount()) < 0) {
+            throw new IllegalStateException(
+                    "Bayaran melebihi jumlah invois. Amaun mesti tepat atau kurang.");
+        }
 
         // Tarikh bayaran DITERIMA, bukan tarikh rekod dicipta. Kerani boleh
         // merekod bayaran dua hari lepas; tarikh itu mesti sama pada resit,
@@ -233,6 +257,20 @@ class PaymentService implements PaymentPort {
         } catch (RuntimeException e) {
             return BigDecimal.ZERO;
         }
+    }
+
+    /**
+     * Akaun ADHOC-SALES SP (V50) — dikongsi oleh semua invois adhoc.
+     *
+     * Bayaran ke akaun ini memerlukan sekatan tambahan kerana invois di
+     * dalamnya milik orang yang tiada kaitan antara satu sama lain.
+     */
+    private boolean akaunAdhoc(Long accountId) {
+        if (accountId == null) return false;
+        var r = em.createNativeQuery(
+                "SELECT account_type FROM account WHERE id = :id")
+                .setParameter("id", accountId).getResultList();
+        return !r.isEmpty() && "ADHOC".equals(r.get(0));
     }
 
     private boolean allowSelective(String spCode) {
