@@ -92,6 +92,11 @@ class StatementQuery {
                         rs.getBigDecimal("balance_before"),
                         rs.getBigDecimal("new_charges"),
                         rs.getBigDecimal("tax_amount"),
+                        rs.getInt("adhoc") == 1,
+                        rs.getString("issued_to_name"),
+                        rs.getString("issued_to_email"),
+                        rs.getString("issued_to_phone"),
+                        rs.getString("remarks"),
                         "CANCELLED".equals(rs.getString("status"))))
                 .single();
     }
@@ -100,6 +105,8 @@ class StatementQuery {
                        LocalDate dueDate, java.time.LocalDateTime issuedAt,
                        String periodName, BigDecimal balanceBefore,
                        BigDecimal newCharges, BigDecimal taxAmount,
+                       boolean adhoc, String issuedToName, String issuedToEmail,
+                       String issuedToPhone, String remarks,
                        boolean cancelled) {
     }
 

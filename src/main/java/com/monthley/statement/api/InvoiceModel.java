@@ -42,12 +42,36 @@ public record InvoiceModel(
         BigDecimal balanceBefore,
         BigDecimal newCharges,
         BigDecimal taxAmount,
+        /**
+         * Invois adhoc — akaun ialah ADHOC-SALES teknikal, bukan
+         * pelanggan. Butiran penerima ada pada dokumen (V49/V51).
+         */
+        boolean adhoc,
+        String issuedToName,
+        String issuedToEmail,
+        String issuedToPhone,
+        String remarks,
         boolean cancelled,
         List<InvoiceItem> items) {
 
-    /** Baki Sebelum + Caj Baharu. Satu takrifan, bukan dikira di templat. */
+    /**
+     * Baki Sebelum + Caj Baharu. Satu takrifan, bukan dikira di templat.
+     *
+     * Untuk ADHOC, baki sebelum diabaikan: akaun dikongsi, jadi bakinya
+     * ialah jumlah gabungan pembeli lain. Menunjukkannya kepada seorang
+     * pembeli buku bermakna dia melihat hutang orang asing.
+     */
     public BigDecimal totalDue() {
-        return balanceBefore.add(newCharges);
+        return adhoc ? newCharges : balanceBefore.add(newCharges);
+    }
+
+    /** Nama pada BILL TO — penerima untuk adhoc, akaun untuk yang lain. */
+    public String billToName() {
+        if (adhoc && issuedToName != null && !issuedToName.isBlank()) {
+            return issuedToName;
+        }
+        return header().billtoName() != null && !header().billtoName().isBlank()
+                ? header().billtoName() : header().accountName();
     }
 
     /**

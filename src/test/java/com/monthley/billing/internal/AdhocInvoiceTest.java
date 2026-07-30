@@ -1,6 +1,11 @@
 package com.monthley.billing.internal;
 
 import com.monthley.ledger.internal.ChartOfAccountSeeder;
+import com.monthley.statement.api.StatementPort;
+import com.monthley.statement.api.StatementRenderPort;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import com.monthley.payment.api.NewPayment;
 import com.monthley.payment.api.PaymentMethod;
 import com.monthley.payment.api.PaymentPort;
@@ -40,6 +45,8 @@ class AdhocInvoiceTest {
 
     @Autowired AdhocInvoiceService adhoc;
     @Autowired PaymentPort payment;
+    @Autowired StatementPort statements;
+    @Autowired StatementRenderPort renderer;
     @Autowired ChartOfAccountSeeder seeder;
     @Autowired JdbcClient jdbc;
     @PersistenceContext EntityManager em;
@@ -77,6 +84,14 @@ class AdhocInvoiceTest {
 
     @AfterEach
     void clear() { TenantContext.clear(); }
+
+    private String teks(byte[] pdf) throws Exception {
+        try (PDDocument doc = Loader.loadPDF(pdf)) {
+            PDFTextStripper st = new PDFTextStripper();
+            st.setSortByPosition(true);
+            return st.getText(doc).replaceAll("\\s+", " ");
+        }
+    }
 
     private long produk(String kod, String harga) {
         jdbc.sql("""
@@ -321,6 +336,67 @@ class AdhocInvoiceTest {
                 .as("bayaran kurang bukan masalah — tunggakan direkod dan "
                     + "dicontra kemudian")
                 .isEqualByComparingTo("15.00");
+    }
+
+    @Test
+    @DisplayName("PDF adhoc: nama PENERIMA, bukan 'Jualan Adhoc'")
+    void pdfAdhocNamaPenerima() throws Exception {
+        var inv = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+        em.clear();
+
+        var m = statements.invoice(SP, inv.documentId());
+        String t = teks(renderer.renderInvoicePdf(m));
+
+        assertThat(m.adhoc()).isTrue();
+        assertThat(t)
+                .as("pembeli menerima invois yang memaparkan nama akaun "
+                    + "teknikal dan tidak tahu apa itu")
+                .contains("AHMAD PEMBELI")
+                .doesNotContain("Jualan Adhoc")
+                .doesNotContain("ADHOC-SALES");
+    }
+
+    @Test
+    @DisplayName("PDF adhoc: BAKI SEBELUM disembunyikan — akaun dikongsi")
+    void pdfAdhocTiadaBakiSebelum() throws Exception {
+        // Invois pertama mencipta baki pada akaun kongsi.
+        adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkB, BigDecimal.ONE)));
+        em.flush();
+
+        // Invois kedua — pembeli LAIN.
+        var kedua = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+        em.clear();
+
+        var m = statements.invoice(SP, kedua.documentId());
+
+        assertThat(m.totalDue())
+                .as("baki akaun kongsi ialah jumlah gabungan pembeli lain; "
+                    + "menunjukkannya bermakna pembeli ini melihat hutang "
+                    + "orang asing")
+                .isEqualByComparingTo("25.00");
+
+        String t = teks(renderer.renderInvoicePdf(m));
+        assertThat(t).doesNotContain("Baki Sebelum");
+    }
+
+    @Test
+    @DisplayName("PDF adhoc: catatan dan telefon dipaparkan")
+    void pdfAdhocCatatanDanTelefon() throws Exception {
+        var inv = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+        em.clear();
+
+        String t = teks(renderer.renderInvoicePdf(
+                statements.invoice(SP, inv.documentId())));
+
+        assertThat(t).contains("Pameran buku 2026");
+        assertThat(t).contains("0123456789");
     }
 
     @Test

@@ -95,7 +95,15 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
   <tr>
     <td style="width:50%; padding-right:6mm">
       <div class="bar">BILL TO</div>
-      <div style="margin-top:2.5mm; line-height:1.45">
+      <!-- Invois ADHOC: butiran daripada DOKUMEN. Akaun ADHOC-SALES
+           dikongsi oleh semua pembeli, jadi ia tidak boleh membawa nama
+           sesiapa — BILL TO kosong sebelum ini. -->
+      <div th:if="${m.adhoc()}" style="margin-top:2.5mm; line-height:1.45">
+        <div th:text="${m.issuedToName()}"></div>
+        <div th:if="${fmt.has(m.issuedToEmail())}" th:text="${m.issuedToEmail()}"></div>
+        <div th:if="${fmt.has(m.issuedToPhone())}" th:text="${m.issuedToPhone()}"></div>
+      </div>
+      <div th:unless="${m.adhoc()}" style="margin-top:2.5mm; line-height:1.45">
         <div th:text="${h.billtoName()}"></div>
         <div th:if="${fmt.has(h.billtoEmail())}" th:text="${h.billtoEmail()}"></div>
         <div th:if="${fmt.has(h.billtoAddrLine1())}" th:text="${h.billtoAddrLine1()}"></div>
@@ -111,11 +119,16 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
       <table class="box">
         <tr><td class="lbl">No. Invois</td>
             <td class="val" th:text="${m.invoiceNo()}"></td></tr>
-        <tr><td class="lbl">No. Akaun</td>
+        <!-- No. Akaun DISEMBUNYIKAN untuk adhoc: 'ADHOC-SALES' tidak
+             bermakna kepada pembeli, dan legacy pun membiarkannya kosong. -->
+        <tr th:unless="${m.adhoc()}"><td class="lbl">No. Akaun</td>
             <td class="val" th:text="${h.accountNo()}"></td></tr>
         <!-- Legacy menulis 'Account Namer'. Typo dibetulkan. -->
-        <tr><td class="lbl">Nama Akaun</td>
-            <td class="val" th:text="${h.accountName()}"></td></tr>
+        <tr><td class="lbl" th:text="${m.adhoc()} ? 'Nama' : 'Nama Akaun'">Nama Akaun</td>
+            <td class="val" th:text="${m.billToName()}"></td></tr>
+        <tr th:if="${m.adhoc() and fmt.has(m.issuedToPhone())}">
+            <td class="lbl">Telefon</td>
+            <td class="val" th:text="${m.issuedToPhone()}"></td></tr>
         <tr><td class="lbl">Tempoh Invois</td>
             <td class="val" th:text="${m.periodName()}"></td></tr>
         <tr><td class="lbl">Tarikh Invois</td>
@@ -141,7 +154,20 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
   menunjukkan 0.00 dan 'New Charges Due' sentiasa sama dengan 'New
   Charges'.
 -->
-<table class="ring">
+<!-- ADHOC: baki sebelum diabaikan. Akaun dikongsi, jadi bakinya ialah
+     jumlah gabungan pembeli lain — menunjukkannya kepada seorang pembeli
+     bermakna dia melihat hutang orang asing. -->
+<table class="ring" th:if="${m.adhoc()}">
+  <tr>
+    <th style="width:50%">Caj</th>
+    <th style="width:50%">Jumlah Perlu Dibayar</th>
+  </tr>
+  <tr>
+    <td th:text="${fmt.money(m.newCharges())}"></td>
+    <td style="font-weight:bold" th:text="${fmt.money(m.totalDue())}"></td>
+  </tr>
+</table>
+<table class="ring" th:unless="${m.adhoc()}">
   <tr>
     <th style="width:34%">Baki Sebelum Ini</th>
     <th style="width:33%">Caj Baharu</th>
@@ -153,6 +179,10 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
     <td style="font-weight:bold" th:text="${fmt.money(m.totalDue())}"></td>
   </tr>
 </table>
+
+<div th:if="${fmt.has(m.remarks())}" class="note" style="margin-top:5mm">
+  <b>Catatan:</b> <span th:text="${m.remarks()}"></span>
+</div>
 
 <table class="item">
   <thead>

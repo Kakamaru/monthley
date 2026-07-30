@@ -11,6 +11,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -178,6 +180,43 @@ class InvoicingController {
         java.util.List<String> out = new java.util.ArrayList<>();
         for (Object r : rows) {
             if (r != null) out.add(r.toString());
+        }
+        return out;
+    }
+
+    record PeriodOption(Long periodId, String name, java.time.LocalDate startDt) {}
+
+    /**
+     * Tempoh BULANAN untuk dropdown.
+     *
+     * Julat sengaja sempit: enam bulan ke belakang, dua belas ke hadapan.
+     * fi_period mengandungi tempoh untuk bertahun-tahun, dan dropdown
+     * dengan dua ratus pilihan menjadikan pemilihan lebih sukar bukan
+     * lebih mudah.
+     *
+     * Ke belakang dibenarkan kerana invois adhoc kadang direkod lewat —
+     * caj clamp minggu lepas dikeluarkan hari ini.
+     */
+    @GetMapping("/periods")
+    @SuppressWarnings("unchecked")
+    List<PeriodOption> periods() {
+        Access.requireAnyRole("melihat tempoh", "SP_ADMIN", "CLERK");
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT period_id, name_, start_dt
+                FROM   fi_period
+                WHERE  DATEDIFF(start_dt, CURDATE()) BETWEEN -190 AND 400
+                  AND  DATEDIFF(end_dt, start_dt) BETWEEN 27 AND 31
+                ORDER  BY start_dt
+                """).getResultList();
+
+        List<PeriodOption> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            out.add(new PeriodOption(
+                    ((Number) r[0]).longValue(),
+                    (String) r[1],
+                    r[2] instanceof java.time.LocalDate d ? d
+                            : ((java.sql.Date) r[2]).toLocalDate()));
         }
         return out;
     }

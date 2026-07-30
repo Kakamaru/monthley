@@ -102,6 +102,8 @@ class StatementService implements StatementPort {
                 head.documentTitle(), head.invoiceNo(), head.invoiceDate(), head.dueDate(),
                 head.issuedAt(), head.periodName(),
                 head.balanceBefore(), head.newCharges(), head.taxAmount(),
+                head.adhoc(), head.issuedToName(), head.issuedToEmail(),
+                head.issuedToPhone(), head.remarks(),
                 head.cancelled(), items);
     }
 
