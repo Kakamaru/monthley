@@ -129,6 +129,31 @@ class FinanceDocumentSearchTest {
                 .update();
     }
 
+    /**
+     * Alokasi peringkat BARIS — mod baris bergantung pada
+     * debit_document_line_id, bukan debit_document_id.
+     */
+    private void bayarBaris(String amaun) {
+        long lineId = jdbc.sql(
+                "SELECT id FROM financial_document_line WHERE document_id = :d LIMIT 1")
+                .param("d", invBerbayar).query(Long.class).single();
+        long resit = dokumen(SP, accBayar, "FD-RCP-LINE-" + System.nanoTime(),
+                "RECEIPT", "2026-07-16", amaun, null);
+        jdbc.sql("""
+                INSERT INTO fi_allocation
+                  (sp_code, account_id, debit_document_id, debit_document_line_id,
+                   credit_document_id, amount, status, version)
+                VALUES (:sp, :acc, :inv, :line, :rcp, :amt, 'ACTIVE', 0)
+                """)
+                .param("sp", SP).param("acc", accBayar)
+                .param("inv", invBerbayar).param("line", lineId)
+                .param("rcp", resit)
+                .param("amt", new java.math.BigDecimal(amaun))
+                .update();
+        em.flush();
+        em.clear();
+    }
+
     /** Alokasi terus — memintas PaymentService supaya amaun boleh dikawal. */
     private void bayarInvois(long invoiceId, String amaun) {
         long resit = dokumen(SP, accBayar, "FD-RCP-BAYAR-" + System.nanoTime(),
@@ -348,6 +373,88 @@ class FinanceDocumentSearchTest {
                     + "sudah dan belum dibayar")
                 .hasSize(1);
         assertThat(r.items().get(0).docNo()).isEqualTo("FD-INV-PAID");
+    }
+
+    @Test
+    @DisplayName("mod BARIS: tapis produk memberi satu baris per baris invois")
+    void modBarisIkutProduk() {
+        var r = controller.searchLines(null, null, produkId, null, null,
+                null, null, 0, 50);
+
+        assertThat(r.items())
+                .as("granulariti BARIS, bukan dokumen — SP mahu tahu bahagian "
+                    + "produk ini sudah dibayar atau belum")
+                .hasSize(1);
+        var l = r.items().get(0);
+        assertThat(l.productName()).isEqualTo("Yuran Ujian");
+        assertThat(l.docNo()).isEqualTo("FD-INV-PAID");
+        assertThat(l.total()).isEqualByComparingTo("500.00");
+        assertThat(l.paymentStatus()).isEqualTo("UNPAID");
+    }
+
+    @Test
+    @DisplayName("mod BARIS: status ikut ALOKASI PERINGKAT BARIS")
+    void modBarisStatusIkutAlokasiBaris() {
+        bayarBaris("500.00");
+
+        var l = controller.searchLines(null, null, produkId, null, null,
+                null, null, 0, 50).items().get(0);
+
+        assertThat(l.paymentStatus()).isEqualTo("PAID");
+        assertThat(l.paid()).isEqualByComparingTo("500.00");
+        assertThat(l.outstanding()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    @DisplayName("mod BARIS: bayaran sebahagian memberi PARTIAL dengan baki")
+    void modBarisSebahagian() {
+        bayarBaris("150.00");
+
+        var l = controller.searchLines(null, null, produkId, null, null,
+                null, null, 0, 50).items().get(0);
+
+        assertThat(l.paymentStatus()).isEqualTo("PARTIAL");
+        assertThat(l.outstanding()).isEqualByComparingTo("350.00");
+    }
+
+    @Test
+    @DisplayName("mod BARIS: tapis UNPAID menjawab 'siapa belum bayar produk ini'")
+    void modBarisTapisBelumBayar() {
+        var belum = controller.searchLines(null, null, produkId, null, "UNPAID",
+                null, null, 0, 50);
+        assertThat(belum.items()).hasSize(1);
+
+        bayarBaris("500.00");
+
+        assertThat(controller.searchLines(null, null, produkId, null, "UNPAID",
+                null, null, 0, 50).items())
+                .as("selepas dibayar ia keluar daripada senarai belum bayar")
+                .isEmpty();
+        assertThat(controller.searchLines(null, null, produkId, null, "PAID",
+                null, null, 0, 50).items()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("mod BARIS: NOTA DEBIT tidak muncul — tiada baris produk")
+    void modBarisNotaDebitTiada() {
+        var r = controller.searchLines(null, null, null, null, null,
+                null, null, 0, 50);
+
+        assertThat(r.items())
+                .as("nota debit ialah pelarasan tanpa baris produk; keempat "
+                    + "alokasi dengan line_id NULL dalam data pembangunan "
+                    + "semuanya nota debit dengan sifar baris")
+                .extracting(FinanceDocumentController.ProductLineRow::docNo)
+                .doesNotContain("FD-DN-1");
+    }
+
+    @Test
+    @DisplayName("mod BARIS: pengasingan penyewa")
+    void modBarisPengasingan() {
+        var r = controller.searchLines(null, null, null, null, null,
+                null, null, 0, 50);
+        assertThat(r.items())
+                .allMatch(l -> !"FX-INV-1".equals(l.docNo()));
     }
 
     @Test

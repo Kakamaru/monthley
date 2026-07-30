@@ -165,6 +165,122 @@ class FinanceDocumentController {
         return new PageResponse<>(items, total, page, size);
     }
 
+    record ProductLineRow(
+            Long lineId,
+            Long documentId,
+            String docNo,
+            String docType,
+            LocalDate docDate,
+            String accountNo,
+            String issuedTo,
+            String productName,
+            String period,
+            LocalDate periodStart,
+            BigDecimal quantity,
+            BigDecimal unitPrice,
+            BigDecimal total,
+            BigDecimal paid,
+            BigDecimal outstanding,
+            String paymentStatus) {}
+
+    /**
+     * Senarai peringkat BARIS, untuk carian ikut produk.
+     *
+     * Bila SP menapis ikut produk, granulariti berubah dari DOKUMEN ke
+     * BARIS. Invois tak-split mempunyai tiga produk; memaparkan invois
+     * sebagai satu baris tidak menjawab soalan 'bahagian INSURANCE ini
+     * sudah dibayar?'.
+     *
+     * Alokasi kita peringkat-baris (fi_allocation.debit_document_line_id),
+     * jadi setiap baris mempunyai status bayarannya sendiri (V47).
+     *
+     * NOTA DEBIT tidak muncul — ia pelarasan tanpa baris produk.
+     */
+    @GetMapping("/lines")
+    @SuppressWarnings("unchecked")
+    PageResponse<ProductLineRow> searchLines(
+            @RequestParam(required = false) String docNo,
+            @RequestParam(required = false) String account,
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) Long periodId,
+            @RequestParam(required = false) String paymentStatus,
+            @RequestParam(required = false) LocalDate issuedFrom,
+            @RequestParam(required = false) LocalDate issuedTo,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Access.requireAnyRole("melihat dokumen kewangan", "SP_ADMIN", "CLERK");
+
+        String where = """
+            WHERE ls.sp_code = :sp
+              AND (:docNo IS NULL OR LOWER(ls.doc_no) LIKE :docNo)
+              AND (:acc IS NULL OR LOWER(a.account_no) LIKE :acc
+                                OR LOWER(a.account_name) LIKE :acc
+                                OR LOWER(COALESCE(a.billto_name,'')) LIKE :acc)
+              AND (:productId IS NULL OR ls.product_id = :productId)
+              AND (:periodId IS NULL OR ls.period_id = :periodId)
+              AND (:payStatus IS NULL OR ls.payment_status = :payStatus)
+              AND (:from IS NULL OR ls.doc_date >= :from)
+              AND (:to   IS NULL OR ls.doc_date <= :to)
+            """;
+
+        Query countQ = em.createNativeQuery(
+                "SELECT COUNT(*) FROM document_line_payment_status ls "
+                + "JOIN account a ON a.id = ls.account_id " + where);
+        bindLines(countQ, docNo, account, productId, periodId, paymentStatus,
+                issuedFrom, issuedTo);
+        long total = ((Number) countQ.getSingleResult()).longValue();
+
+        Query q = em.createNativeQuery("""
+                SELECT ls.line_id, ls.document_id, ls.doc_no, ls.doc_type, ls.doc_date,
+                       a.account_no,
+                       COALESCE(NULLIF(a.billto_name,''), a.account_name) AS issued_to,
+                       ls.product_name,
+                       COALESCE(fp.name_, '') AS period_name,
+                       ls.period_start,
+                       ls.quantity, ls.unit_price,
+                       ls.total, ls.paid, ls.outstanding, ls.payment_status
+                FROM   document_line_payment_status ls
+                JOIN   account a ON a.id = ls.account_id
+                LEFT   JOIN fi_period fp ON fp.period_id = ls.period_id
+                """ + where + """
+                ORDER BY ls.doc_date DESC, ls.doc_no DESC, ls.line_id
+                LIMIT :size OFFSET :offset
+                """);
+        bindLines(q, docNo, account, productId, periodId, paymentStatus,
+                issuedFrom, issuedTo);
+        q.setParameter("size", size);
+        q.setParameter("offset", page * size);
+
+        List<Object[]> rows = q.getResultList();
+        List<ProductLineRow> items = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            items.add(new ProductLineRow(
+                    ((Number) r[0]).longValue(),
+                    ((Number) r[1]).longValue(),
+                    (String) r[2], (String) r[3], tarikh(r[4]),
+                    (String) r[5], (String) r[6], (String) r[7], (String) r[8],
+                    tarikh(r[9]),
+                    (BigDecimal) r[10], (BigDecimal) r[11],
+                    (BigDecimal) r[12], (BigDecimal) r[13], (BigDecimal) r[14],
+                    (String) r[15]));
+        }
+        return new PageResponse<>(items, total, page, size);
+    }
+
+    private void bindLines(Query q, String docNo, String account, Long productId,
+                           Long periodId, String payStatus,
+                           LocalDate from, LocalDate to) {
+        q.setParameter("sp", sp());
+        q.setParameter("docNo", like(docNo));
+        q.setParameter("acc", like(account));
+        q.setParameter("productId", productId);
+        q.setParameter("periodId", periodId);
+        q.setParameter("payStatus", blankToNull(payStatus));
+        q.setParameter("from", from);
+        q.setParameter("to", to);
+    }
+
     /**
      * Baris dokumen — modal 'List of Transaction'.
      *
