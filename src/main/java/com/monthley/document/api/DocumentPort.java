@@ -37,5 +37,21 @@ public interface DocumentPort {
     java.math.BigDecimal lockAndGetTotal(Long documentId);
 
     /** Tandakan dokumen sebagai dibatalkan. */
+    /**
+     * Batal dokumen — tanda CANCELLED dan rekod SIAPA serta MENGAPA.
+     *
+     * Baki betul secara automatik: account_document_entry memberi
+     * signed_amount = 0 untuk dokumen CANCELLED, dan account_balance
+     * dikira daripada dokumen (ADR 0009). Tiada cache untuk menyimpang —
+     * itu sebab pepijat RM9.70 legacy tidak boleh berulang di sini.
+     *
+     * Ini TIDAK membalikkan alokasi atau ledger; pemanggil yang
+     * bertanggungjawab. Untuk resit gunakan PaymentPort.cancelReceipt
+     * yang melakukan kedua-duanya.
+     */
+    void cancelDocument(Long documentId, String reason, Long cancelledBy);
+
+    /** @deprecated sebab pembatalan hilang; gunakan varian tiga argumen. */
+    @Deprecated
     void cancelDocument(Long documentId);
 }

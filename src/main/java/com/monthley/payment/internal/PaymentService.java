@@ -192,6 +192,12 @@ class PaymentService implements PaymentPort {
     @Override
     @Transactional
     public void cancelReceipt(Long receiptId, String reason) {
+        cancelReceipt(receiptId, reason, null);
+    }
+
+    @Override
+    @Transactional
+    public void cancelReceipt(Long receiptId, String reason, Long cancelledBy) {
         Payment payment = payments.findById(receiptId)
                 .orElseThrow(() -> new IllegalArgumentException("Resit tak wujud: " + receiptId));
         if (payment.getStatus() == Payment.Status.CANCELLED) {
@@ -206,7 +212,7 @@ class PaymentService implements PaymentPort {
             .setParameter("rcp", payment.getReceiptDocumentId())
             .executeUpdate();
         // Batalkan dokumen resit
-        documents.cancelDocument(payment.getReceiptDocumentId());
+        documents.cancelDocument(payment.getReceiptDocumentId(), reason, cancelledBy);
         payment.markCancelled();
     }
 
@@ -238,6 +244,59 @@ class PaymentService implements PaymentPort {
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    @Override
+    @Transactional
+    public void cancelInvoice(Long invoiceDocumentId, String reason, Long cancelledBy) {
+        Object[] doc = (Object[]) em.createNativeQuery(
+                "SELECT doc_type, doc_no, status FROM financial_document WHERE id = :id")
+                .setParameter("id", invoiceDocumentId)
+                .getResultList().stream().findFirst().orElse(null);
+        if (doc == null) {
+            throw new IllegalArgumentException("Dokumen tak wujud: " + invoiceDocumentId);
+        }
+        String type = (String) doc[0];
+        if (!"INVOICE".equals(type) && !"DEBIT_NOTE".equals(type)) {
+            // Resit mempunyai laluannya sendiri: ia perlu menanda entiti
+            // Payment juga, dan cancelReceipt menerima payment.id.
+            throw new IllegalStateException(
+                    "Gunakan cancelReceipt untuk dokumen " + type + ".");
+        }
+        if ("CANCELLED".equals(doc[2])) {
+            throw new IllegalStateException("Dokumen sudah dibatalkan: " + doc[1]);
+        }
+
+        // Balikkan catatan ledger sebagai CONTRA, bukan padam — jejak audit
+        // kekal. Invois tiada entiti Payment untuk memegang journalEntryId,
+        // jadi ia dicari melalui source_document_id.
+        @SuppressWarnings("unchecked")
+        java.util.List<Number> jurnal = em.createNativeQuery(
+                "SELECT id FROM journal_entry "
+                + "WHERE source_document_id = :id AND source_type = 'INVOICE' "
+                + "  AND status <> 'REVERSED'")
+                .setParameter("id", invoiceDocumentId)
+                .getResultList();
+        for (Number j : jurnal) {
+            ledger.reverse(j.longValue(), reason);
+        }
+
+        // LEPASKAN alokasi yang membayar invois ini. Duit kembali menjadi
+        // advance dan bayaran seterusnya akan menggunakannya. Kalau tidak,
+        // resit kekal 'digunakan' pada invois yang tidak lagi wujud dan
+        // advance itu tidak boleh dicapai.
+        em.createNativeQuery(
+            "UPDATE fi_allocation SET status='REVERSED' WHERE debit_document_id = :inv")
+            .setParameter("inv", invoiceDocumentId)
+            .executeUpdate();
+
+        // TIADA jadual baris alokasi berasingan: fi_allocation SENDIRI
+        // membawa debit_document_line_id, jadi satu UPDATE melepaskan
+        // kedua-dua peringkat. Percubaan pertama menulis UPDATE kedua ke
+        // 'fi_allocation_line' yang tidak wujud — SQLSyntaxErrorException
+        // semasa larian, bukan kompil.
+
+        documents.cancelDocument(invoiceDocumentId, reason, cancelledBy);
     }
 
     /**

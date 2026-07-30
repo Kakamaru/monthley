@@ -304,6 +304,77 @@ class ManualPaymentController {
         return ResponseEntity.ok(result);
     }
 
+    record CancelRequest(String reason) {}
+
+    /**
+     * Batal dokumen — resit ATAU invois.
+     *
+     * SP_ADMIN sahaja: kerani menerima duit, admin membatalkannya.
+     * Pengasingan tugas yang sama seperti Manual Payment.
+     *
+     * Sebab WAJIB. Dialog Cancel Document mempunyai medan Remarks
+     * bertanda merah, dan lajur cancel_reason wujud sejak V1 tetapi tidak
+     * pernah diisi.
+     *
+     * Resit dan invois mempunyai laluan berbeza: resit perlu menanda
+     * entiti Payment juga, dan cancelReceipt menerima payment.id bukan
+     * document.id.
+     */
+    @PostMapping("/documents/{documentId}/cancel")
+    ResponseEntity<?> cancelDocument(@PathVariable Long documentId,
+                                     @RequestBody CancelRequest r) {
+        Access.requireRole("SP_ADMIN", "membatalkan dokumen");
+
+        String reason = (r == null || r.reason() == null) ? null : r.reason().trim();
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalStateException(
+                    "Sebab pembatalan diperlukan.");
+        }
+
+        Object[] doc = (Object[]) em.createNativeQuery(
+                "SELECT doc_type, doc_no FROM financial_document "
+                + "WHERE id = :id AND sp_code = :sp")
+                .setParameter("id", documentId).setParameter("sp", sp())
+                .getResultList().stream().findFirst().orElse(null);
+        if (doc == null) {
+            throw new IllegalStateException("Dokumen tidak dijumpai.");
+        }
+
+        Long uid = currentUserId();
+
+        if ("RECEIPT".equals(doc[0])) {
+            // cancelReceipt menerima payment.id, bukan document.id.
+            Object pid = em.createNativeQuery(
+                    "SELECT id FROM payment WHERE receipt_document_id = :id")
+                    .setParameter("id", documentId)
+                    .getResultList().stream().findFirst().orElse(null);
+            Long paymentId = pid == null ? null : ((Number) pid).longValue();
+            if (paymentId == null) {
+                throw new IllegalStateException(
+                        "Resit " + doc[1] + " tiada rekod bayaran.");
+            }
+            payments.cancelReceipt(paymentId, reason, uid);
+        } else {
+            payments.cancelInvoice(documentId, reason, uid);
+        }
+
+        return ResponseEntity.ok(java.util.Map.of(
+                "docNo", doc[1], "status", "CANCELLED"));
+    }
+
+    /** app_user.id daripada JWT subject. */
+    private Long currentUserId() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) return null;
+        try {
+            return Long.parseLong(auth.getName());
+        } catch (NumberFormatException e) {
+            // Ujian menggunakan nama seperti 'clerk'. Bukan ralat.
+            return null;
+        }
+    }
+
     private PaymentResult terimaBayaran(ManualPaymentRequest r) {
         return payments.receivePayment(new NewPayment(
                 sp(), r.accountId(), r.amount(),

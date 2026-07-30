@@ -66,6 +66,14 @@ public class FinancialDocument extends BaseEntity {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    // Lajur ini wujud sejak V1 tetapi tiada medan JPA memetakannya, jadi
+    // ia tidak pernah boleh diisi walaupun dialog Cancel mengumpul sebab.
+    @Column(name = "cancelled_by", length = 64)
+    private String cancelledBy;
+
+    @Column(name = "cancel_reason", length = 255)
+    private String cancelReason;
+
     @Column(name = "uuid", length = 36)
     private String uuid;
 
@@ -108,8 +116,27 @@ public class FinancialDocument extends BaseEntity {
     }
 
     public void markCancelled() {
+        markCancelled(null, null);
+    }
+
+    /**
+     * Lajur cancelled_by dan cancel_reason wujud sejak V1 tetapi tidak
+     * pernah diisi — markCancelled() mengisi cancelledAt sahaja. Dialog
+     * Cancel Document mempunyai medan Remarks WAJIB, jadi sebab itu
+     * dikumpul dan dibuang.
+     *
+     * Corak lajur mati yang sama seperti payment.remarks (CASE-008).
+     */
+    public void markCancelled(String reason, Long cancelledBy) {
         this.status = Status.CANCELLED;
         this.cancelledAt = java.time.LocalDateTime.now();
+        if (reason != null && !reason.isBlank()) {
+            this.cancelReason = reason.length() > 255
+                    ? reason.substring(0, 255) : reason;
+        }
+        if (cancelledBy != null) {
+            this.cancelledBy = String.valueOf(cancelledBy);
+        }
     }
 
     public Long getId() { return id; }
