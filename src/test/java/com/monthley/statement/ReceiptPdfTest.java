@@ -183,6 +183,43 @@ class ReceiptPdfTest {
     }
 
     @Test
+    @DisplayName("KUANTITI ialah KADARAN bayaran, bukan sentiasa 1.00")
+    void kuantitiIalahKadaran() {
+        invois("RC-INV-6", "50.00");
+        em.flush();
+
+        // Bayar RM30 atas invois RM50 — 60% baris itu.
+        long resitId = bayar("30.00", null, PaymentMethod.CASH, null);
+        var m = statements.receipt(SP, resitId);
+
+        assertThat(m.items()).hasSize(1);
+        var i = m.items().get(0);
+
+        assertThat(i.unitPrice())
+                .as("harga ialah harga seunit BARIS INVOIS, bukan amaun dibayar")
+                .isEqualByComparingTo("50.00");
+        assertThat(i.amount())
+                .as("amaun ialah apa yang dialokasi")
+                .isEqualByComparingTo("30.00");
+        assertThat(i.quantity())
+                .as("30 / 50 = 0.60. Resit legacy menunjukkan corak sama: "
+                    + "0.45 x 600.00 = 270.00")
+                .isEqualByComparingTo("0.60");
+    }
+
+    @Test
+    @DisplayName("bayaran PENUH memberi kuantiti 1.00")
+    void bayaranPenuhKuantitiSatu() {
+        invois("RC-INV-7", "80.00");
+        em.flush();
+        long resitId = bayar("80.00", null, PaymentMethod.CASH, null);
+
+        var i = statements.receipt(SP, resitId).items().get(0);
+        assertThat(i.quantity()).isEqualByComparingTo("1.00");
+        assertThat(i.unitPrice()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
     @DisplayName("catatan kerani muncul pada resit; tiada baris kosong bila kosong")
     void catatanMuncul() throws Exception {
         invois("RC-INV-5", "45.00");

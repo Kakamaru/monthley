@@ -111,14 +111,32 @@ class StatementService implements StatementPort {
         var header = query.header(spCode, head.accountId());
 
         var items = query.receiptItems(spCode, receiptDocumentId).stream()
-                .map(l -> new com.monthley.statement.api.ReceiptItem(
-                        l.invoiceNo(), l.description(),
-                        l.periodStart(), l.periodEnd(),
-                        // Kuantiti dan harga seunit tidak disimpan pada
-                        // alokasi — satu alokasi boleh menutup SEBAHAGIAN
-                        // baris invois. Legacy memaparkan 1.00 dan amaun
-                        // penuh; kita buat sama.
-                        java.math.BigDecimal.ONE, l.amount(), l.amount()))
+                .map(l -> {
+                    // KUANTITI IALAH KADARAN, bukan sentiasa 1.00.
+                    //
+                    // Satu alokasi boleh menutup SEBAHAGIAN baris invois:
+                    // bayar RM30 atas baris RM50 dan kuantiti ialah 0.60.
+                    //
+                    // Resit legacy menunjukkan ini dengan jelas:
+                    //   Sewa Bulanan, December 2019   0.45   600.00   270.00
+                    // 0.45 x 600 = 270. Percubaan pertama menetapkan 1.00
+                    // dengan harga = amaun, yang memaparkan 'PARKING MOTOR
+                    // 1.00 x 30.00' untuk baris yang harganya RM50.
+                    java.math.BigDecimal harga = l.unitPrice();
+                    java.math.BigDecimal kuantiti;
+                    if (harga == null || harga.signum() == 0) {
+                        // Baris tanpa harga seunit (nota debit/kredit).
+                        harga = l.amount();
+                        kuantiti = java.math.BigDecimal.ONE;
+                    } else {
+                        kuantiti = l.amount().divide(harga, 2,
+                                java.math.RoundingMode.HALF_UP);
+                    }
+                    return new com.monthley.statement.api.ReceiptItem(
+                            l.invoiceNo(), l.description(),
+                            l.periodStart(), l.periodEnd(),
+                            kuantiti, harga, l.amount());
+                })
                 .toList();
 
         return new com.monthley.statement.api.ReceiptModel(

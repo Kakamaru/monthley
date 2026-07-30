@@ -138,13 +138,30 @@ class FinanceDocumentController {
     /**
      * Baris dokumen — modal 'List of Transaction'.
      *
-     * Invois yang tidak dipecah mempunyai banyak baris; resit dan invois
-     * yang dipecah biasanya satu.
+     * DUA BENTUK, kerana resit dan invois disusun berbeza:
+     *
+     *   invois / nota  -> financial_document_line (produk yang dicaj)
+     *   resit          -> fi_allocation (invois yang dibayar)
+     *
+     * Resit TIADA baris dokumen. Percubaan pertama menyoal
+     * financial_document_line untuk kedua-duanya, dan resit memaparkan
+     * 'Tiada baris transaksi' walaupun ia membayar tiga invois.
      */
     @GetMapping("/{id}/lines")
     @SuppressWarnings("unchecked")
     List<LineRow> lines(@PathVariable Long id) {
         Access.requireAnyRole("melihat dokumen kewangan", "SP_ADMIN", "CLERK");
+
+        String type = (String) em.createNativeQuery(
+                "SELECT doc_type FROM financial_document WHERE id = :id AND sp_code = :sp")
+                .setParameter("id", id).setParameter("sp", sp())
+                .getResultList().stream().findFirst().orElse(null);
+        if (type == null) {
+            return List.of();
+        }
+        if ("RECEIPT".equals(type) || "CREDIT_NOTE".equals(type)) {
+            return alokasi(id);
+        }
 
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT COALESCE(p.code, '') AS kod,
@@ -167,6 +184,41 @@ class FinanceDocumentController {
                     (String) r[0], (String) r[1],
                     (BigDecimal) r[2], (BigDecimal) r[3], (BigDecimal) r[4],
                     tarikh(r[5]), tarikh(r[6])));
+        }
+        return out;
+    }
+
+    /**
+     * Baris untuk dokumen KREDIT — invois yang dibayarnya.
+     *
+     * Guna VIEW account_allocation_match yang sama seperti sub-baris
+     * penyata dan item resit PDF. Satu sumber, tiga penggunaan.
+     */
+    @SuppressWarnings("unchecked")
+    private List<LineRow> alokasi(Long id) {
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT m.debit_doc_no,
+                       COALESCE(m.product_name, m.line_description, m.debit_title) AS keterangan,
+                       m.amount, m.debit_period_start, m.debit_period_end
+                FROM   account_allocation_match m
+                WHERE  m.sp_code = :sp AND m.credit_document_id = :id
+                ORDER  BY m.debit_period_start, m.debit_doc_no
+                """)
+                .setParameter("sp", sp())
+                .setParameter("id", id)
+                .getResultList();
+
+        List<LineRow> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            out.add(new LineRow(
+                    // Lajur 'Kod Produk' membawa NO. INVOIS untuk resit —
+                    // itu yang kerani cari apabila menyemak resit.
+                    (String) r[0],
+                    (String) r[1],
+                    java.math.BigDecimal.ONE,
+                    java.math.BigDecimal.ZERO,
+                    (java.math.BigDecimal) r[2],
+                    tarikh(r[3]), tarikh(r[4])));
         }
         return out;
     }

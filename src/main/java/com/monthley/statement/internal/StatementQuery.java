@@ -174,8 +174,11 @@ class StatementQuery {
                 SELECT m.debit_doc_no,
                        COALESCE(m.product_name, m.line_description, m.debit_title)
                            AS keterangan,
-                       m.debit_period_start, m.debit_period_end, m.amount
+                       m.debit_period_start, m.debit_period_end, m.amount,
+                       l.unit_price
                 FROM   account_allocation_match m
+                LEFT   JOIN financial_document_line l
+                       ON l.id = m.debit_document_line_id
                 WHERE  m.sp_code = :sp AND m.credit_document_id = :id
                 ORDER  BY m.debit_period_start, m.debit_doc_no,
                           m.debit_document_line_id
@@ -189,13 +192,14 @@ class StatementQuery {
                                 ? rs.getDate("debit_period_start").toLocalDate() : null,
                         rs.getDate("debit_period_end") != null
                                 ? rs.getDate("debit_period_end").toLocalDate() : null,
-                        rs.getBigDecimal("amount")))
+                        rs.getBigDecimal("amount"),
+                        rs.getBigDecimal("unit_price")))
                 .list();
     }
 
     record ReceiptLine(String invoiceNo, String description,
                        LocalDate periodStart, LocalDate periodEnd,
-                       BigDecimal amount) {
+                       BigDecimal amount, BigDecimal unitPrice) {
     }
 
     /** Baki sebelum tarikh mula — baki bawa ke hadapan. */
