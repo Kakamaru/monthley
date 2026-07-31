@@ -116,6 +116,10 @@ class AdhocPaymentSearchTest {
                 .as("nombor akaun KEKAL — ia menandakan invois ini bukan "
                     + "pelanggan berdaftar, dan SP memahaminya")
                 .isEqualTo("ADHOC-SALES");
+        assertThat(hasil.items().get(0).adhoc())
+                .as("skrin bayaran memuatkan SEMUA invois terbuka akaun; "
+                    + "untuk akaun dikongsi itu menawarkan invois orang lain")
+                .isTrue();
     }
 
     @Test
@@ -130,6 +134,10 @@ class AdhocPaymentSearchTest {
 
         assertThat(hasil.items()).hasSize(1);
         assertThat(hasil.items().get(0).accountName()).isEqualTo("SITI PELANGGAN");
+        assertThat(hasil.items().get(0).adhoc())
+                .as("akaun biasa TIDAK boleh ditanda adhoc — kerani akan "
+                    + "kehilangan keupayaan membayar beberapa invois sekali")
+                .isFalse();
     }
 
     @Test

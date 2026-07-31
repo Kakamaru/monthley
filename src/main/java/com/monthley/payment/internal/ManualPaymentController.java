@@ -62,7 +62,20 @@ class ManualPaymentController {
             Long documentId, String accountNo, String accountName, Long accountId,
             String invoiceNo, String period, LocalDate docDate, LocalDate dueDate,
             BigDecimal total, BigDecimal paid, BigDecimal outstanding,
-            String itemDesc) {}   // keterangan bila dokumen ada TEPAT satu baris
+            String itemDesc,      // keterangan bila dokumen ada TEPAT satu baris
+            /**
+             * Akaun teknikal ADHOC-SALES (V50), bukan pelanggan berdaftar.
+             *
+             * Skrin bayaran memuatkan SEMUA invois terbuka akaun apabila
+             * kerani membuka satu baris. Untuk pelanggan itu betul — satu
+             * akaun, satu orang. Untuk akaun adhoc ia menawarkan invois
+             * ORANG LAIN dengan checkbox.
+             *
+             * Ditanda di sini dan bukan dibandingkan dengan nombor akaun
+             * di frontend: nombor akaun ialah data dan boleh berubah;
+             * jenis tidak.
+             */
+            boolean adhoc) {}
 
     record ManualPaymentRequest(
             java.util.List<Long> documentIds,  // invois dipilih; kosong = auto FIFO semua
@@ -236,7 +249,9 @@ class ManualPaymentController {
                              WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) AS paid,
                    (SELECT CASE WHEN COUNT(*) = 1 THEN MAX(l.description) END
                       FROM financial_document_line l
-                     WHERE l.document_id = d.id AND l.active = 1) AS sole_desc
+                     WHERE l.document_id = d.id AND l.active = 1) AS sole_desc,
+                   CASE WHEN COALESCE(a.account_type,'') = 'ADHOC'
+                        THEN 1 ELSE 0 END AS adhoc
             FROM financial_document d
             JOIN account a ON a.id = d.account_id
             LEFT JOIN fi_period p ON p.period_id = d.period_id
@@ -256,7 +271,7 @@ class ManualPaymentController {
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
                     ((Number) r[3]).longValue(), (String) r[4], (String) r[5],
                     toLocalDate(r[6]), toLocalDate(r[7]), t, p, t.subtract(p),
-                    (String) r[10]));
+                    (String) r[10], ((Number) r[11]).intValue() == 1));
         }
         return new PageResponse<>(items, total, page, size);
     }
