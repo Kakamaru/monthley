@@ -49,22 +49,46 @@ class PeriodResolverTest {
         }
 
         @Test
-        @DisplayName("CURRENT: kitaran yang MENGANDUNGI bulan larian")
-        void currentKitaranSemasa() {
+        @DisplayName("CURRENT: kitaran BELUM BERMULA digate -> tiada caj")
+        void currentBelumBermulaDigate() {
+            // Larian Julai 2026, baldi 2026, kitaran Nov 2026 - Okt 2027:
+            // empat bulan di hadapan. SP yang mahu kitaran yang sedang
+            // berjalan (Nov 2025 - Okt 2026) menetapkan POSTPAID.
             List<Charge> c = PeriodResolver.chargesFor(
                     YearMonth.of(2026, 7), GenMode.CURRENT,
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
+            assertTrue(c.isEmpty());
+        }
+
+        @Test
+        @DisplayName("CURRENT: larian November -> kitaran itu kini bermula, dicaj")
+        void currentPadaAnchorDicaj() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 11), GenMode.CURRENT,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
             assertEquals(1, c.size());
-            assertEquals(LocalDate.of(2026, 11, 1), c.get(0).cycleStart(),
-                    "baldi 2026; kitaran belum bermula TIDAK digate — "
-                    + "SP yang mahu kitaran berjalan menetapkan POSTPAID");
+            assertEquals(LocalDate.of(2026, 11, 1), c.get(0).cycleStart());
             assertEquals(LocalDate.of(2027, 10, 31), c.get(0).cycleEnd());
         }
 
         @Test
-        @DisplayName("CURRENT anchor Januari DAN November sama-sama merujuk 2026")
-        void currentKonsistenMerentasAnchor() {
+        @DisplayName("Gate hanya pada laluan KASAR: akaun YEARLY + produk MONTHLY kekal 12")
+        void gateTidakSentuhUfukTahunan() {
+            // Akaun YEARLY mengisytiharkan "bil setahun sekali" — menarik
+            // dua belas bulan ke hadapan ialah TUJUANNYA. Yang digate ialah
+            // kitaran PRODUK yang lebih panjang daripada ufuk akaun.
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 1), GenMode.CURRENT,
+                    ChargeFrequency.YEAR, ChargeFrequency.MONTHLY, null, null, null);
+
+            assertEquals(12, c.size(), "Ogos-Dis belum bermula, tetapi tetap dicaj");
+        }
+
+        @Test
+        @DisplayName("CURRENT: satu peraturan — bil kitaran tahun ini, bila sudah bermula")
+        void currentSatuPeraturanDuaAnchor() {
             // Bukti production: larian Ogos 2026 CURRENT memberi Jan-Dis 2026
             // untuk anchor Januari tetapi Nov 2025-Okt 2026 untuk anchor
             // November. Tetapan sama, tahun rujukan berbeza.
@@ -75,8 +99,10 @@ class PeriodResolverTest {
                     YearMonth.of(2026, 8), GenMode.CURRENT,
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
-            assertEquals(2026, jan.get(0).cycleStart().getYear());
-            assertEquals(2026, nov.get(0).cycleStart().getYear());
+            assertEquals(2026, jan.get(0).cycleStart().getYear(),
+                    "Januari sudah lepas -> lulus gate secara semula jadi");
+            assertTrue(nov.isEmpty(),
+                    "November belum tiba -> digate");
         }
 
         @Test

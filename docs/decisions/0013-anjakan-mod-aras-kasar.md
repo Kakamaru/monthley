@@ -88,11 +88,28 @@ itu. Bukti production, larian Ogos 2026, kedua-duanya CURRENT:
 Tetapan sama, tahun rujukan berbeza. Baldi kalendar menghapuskan
 percanggahan: CURRENT sentiasa merujuk tahun larian.
 
-**Kitaran yang belum bermula TIDAK digate.** CURRENT anchor 11 pada
-larian Ogos 2026 memberi Nov 2026 – Okt 2027, tiga bulan di hadapan.
-SP yang mahu kitaran berjalan menetapkan POSTPAID. Menggate CURRENT
-akan menjadikannya tidak konsisten dengan anchor Januari, yang juga
-memulangkan kitaran 2026.
+### CURRENT tidak membil kitaran yang belum bermula
+
+Baldi 2026 mengandungi kitaran Nov 2026 – Okt 2027. Pada larian Ogos
+2026 itu tiga bulan di hadapan, dan CURRENT tidak bermaksud bil awal.
+Kitaran sedemikian ditapis keluar.
+
+Ini BUKAN percanggahan dengan anchor Januari. Satu peraturan: **bil
+kitaran tahun ini, bila ia sudah bermula.** Anchor Januari lulus secara
+semula jadi kerana Januari sudah lepas; anchor November lulus mulai
+larian November.
+
+SP yang mahu kitaran yang sedang berjalan (Nov 2025 – Okt 2026)
+menetapkan POSTPAID.
+
+**Gate hanya pada laluan KASAR.** Akaun YEARLY dengan produk MONTHLY
+kekal menghasilkan dua belas caj Jan–Dis walaupun Ogos–Dis belum
+bermula — menarik setahun ke hadapan ialah maksud ufuk tahunan. Yang
+ditolak ialah menarik kitaran PRODUK yang lebih panjang daripada ufuk
+akaun.
+
+PREPAID tidak digate: bil awal itulah maksudnya. POSTPAID tidak perlu
+digate — baldi tahun lepas sentiasa sudah bermula.
 
 `account.charge_frequency` kekal menentukan UFUK — berapa kitaran
 ditarik dalam satu larian. Yang berubah hanya DI MANA anjakan mod

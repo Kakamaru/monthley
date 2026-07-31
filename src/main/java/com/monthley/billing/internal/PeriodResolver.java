@@ -177,8 +177,34 @@ public final class PeriodResolver {
         ChargeFrequency kasar = akaun.months() >= productFreq.months()
                 ? akaun : productFreq;
 
-        return chargesFor(basePeriod(runMonth, mode, kasar),
-                          productFreq, anchorMonth, effectiveStart, effectiveEnd);
+        List<Charge> hasil = chargesFor(basePeriod(runMonth, mode, kasar),
+                productFreq, anchorMonth, effectiveStart, effectiveEnd);
+
+        // CURRENT tidak membil kitaran yang BELUM BERMULA.
+        //
+        // Larian Ogos 2026, anchor November: baldi 2026 mengandungi kitaran
+        // Nov 2026 - Okt 2027, tiga bulan di hadapan. SP yang mahu kitaran
+        // yang sedang berjalan menetapkan POSTPAID.
+        //
+        // Anchor Januari lulus gate ini secara semula jadi kerana Januari
+        // sudah lepas. Satu peraturan: bil kitaran tahun ini, bila ia sudah
+        // bermula.
+        //
+        // Hanya laluan KASAR digate. Akaun YEARLY dengan produk MONTHLY
+        // memang menarik dua belas bulan ke hadapan — itu maksud ufuk
+        // tahunan. Yang ditolak di sini ialah menarik kitaran PRODUK yang
+        // lebih panjang daripada ufuk akaun.
+        //
+        // POSTPAID tidak perlu digate: baldi tahun lepas sentiasa sudah
+        // bermula. PREPAID tidak DIGATE dengan sengaja — bil awal itulah
+        // maksudnya.
+        if (mode == GenMode.CURRENT && productFreq.months() > akaun.months()) {
+            LocalDate hujungLarian = runMonth.atEndOfMonth();
+            return hasil.stream()
+                    .filter(c -> !c.cycleStart().isAfter(hujungLarian))
+                    .toList();
+        }
+        return hasil;
     }
 
     // ── Dalaman ──────────────────────────────────────────────────────
