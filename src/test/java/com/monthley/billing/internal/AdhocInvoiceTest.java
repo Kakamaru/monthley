@@ -413,7 +413,10 @@ class AdhocInvoiceTest {
         assertThat(t)
                 .as("nama disalin ke dokumen RESIT semasa bayaran, bukan "
                     + "disoal melalui alokasi — resit ialah snapshot")
-                .contains("AHMAD PEMBELI");
+                .contains("AHMAD PEMBELI")
+                .as("pemegang resit ialah orang awam yang tidak berakaun; "
+                    + "ADHOC-SALES hanya menimbulkan soalan di kaunter")
+                .doesNotContain("ADHOC-SALES");
     }
 
     @Test

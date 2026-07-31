@@ -95,7 +95,13 @@ table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
       <table class="box">
         <tr><td class="lbl">No. Resit</td>
             <td class="val" th:text="${m.receiptNo()}"></td></tr>
-        <tr><td class="lbl">No. Akaun</td>
+        <!-- Adhoc: baris ini DIGUGURKAN. Pemegang resit ialah orang
+             awam yang tidak berakaun; 'ADHOC-SALES' ialah pengenalan
+             dalaman SP dan hanya menimbulkan soalan di kaunter.
+             Syarat SAMA seperti nama di kiri — satu keputusan, satu
+             ungkapan, tidak boleh menyimpang. -->
+        <tr th:unless="${fmt.has(m.issuedToName())}">
+            <td class="lbl">No. Akaun</td>
             <td class="val" th:text="${h.accountNo()}"></td></tr>
         <tr><td class="lbl">Tarikh Dikeluarkan</td>
             <td class="val" th:text="${fmt.dateTime(m.issuedAt())}"></td></tr>
