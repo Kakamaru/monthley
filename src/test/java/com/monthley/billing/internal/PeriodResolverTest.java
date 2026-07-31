@@ -26,6 +26,129 @@ class PeriodResolverTest {
     private static final LocalDate JUN_15 = LocalDate.of(2026, 6, 15);
     private static final LocalDate SEP_15 = LocalDate.of(2026, 9, 15);
 
+    // ── ADR 0013: anjak mod pada aras KASAR ──────────────────────────
+
+    @Nested
+    @DisplayName("ADR 0013 — produk lebih kasar daripada akaun")
+    class ArasKasar {
+
+        // INSURANCE production: YEAR, anchor 11 (November), akaun MONTHLY.
+        // Sebelum ADR 0013 ini menghasilkan SIFAR pada ketiga-tiga mod.
+
+        @Test
+        @DisplayName("POSTPAID: larian Julai 2026 -> kitaran SELESAI Nov 2024-Okt 2025")
+        void postpaidCaJKitaranSelesai() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+            assertEquals(1, c.size(), "sebelum ADR 0013 ini kosong");
+            assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2025, 10, 31), c.get(0).cycleEnd());
+            assertTrue(c.get(0).isFullCycle(), "tiada start charging -> caj PENUH");
+        }
+
+        @Test
+        @DisplayName("CURRENT: kitaran yang MENGANDUNGI bulan larian")
+        void currentKitaranSemasa() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.CURRENT,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+            assertEquals(1, c.size());
+            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2026, 10, 31), c.get(0).cycleEnd());
+        }
+
+        @Test
+        @DisplayName("PREPAID: kitaran BERIKUTNYA")
+        void prepaidKitaranBerikut() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.PREPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+            assertEquals(1, c.size());
+            assertEquals(LocalDate.of(2026, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2027, 10, 31), c.get(0).cycleEnd());
+        }
+
+        @Test
+        @DisplayName("DETERMINISTIK: Julai, Ogos, Sep, Okt -> kitaran yang SAMA")
+        void kitaranSamaSepanjangTempoh() {
+            // Resolver memulangkan kitaran yang sama setiap larian; idem_key
+            // yang menapis supaya ia dicaj SEKALI (ADR 0013, prasyarat V52).
+            for (int m : new int[]{7, 8, 9, 10}) {
+                List<Charge> c = PeriodResolver.chargesFor(
+                        YearMonth.of(2026, m), GenMode.POSTPAID,
+                        ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+                assertEquals(1, c.size(), "bulan " + m);
+                assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart(),
+                        "bulan " + m + " mesti kitaran yang sama");
+            }
+        }
+
+        @Test
+        @DisplayName("Sempadan: larian November 2026 -> kitaran BERIKUTNYA")
+        void sempadanKitaranMaju() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 11), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart(),
+                    "kitaran maju satu apabila anchor dilepasi");
+        }
+
+        @Test
+        @DisplayName("Start Charging 1 Jan 2025 -> prorate Jan-Okt 2025")
+        void startChargingMemprorate() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11,
+                    LocalDate.of(2025, 1, 1), null);
+
+            assertEquals(1, c.size());
+            assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2025, 1, 1), c.get(0).coverageStart());
+            assertEquals(LocalDate.of(2025, 10, 31), c.get(0).coverageEnd());
+            assertFalse(c.get(0).isFullCycle(), "penyebut kekal kitaran penuh");
+        }
+
+        @Test
+        @DisplayName("Langganan bermula SELEPAS kitaran tamat -> tiada caj")
+        void mulaSelepasKitaranTiadaCaj() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11,
+                    LocalDate.of(2026, 3, 1), null);
+
+            assertTrue(c.isEmpty(), "kitaran Nov24-Okt25 tamat sebelum langganan mula");
+        }
+
+        @Test
+        @DisplayName("Akaun SAMA kasar: laluan lama, tidak berubah")
+        void akaunSamaKasarTidakBerubah() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.MONTHLY, null, null, null);
+
+            assertEquals(1, c.size());
+            assertEquals(LocalDate.of(2026, 6, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2026, 6, 30), c.get(0).cycleEnd());
+        }
+
+        @Test
+        @DisplayName("Akaun LEBIH kasar: laluan lama, 12 caj bulanan")
+        void akaunLebihKasarTidakBerubah() {
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.CURRENT,
+                    ChargeFrequency.YEAR, ChargeFrequency.MONTHLY, null, null, null);
+
+            assertEquals(12, c.size());
+            assertEquals(LocalDate.of(2026, 1, 1), c.get(0).cycleStart());
+        }
+    }
+
     // ── Period asas ──────────────────────────────────────────────────
 
     @Nested

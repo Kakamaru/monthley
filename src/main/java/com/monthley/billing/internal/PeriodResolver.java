@@ -131,6 +131,87 @@ public final class PeriodResolver {
         return out;
     }
 
+    // ── Anjakan mod pada aras KASAR (ADR 0013) ───────────────────────
+
+    /**
+     * Kitaran untuk dicaj, dengan anjakan mod dikenakan SEKALI pada
+     * frekuensi yang lebih KASAR antara akaun dan produk.
+     *
+     * Sebelum ADR 0013 mod sentiasa dianjak pada aras AKAUN. Untuk produk
+     * yang lebih kasar itu bermakna satu bulan pada kitaran dua belas
+     * bulan — ketiga-tiga mod memberi jawapan sama, dan kitaran tahunan
+     * hanya dicaj apabila bulan larian kebetulan menyentuh anchornya.
+     * INSURANCE anchor November tidak pernah dijana pada akaun MONTHLY.
+     *
+     * POSTPAID bermakna "bil selepas liputan". Untuk insurans tahunan itu
+     * perbezaan SETAHUN, bukan sebulan.
+     *
+     * @param accountFreq ufuk — berapa kitaran ditarik satu larian
+     * @param productFreq aras — granulariti setiap caj
+     */
+    public static List<Charge> chargesFor(YearMonth runMonth,
+                                          GenMode mode,
+                                          ChargeFrequency accountFreq,
+                                          ChargeFrequency productFreq,
+                                          Integer anchorMonth,
+                                          LocalDate effectiveStart,
+                                          LocalDate effectiveEnd) {
+
+        if (productFreq == null || !productFreq.isRecurring()) {
+            return List.of();   // ONE_TIME / PER_USE dikendali di tempat lain
+        }
+        validateAnchor(anchorMonth);
+
+        ChargeFrequency akaun = recurringOrMonthly(accountFreq);
+
+        // Akaun sama kasar atau lebih kasar: laluan sedia ada, tidak berubah.
+        if (akaun.months() >= productFreq.months()) {
+            return chargesFor(basePeriod(runMonth, mode, akaun),
+                              productFreq, anchorMonth, effectiveStart, effectiveEnd);
+        }
+        return kitaranKasar(runMonth, mode, productFreq, anchorMonth,
+                            effectiveStart, effectiveEnd);
+    }
+
+    /**
+     * Produk lebih kasar daripada akaun — SATU kitaran, dipilih oleh mod.
+     *
+     * Tiada gate "chargePoint dalam period asas" di sini: kitaran produk
+     * ITULAH periodnya, jadi gate tersebut sentiasa benar dan tidak
+     * bermakna. Akibatnya kitaran yang sama dipulangkan pada setiap larian
+     * sepanjang kitaran itu, dan idem_key yang menapis ulangan (ADR 0013,
+     * prasyarat V52).
+     */
+    private static List<Charge> kitaranKasar(YearMonth runMonth,
+                                             GenMode mode,
+                                             ChargeFrequency freq,
+                                             Integer anchorMonth,
+                                             LocalDate effectiveStart,
+                                             LocalDate effectiveEnd) {
+
+        LocalDate semasa = cycleStartFor(runMonth.atDay(1), freq, anchorMonth);
+        LocalDate mula = switch (mode) {
+            case CURRENT  -> semasa;
+            case PREPAID  -> semasa.plusMonths(freq.months());
+            case POSTPAID -> semasa.minusMonths(freq.months());
+        };
+        LocalDate tamat = mula.plusMonths(freq.months()).minusDays(1);
+
+        LocalDate chargePoint = (effectiveStart == null || effectiveStart.isBefore(mula))
+                ? mula : effectiveStart;
+
+        // Langganan bermula SELEPAS kitaran ini tamat — tiada caj. Ini yang
+        // menghalang caj untuk period sebelum akaun wujud.
+        if (chargePoint.isAfter(tamat)) return List.of();
+        if (effectiveEnd != null && effectiveEnd.isBefore(chargePoint)) return List.of();
+
+        LocalDate coverageEnd = (effectiveEnd != null && effectiveEnd.isBefore(tamat))
+                ? effectiveEnd : tamat;
+
+        return List.of(new Charge(PeriodIds.of(mula, freq),
+                                  mula, tamat, chargePoint, coverageEnd));
+    }
+
     // ── Dalaman ──────────────────────────────────────────────────────
 
     private static void emit(Map<LocalDate, Charge> found,

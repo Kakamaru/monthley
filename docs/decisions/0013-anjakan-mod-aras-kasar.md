@@ -1,6 +1,6 @@
 # ADR 0013 — Anjakan mod pada frekuensi yang lebih KASAR
 
-- **Status:** Diterima 31 Julai 2026 — P1-P4 belum dilaksana
+- **Status:** Diterima 31 Julai 2026 — P1 dilaksana; P2-P4 belum
 - **Tarikh:** 31 Julai 2026
 - **Meminda:** `billing-rules.md` §6 ("Tiada anjakan tambahan di aras produk")
 - **Prasyarat:** V52 (d86aa16) — batal mesti membebaskan `idem_key`
