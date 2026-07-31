@@ -31,15 +31,21 @@
 #
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/monthley_test?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
+    url: jdbc:mysql://localhost:3307/monthley_test?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
     username: monthley
     password: devpass
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: none
+      # validate, sama seperti dev. Flyway membina skema; Hibernate
+      # mengesahkan setiap entity padan dengannya. Sebelum 31 Julai 2026
+      # ini `none` dan guard 1 tidak pernah hidup dalam ujian.
+      ddl-auto: validate
   flyway:
-    # Skema dibina oleh ./mb testdb, bukan semasa setiap larian ujian.
-    # Menghidupkannya di sini bermakna 37 migrasi disemak setiap kali
-    # konteks Spring naik.
-    enabled: false
+    # Flyway membina skema ujian, sama seperti dev dan prod.
+    #
+    # Sebelum 31 Julai 2026 ini `false`, dan ./mb testdb menjalankan
+    # setiap fail SQL dengan tangan lalu menyisip sejarah checksum NULL.
+    # Kesannya: `mvn test` hijau lawan skema yang tiada siapa sahkan
+    # datang dari migrasi. Rujuk cara-kerja.md sec 2.
+    enabled: true

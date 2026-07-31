@@ -332,10 +332,20 @@ KEDUA-DUA tempat.
 Nota: nilai literal dalam UI ialah kes khas corak ini — DB dan HTML kedua-
 duanya "tahu" tetapan, dan HTML tidak pernah dimaklumkan bila DB berubah.
 
-### 7. Laluan migrasi manual mesti atomik
+### 7. Jangan jalankan migrasi dengan tangan
 
-Bila `mvn flyway:migrate` gagal (VPN/JDBC) dan kita jalankan SQL terus,
-dua langkah itu mesti dirantai:
+Flyway memiliki skema pada dev, ujian dan prod. Kalau kau dapati diri kau
+menjalankan SQL terus, berhenti dan siasat kenapa Flyway senyap.
+
+**SYAK, belum disahkan:** diagnosis lama "`mvn flyway:migrate` kerap gagal
+atas isu VPN/JDBC" mungkin sebenarnya terowong SSH yang merampas
+`127.0.0.1:3306` (lihat bahagian 5). Membuka DBeaver ke production membuka
+terowong; selepas itu sambungan TCP tempatan sampai ke server jauh dan
+Flyway dapat `Access denied` untuk akaun yang wujud. Tidak boleh dibuktikan
+ke belakang — dicatat supaya sesiapa yang menemui gejala itu semula tahu
+tempat pertama untuk melihat.
+
+Nota sejarah — kenapa `&&` dituntut dahulu:
 
 ```bash
 mysql -u root db < V34__xxx.sql \
@@ -396,11 +406,15 @@ menyemak `application.yml` sedangkan puncanya proses lain.
 
 Cipta semula bila-bila masa:
 
-    ./mb testdb
+    ./mb testdb && mvn test
 
-Ia menjalankan SEMUA migrasi mengikut urutan versi pada DB kosong, jadi
-ia turut mengesahkan migrasi boleh membina sistem dari sifar — bukan
-hanya menampal DB sedia ada.
+`testdb` mencipta DB KOSONG sahaja. Flyway membina skema semasa `mvn test`,
+jadi ujian mengesahkan migrasi sebenar boleh membina sistem dari sifar.
+
+Sehingga 31 Julai 2026 `testdb` menjalankan setiap fail SQL dengan tangan
+lalu menyisip sejarah `checksum NULL` — 51 daripada 51 baris. `mvn test`
+hijau lawan skema yang tiada siapa sahkan datang dari migrasi, dan guard 1
+(`ddl-auto: validate`) tidak pernah hidup dalam ujian.
 
 **Ujian tidak boleh meminjam data.** Corak ini rosak:
 
@@ -440,6 +454,18 @@ Proxy dibaca **masa start sahaja** — tiada hot-reload.
 mysql -u monthley -pdevpass monthley_new
 mysql -u monthley --table -pdevpass monthley_new -e "DESCRIBE table_name;"
 ```
+
+**MySQL tempatan di port 3307, bukan 3306.** `~/.ssh/config` ada LAPAN blok
+dengan `LocalForward 3306`. Terowong yang hidup mengikat `127.0.0.1:3306`
+secara KHUSUS dan menang atas ikatan wildcard MySQL — sambungan TCP
+tempatan sampai ke server JAUH.
+
+Gejalanya menyesatkan: socket berfungsi, TCP beri `1045 Access denied`
+untuk akaun yang betul-betul wujud. Klien pula gagal `2059` kerana server
+jauh meminta `mysql_native_password`, plugin yang MySQL 9 sudah buang.
+
+Sejam hilang pada 31 Julai 2026. Bila TCP dan socket TIDAK BERSETUJU,
+periksa `lsof -iTCP:3306 -sTCP:LISTEN` dahulu.
 
 `--table` memberi output berformat. `SHOW CREATE TABLE ... \G` tidak berfungsi dengan `-e`.
 

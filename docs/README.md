@@ -43,9 +43,9 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 V1–V51 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
-Migrasi ditulis manual pada DUA pangkalan data: `monthley_new` (pembangunan)
-dan `monthley_test` (ujian). Lihat cara-kerja guard 7 — dirantai dengan `&&`
-supaya kegagalan separuh tidak menyebabkan kedua-duanya menyimpang.
+Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
+dimigrasi semasa `./mb restart`; `monthley_test` semasa `mvn test`.
+Tiada langkah manual.
 
 Terkini:
 

@@ -46,8 +46,8 @@ start() {
 # Ujian menggunakan monthley_test, bukan monthley_new, supaya ia boleh
 # berjalan sambil backend hidup. Kedua-duanya pada MySQL yang sama.
 #
-# Skema dibina dengan menjalankan SEMUA migrasi mengikut urutan versi —
-# jadi ia turut mengesahkan migrasi boleh membina sistem dari kosong.
+# Fungsi ini HANYA mencipta DB kosong. Flyway yang membina skema,
+# semasa mvn test — jadi ujian mengesahkan migrasi sebenar.
 testdb() {
   echo "→ mencipta semula monthley_test…"
   mysql -u root -e "DROP DATABASE IF EXISTS monthley_test;
@@ -56,42 +56,8 @@ testdb() {
                     GRANT ALL PRIVILEGES ON monthley_test.* TO 'monthley'@'localhost';
                     FLUSH PRIVILEGES;" || { echo "✗ gagal cipta DB"; return 1; }
 
-  local n=0
-  for f in $(ls src/main/resources/db/migration/V*.sql | sort -V); do
-    if ! mysql -u root monthley_test < "$f" 2>/tmp/mb-mig.err; then
-      echo "✗ $(basename "$f")"; head -3 /tmp/mb-mig.err; return 1
-    fi
-    n=$((n+1))
-  done
-
-  # Sejarah flyway didaftar supaya mvn flyway:migrate tidak cuba semula.
-  mysql -u root monthley_test -e "
-    CREATE TABLE flyway_schema_history (
-      installed_rank INT NOT NULL, version VARCHAR(50),
-      description VARCHAR(200) NOT NULL, type VARCHAR(20) NOT NULL,
-      script VARCHAR(1000) NOT NULL, checksum INT,
-      installed_by VARCHAR(100) NOT NULL,
-      installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      execution_time INT NOT NULL, success TINYINT(1) NOT NULL,
-      PRIMARY KEY (installed_rank), KEY flyway_schema_history_s_idx (success)
-    ) ENGINE=InnoDB;"
-
-  local rank=1
-  for f in $(ls src/main/resources/db/migration/V*.sql | sort -V); do
-    local base ver desc
-    base=$(basename "$f" .sql)
-    ver=${base%%__*}; ver=${ver#V}
-    desc=$(echo "${base#*__}" | tr '_' ' ')
-    mysql -u root monthley_test -e "
-      INSERT INTO flyway_schema_history
-        (installed_rank, version, description, type, script, checksum,
-         installed_by, execution_time, success)
-      VALUES ($rank, '$ver', '$desc', 'SQL', '$(basename "$f")', NULL,
-              'mb-testdb', 0, 1);"
-    rank=$((rank+1))
-  done
-
-  echo "✓ monthley_test siap — $n migrasi"
+  echo "✓ monthley_test dicipta KOSONG."
+  echo "  Flyway membina skema semasa 'mvn test'."
 }
 
 case "${1:-status}" in
