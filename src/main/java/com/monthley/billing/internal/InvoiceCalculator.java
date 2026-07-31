@@ -59,18 +59,27 @@ class InvoiceCalculator {
             LocalDate effStart = later(account.startDate(), sub.startDate());
             LocalDate effEnd = earlier(account.expiryDate(), sub.endDate());
 
-            // account.start_date (= Start Charging) ialah SUIS proration.
+            // Start Charging ialah SUIS proration, dan ia wujud di DUA
+            // tempat: akaun dan langganan produk. effStart sudah MAX kedua-
+            // duanya, jadi effStart != null bermakna sekurang-kurangnya satu
+            // diisytihar.
             //
             // Diisi  -> SP mengisytihar tarikh mula sebenar; prorate dari situ.
-            // Kosong -> sub.start_date (lalai kepada tarikh cipta akaun) hanya
-            //           menentukan BILA. Kitaran berjalan dicaj PENUH.
+            // Kosong -> tiada tarikh langsung; kitaran berjalan dicaj PENUH.
             //
-            // Sebab: tanpa isytihar SP, satu-satunya tarikh yang kita ada
-            // ialah bila kerani menaip. Memprorate berdasarkannya bermakna
-            // mengenakan caj berdasarkan kelajuan kemasukan data.
+            // Sebab: tanpa isytihar SP, memprorate bermakna mengenakan caj
+            // berdasarkan kelajuan kemasukan data.
+            //
+            // Sehingga hari ini syarat ini membaca account.startDate() SAHAJA,
+            // sedangkan effStart membaca dua-dua. Kerani yang mengisi tarikh
+            // pada langganan produk tetapi tidak pada akaun mendapat caj
+            // PENUH — tarikhnya menentukan BILA tetapi bukan BERAPA, tanpa
+            // amaran. Alasan asal ("sub.start_date lalai kepada tarikh cipta
+            // akaun") sudah luput: auto-isi itu dibuang, jadi nilai di sana
+            // kini isytihar kerani, sama seperti akaun.
             //
             // Rujuk docs/domain/billing-rules.md §6
-            boolean canProrate = account.startDate() != null && product.prorated();
+            boolean canProrate = effStart != null && product.prorated();
 
             BigDecimal rate = resolveRate(sub, product, ctx);
 

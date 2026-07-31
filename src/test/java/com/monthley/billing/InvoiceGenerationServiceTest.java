@@ -170,28 +170,53 @@ class InvoiceGenerationServiceTest {
         assertThat(docPeriod.longValue()).isEqualTo(2026000000L);
     }
 
-    // ── Suis proration: account.start_date (Start Charging) ──────────
+    // ── Suis proration: Start Charging, DUA tempat ──────────────────
     //
     // Peraturan (docs/domain/billing-rules.md §6):
     //   effStart   = MAX(account.start_date, sub.start_date)   -> BILA
-    //   canProrate = account.start_date != null && product.prorated  -> BERAPA
+    //   canProrate = effStart != null && product.prorated      -> BERAPA
     //
-    // Rasional: tanpa Start Charging, satu-satunya tarikh yang kita ada ialah
-    // bila kerani menaip. Memprorate berdasarkannya bermakna mengenakan caj
-    // berdasarkan kelajuan kemasukan data.
+    // Start Charging wujud pada AKAUN dan pada LANGGANAN PRODUK. Salah satu
+    // diisi sudah memadai: ia isytihar kerani sama ada di mana ia ditaip.
+    //
+    // Rasional: tanpa tarikh LANGSUNG, satu-satunya tarikh yang kita ada
+    // ialah bila kerani menaip. Memprorate berdasarkannya bermakna
+    // mengenakan caj berdasarkan kelajuan kemasukan data.
 
     @Test
-    @DisplayName("Start Charging kosong + masuk 15 Jun -> caj PENUH")
-    void noStartChargingChargesFullCycle() {
+    @DisplayName("Tiada tarikh LANGSUNG -> caj PENUH walaupun produk prorated")
+    void noDateAnywhereChargesFullCycle() {
         startCharging(null);
-        subscriptionStart("2026-06-15");
-        prorated(true);                 // walaupun produk prorated
+        subscriptionStart(null);
+        prorated(true);
 
         int posted = billing.generateForSp("SPB", YearMonth.of(2026, 6),
                 GenMode.CURRENT, ctx());
 
         assertThat(posted).isEqualTo(1);
         assertThat(singleLineAmount()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    @DisplayName("Tarikh pada LANGGANAN sahaja -> tetap prorate 16/30")
+    void subscriptionStartAloneProrates() {
+        // Sehingga hari ini ujian ini menjangka 80.00 PENUH, di bawah nama
+        // 'noStartChargingChargesFullCycle' — nama yang menyembunyikan
+        // bahawa sub.start_date DIISI. Kerani menaip 15 Jun pada langganan,
+        // produk ditanda prorated, dan mendapat caj penuh tanpa amaran.
+        //
+        // Alasan asal ("sub.start_date lalai kepada tarikh cipta akaun")
+        // sudah luput: auto-isi itu dibuang, jadi nilai di sana kini
+        // isytihar kerani, sama seperti pada akaun.
+        startCharging(null);
+        subscriptionStart("2026-06-15");
+        prorated(true);
+
+        int posted = billing.generateForSp("SPB", YearMonth.of(2026, 6),
+                GenMode.CURRENT, ctx());
+
+        assertThat(posted).isEqualTo(1);
+        assertThat(singleLineAmount()).isEqualByComparingTo("42.67");
     }
 
     @Test

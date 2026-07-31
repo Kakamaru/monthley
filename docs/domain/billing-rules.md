@@ -232,7 +232,7 @@ Dua soalan berbeza, dua jawapan berbeza:
 | Soalan | Ditentukan oleh |
 |---|---|
 | **BILA** dicaj | `effectiveStart = start_charging ?? created_at` |
-| **BERAPA** dicaj | `canProrate = start_charging != null && product.prorated` |
+| **BERAPA** dicaj | `canProrate = effectiveStart != null && product.prorated` |
 
 Peraturan teras:
 
@@ -243,7 +243,13 @@ caj kalau chargePoint jatuh dalam period asas
 
 Satu peraturan. Stateless — tiada penunjuk, tiada "sudah dicaj?" tersimpan.
 
-#### Kenapa `start_charging` menentukan proration
+#### Kenapa Start Charging menentukan proration
+
+Start Charging wujud pada AKAUN dan pada LANGGANAN PRODUK. Salah satu
+diisi sudah memadai — ia isytihar kerani sama ada di mana ia ditaip.
+Sehingga 31 Julai 2026 suis ini membaca akaun SAHAJA, sedangkan
+`effectiveStart` membaca dua-dua: kerani yang mengisi tarikh pada
+langganan mendapat caj PENUH tanpa amaran.
 
 `start_charging` ialah pengisytiharan SP: *"pelanggan ini bermula pada tarikh ini."*
 Kalau diisi, SP tahu tarikh sebenar dan mahu bil yang tepat.
