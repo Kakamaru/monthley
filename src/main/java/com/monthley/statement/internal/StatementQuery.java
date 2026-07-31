@@ -160,6 +160,7 @@ class StatementQuery {
                         rs.getString("remarks"),
                         rs.getBigDecimal("amount_paid"),
                         rs.getBigDecimal("deposit_amount"),
+                        rs.getString("issued_to_name"),
                         "CANCELLED".equals(rs.getString("status"))))
                 .single();
     }
@@ -167,7 +168,10 @@ class StatementQuery {
     record ReceiptHead(long accountId, String receiptNo, LocalDate receiptDate,
                        java.time.LocalDateTime issuedAt, String paymentMethod,
                        String paymentRefNo, String remarks, BigDecimal amountPaid,
-                       BigDecimal advance, boolean cancelled) {
+                       BigDecimal advance,
+                       /** Penerima resit adhoc; null untuk pelanggan berdaftar. */
+                       String issuedToName,
+                       boolean cancelled) {
     }
 
     /**

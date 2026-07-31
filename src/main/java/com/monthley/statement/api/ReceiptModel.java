@@ -30,6 +30,14 @@ public record ReceiptModel(
         String remarks,
         BigDecimal amountPaid,
         BigDecimal advance,
+        /**
+         * Penerima resit adhoc — null untuk pelanggan berdaftar.
+         *
+         * Akaun ADHOC-SALES dikongsi (V50) dan tidak membawa nama
+         * sesiapa, jadi 'Terima Daripada' yang dibaca daripada akaun
+         * kekal kosong. Resit diserahkan kepada orang awam.
+         */
+        String issuedToName,
         boolean cancelled,
         List<ReceiptItem> items) {
 }

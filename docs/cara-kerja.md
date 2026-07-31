@@ -332,6 +332,36 @@ KEDUA-DUA tempat.
 Nota: nilai literal dalam UI ialah kes khas corak ini — DB dan HTML kedua-
 duanya "tahu" tetapan, dan HTML tidak pernah dimaklumkan bila DB berubah.
 
+### 6b. VIEW: salin daripada takrifan HIDUP, bukan fail lama
+
+Ditambah 1 Ogos 2026, ditangkap sebelum ia menggigit.
+
+`CREATE OR REPLACE VIEW` menulis ganti takrifan SEPENUHNYA. Tiada
+tampalan separa, tiada `str.replace` dengan assert seperti untuk fail
+kod — migrasi mesti menyenaraikan setiap lajur.
+
+Draf pertama V54 disalin daripada V38, fail yang mula-mula mencipta
+`receipt_header`. Tetapi V40 sudah menambah lajur `remarks` selepasnya.
+Migrasi itu akan membuangnya — tanpa ralat, tanpa amaran, sehingga
+`ReceiptHead` membacanya semasa larian dan resit PDF pecah.
+
+Yang menjadikannya berbahaya: puncanya kelihatan seperti V54, sedangkan
+kerosakan sebenar ialah migrasi LAIN yang dipadamkan senyap.
+
+Peraturan: sebelum `CREATE OR REPLACE VIEW`, baca senarai lajur SEBENAR
+daripada pangkalan data, bukan daripada mana-mana fail migrasi:
+
+```bash
+mysql -u monthley -pdevpass monthley_new -e "
+SELECT column_name FROM information_schema.columns
+WHERE table_schema='monthley_new' AND table_name='<view>'
+ORDER BY ordinal_position;"
+```
+
+Ini corak yang SAMA seperti `application.yml` (§3): fail lama betul pada
+masanya, dan menyalinnya membuang setiap pembetulan yang datang
+selepasnya.
+
 ### 7. Jangan jalankan migrasi dengan tangan
 
 Flyway memiliki skema pada dev, ujian dan prod. Kalau kau dapati diri kau

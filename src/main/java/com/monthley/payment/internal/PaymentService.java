@@ -120,6 +120,21 @@ class PaymentService implements PaymentPort {
                     "Bayaran untuk invois adhoc mesti menyatakan invois. "
                     + "Gunakan tab Cari Invois.");
         }
+        // TEPAT SATU, bukan sekadar sekurang-kurangnya satu.
+        //
+        // Setiap invois adhoc dikeluarkan kepada orang BERBEZA. Satu resit
+        // yang membayar dua daripadanya tidak boleh menjawab "resit ini
+        // untuk siapa" — dan resit ialah dokumen yang diserahkan kepada
+        // orang awam, bukan kepada SP yang memahami akaun teknikal.
+        //
+        // Semakan asal hanya menuntut senarai TIDAK KOSONG. UI menghadkan
+        // pilihan kepada satu invois, tetapi UI bukan guard: mana-mana
+        // klien boleh menghantar dua ID.
+        if (adhoc && req.targetDocumentIds().size() > 1) {
+            throw new IllegalStateException(
+                    "Satu resit untuk satu invois adhoc. Setiap invois "
+                    + "dikeluarkan kepada orang berbeza.");
+        }
 
         // Calon invois (hormati selective gate)
         List<OutstandingInvoice> candidates = outstandingFor(req.payerAccountId());
@@ -162,6 +177,33 @@ class PaymentService implements PaymentPort {
         Long receiptDocId = documents.createReceipt(new NewReceipt(
                 req.spCode(), req.payerAccountId(), tarikhBayar,
                 "Resit bayaran", req.amount()));
+
+        // Resit adhoc dikeluarkan kepada ORANG, bukan kepada akaun.
+        //
+        // ADHOC-SALES ialah akaun teknikal yang dikongsi (V50) dan tidak
+        // membawa nama sesiapa, jadi 'Terima Daripada' pada resit kekal
+        // kosong dan pemegangnya melihat 'ADHOC-SALES' — rentetan yang
+        // tidak bermakna kepada orang awam yang keretanya dikunci.
+        //
+        // Disalin sebagai SNAPSHOT, bukan disoal melalui alokasi. Resit
+        // itu memang dikeluarkan kepada orang itu; membetulkan nama pada
+        // invois kemudian tidak sepatutnya menulis semula dokumen yang
+        // sudah dicetak (CASE-004: teks ialah snapshot papar).
+        //
+        // Selamat kerana guard di atas menjamin TEPAT SATU invois sasaran.
+        if (adhoc) {
+            em.createNativeQuery("""
+                    UPDATE financial_document r
+                      JOIN financial_document i ON i.id = :inv
+                       SET r.issued_to_name  = i.issued_to_name,
+                           r.issued_to_email = i.issued_to_email,
+                           r.issued_to_phone = i.issued_to_phone
+                     WHERE r.id = :resit
+                    """)
+                    .setParameter("inv", req.targetDocumentIds().get(0))
+                    .setParameter("resit", receiptDocId)
+                    .executeUpdate();
+        }
 
         // 2. Rekod payment (detail kaedah/ref)
         Payment payment = new Payment(req.spCode(), receiptDocId,

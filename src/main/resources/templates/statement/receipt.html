@@ -79,7 +79,9 @@ table.item td   { padding: 1.6mm 2mm; border-bottom: 0.4pt solid #ccc;
     <td style="width:52%; padding-right:6mm">
       <div class="bar">Terima Daripada</div>
       <div style="margin-top:2.5mm; line-height:1.45">
-        <div th:text="${h.billtoName()}"></div>
+        <!-- Resit adhoc: nama daripada DOKUMEN. Akaun ADHOC-SALES
+             dikongsi dan tidak membawa nama sesiapa (V50/V54). -->
+        <div th:text="${fmt.has(m.issuedToName())} ? ${m.issuedToName()} : ${h.billtoName()}"></div>
         <div th:if="${fmt.has(h.billtoEmail())}" th:text="${h.billtoEmail()}"></div>
         <div th:if="${fmt.has(h.billtoAddrLine1())}" th:text="${h.billtoAddrLine1()}"></div>
         <div th:if="${fmt.has(h.billtoAddrLine2())}" th:text="${h.billtoAddrLine2()}"></div>

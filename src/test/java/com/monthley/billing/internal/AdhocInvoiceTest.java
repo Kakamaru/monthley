@@ -275,6 +275,33 @@ class AdhocInvoiceTest {
     }
 
     @Test
+    @DisplayName("GUARD: satu resit untuk DUA invois adhoc ditolak")
+    void bayaranAdhocDuaSasaranDitolak() {
+        // Setiap invois adhoc dikeluarkan kepada orang BERBEZA. Satu resit
+        // yang membayar dua daripadanya tidak boleh menjawab "resit ini
+        // untuk siapa" — dan resit diserahkan kepada orang awam, bukan
+        // kepada SP yang memahami akaun teknikal.
+        //
+        // Semakan asal hanya menuntut senarai tidak KOSONG. UI menghadkan
+        // pilihan kepada satu, tetapi UI bukan guard.
+        var a = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        var b = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+
+        long akaunAdhoc = jdbc.sql(
+                "SELECT id FROM account WHERE sp_code = :sp AND account_type = 'ADHOC'")
+                .param("sp", SP).query(Long.class).single();
+
+        assertThatThrownBy(() -> payment.receivePayment(new NewPayment(
+                SP, akaunAdhoc, new BigDecimal("50.00"), PaymentMethod.CASH,
+                null, List.of(a.documentId(), b.documentId()), null, null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Satu resit untuk satu invois adhoc");
+    }
+
+    @Test
     @DisplayName("GUARD: bayaran adhoc DENGAN sasaran diterima")
     void bayaranAdhocDenganSasaranDiterima() {
         var inv = adhoc.create(SP, permintaan(
@@ -356,6 +383,37 @@ class AdhocInvoiceTest {
                 .contains("AHMAD PEMBELI")
                 .doesNotContain("Jualan Adhoc")
                 .doesNotContain("ADHOC-SALES");
+    }
+
+    @Test
+    @DisplayName("PDF resit adhoc: nama PENERIMA, bukan 'ADHOC-SALES'")
+    void pdfResitAdhocNamaPenerima() throws Exception {
+        // Resit diserahkan kepada ORANG AWAM. 'Terima Daripada' dibaca
+        // daripada billto_name AKAUN, dan akaun ADHOC-SALES dikongsi
+        // tanpa nama sesiapa — blok itu kekal kosong dan pemegang resit
+        // melihat 'ADHOC-SALES' sebagai satu-satunya pengenalan.
+        var inv = adhoc.create(SP, permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+
+        long akaunAdhoc = jdbc.sql(
+                "SELECT id FROM account WHERE sp_code = :sp AND account_type = 'ADHOC'")
+                .param("sp", SP).query(Long.class).single();
+
+        var r = payment.receivePayment(new NewPayment(
+                SP, akaunAdhoc, new BigDecimal("25.00"), PaymentMethod.CASH,
+                null, List.of(inv.documentId()), null, null, null));
+        em.flush();
+        em.clear();
+
+        var m = statements.receipt(SP, r.receiptDocumentId());
+        String t = teks(renderer.renderReceiptPdf(m));
+
+        assertThat(m.issuedToName()).isEqualTo("AHMAD PEMBELI");
+        assertThat(t)
+                .as("nama disalin ke dokumen RESIT semasa bayaran, bukan "
+                    + "disoal melalui alokasi — resit ialah snapshot")
+                .contains("AHMAD PEMBELI");
     }
 
     @Test

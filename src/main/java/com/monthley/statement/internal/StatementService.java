@@ -150,6 +150,7 @@ class StatementService implements StatementPort {
                 head.paymentMethod(), head.paymentRefNo(), head.remarks(),
                 head.amountPaid(),
                 head.advance() == null ? java.math.BigDecimal.ZERO : head.advance(),
+                head.issuedToName(),
                 head.cancelled(), items);
     }
 
