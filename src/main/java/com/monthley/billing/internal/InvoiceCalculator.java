@@ -33,9 +33,19 @@ class InvoiceCalculator {
         this.catalog = catalog;
     }
 
+    /**
+     * @param base     ufuk larian — julat period pada aras akaun. Kekal
+     *                 sebagai label dokumen (createAndPost) dan sebagai
+     *                 gate untuk produk yang sama atau lebih halus.
+     * @param runMonth bulan larian; diperlukan kerana anjakan mod kini
+     *                 dikenakan pada frekuensi yang lebih KASAR antara
+     *                 akaun dan produk (ADR 0013).
+     */
     List<CalculatedLine> linesFor(AccountView account,
                                   List<SubscriptionView> subscriptions,
                                   Charge base,
+                                  java.time.YearMonth runMonth,
+                                  com.monthley.shared.GenMode mode,
                                   BillingContext ctx) {
 
         List<CalculatedLine> lines = new ArrayList<>();
@@ -90,7 +100,8 @@ class InvoiceCalculator {
             }
 
             for (Charge charge : PeriodResolver.chargesFor(
-                    base, freq, product.anchorMonth(), effStart, effEnd)) {
+                    runMonth, mode, account.chargeFrequency(), freq,
+                    product.anchorMonth(), effStart, effEnd)) {
 
                 recurringLine(account, sub, product, charge, rate, canProrate, ctx)
                         .ifPresent(lines::add);

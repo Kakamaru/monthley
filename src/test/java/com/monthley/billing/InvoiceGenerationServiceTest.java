@@ -323,6 +323,87 @@ class InvoiceGenerationServiceTest {
     }
 
     /** Jumlah kredit ke satu kod GL untuk SPB. */
+    // ── ADR 0013: produk lebih kasar daripada akaun ──────────────────
+    //
+    // Data production JMB Serai Wangi: akaun MONTHLY, produk INSURANCE
+    // YEAR anchor 11 (November), RM231.50. Sebelum ADR 0013 larian Julai
+    // 2026 menghasilkan SIFAR invois INS pada ketiga-tiga mod — disahkan
+    // dengan ujian production langsung.
+
+    /** Produk YEAR anchor 11 + langganan, TANPA start_date. */
+    private void langganInsurans() {
+        em.createNativeQuery("""
+            INSERT INTO product (sp_code, code, name, charge_frequency, anchor_month,
+                                 unit_rate, main_product, mandatory, prorated,
+                                 late_penalty, status, created_at, updated_at, version)
+            VALUES ('SPB', 'INS', 'Insurance', 'YEAR', 11, 231.50,
+                    0, 0, 0, 0, 'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        long ins = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPB' AND code='INS'")
+                .getSingleResult()).longValue();
+
+        em.createNativeQuery("""
+            INSERT INTO account_subscription (sp_code, account_id, product_id, quantity,
+                                              start_date, status, created_at, updated_at, version)
+            VALUES ('SPB', :acc, :prod, 1, NULL, 'ACTIVE', NOW(), NOW(), 0)
+            """)
+            .setParameter("acc", accountId)
+            .setParameter("prod", ins)
+            .executeUpdate();
+        em.flush();
+    }
+
+    /** Baris INS sahaja — (period_start, amaun). */
+    @SuppressWarnings("unchecked")
+    private java.util.List<Object[]> barisInsurans() {
+        em.flush();
+        em.clear();
+        return em.createNativeQuery("""
+            SELECT l.period_start, l.amount
+            FROM   financial_document_line l
+            JOIN   product p ON p.id = l.product_id
+            WHERE  p.code = 'INS'
+            ORDER  BY l.id
+            """).getResultList();
+    }
+
+    @Test
+    @DisplayName("ADR 0013: INSURANCE anchor 11, POSTPAID Julai 2026 -> Nov 2024, PENUH")
+    void insuransDijanaPadaKitaranSelesai() {
+        langganInsurans();
+        startCharging(null);        // tiada Start Charging -> caj penuh
+
+        billing.generateForSp("SPB", YearMonth.of(2026, 7), GenMode.POSTPAID, ctx());
+
+        var baris = barisInsurans();
+        assertThat(baris)
+                .as("sebelum ADR 0013 ini KOSONG pada ketiga-tiga mod")
+                .hasSize(1);
+        assertThat((java.time.LocalDate) baris.get(0)[0])
+                .as("kitaran terakhir yang sudah SELESAI")
+                .isEqualTo(java.time.LocalDate.of(2024, 11, 1));
+        assertThat((BigDecimal) baris.get(0)[1]).isEqualByComparingTo("231.50");
+    }
+
+    @Test
+    @DisplayName("ADR 0013: larian Ogos selepas Julai -> TIADA INS kedua (idem_key)")
+    void insuransDicajSekaliSahaja() {
+        // Resolver memulangkan kitaran yang SAMA setiap larian; jaminan
+        // "sekali sahaja" kini dipegang oleh idem_key, bukan oleh fungsi
+        // tulen. Hanya ujian integrasi boleh membuktikannya.
+        langganInsurans();
+        startCharging(null);
+
+        billing.generateForSp("SPB", YearMonth.of(2026, 7), GenMode.POSTPAID, ctx());
+        assertThat(barisInsurans()).hasSize(1);
+
+        billing.generateForSp("SPB", YearMonth.of(2026, 8), GenMode.POSTPAID, ctx());
+        assertThat(barisInsurans())
+                .as("idem_key mesti menapis kitaran yang sama")
+                .hasSize(1);
+    }
+
     private java.math.BigDecimal glCredit(String code) {
         return (java.math.BigDecimal) em.createNativeQuery("""
                 SELECT COALESCE(SUM(jl.credit_amount), 0)

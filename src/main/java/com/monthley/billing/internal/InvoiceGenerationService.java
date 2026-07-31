@@ -87,7 +87,8 @@ public class InvoiceGenerationService {
 
             Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
 
-            List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
+            List<CalculatedLine> lines = calculator.linesFor(
+                    account, subs, base, runMonth, mode, ctx);
             if (lines.isEmpty()) { nothing++; continue; }
 
             int created = createGrouped(spCode, account, base, lines, ctx);
@@ -135,7 +136,8 @@ public class InvoiceGenerationService {
         }
 
         Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
-        List<CalculatedLine> lines = calculator.linesFor(account, subs, base, ctx);
+        List<CalculatedLine> lines = calculator.linesFor(
+                account, subs, base, runMonth, mode, ctx);
         if (lines.isEmpty()) {
             return new GenerationOutcome(0, 1, 0, 1, 0, java.util.Set.of());
         }
