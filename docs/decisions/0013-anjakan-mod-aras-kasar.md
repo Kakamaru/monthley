@@ -64,11 +64,35 @@ akaun dan produk.**
 
 Rumusan setara:
 
-| Mod | Kitaran yang dicaj (aras produk) |
+Frekuensi kasar itu menentukan **baldi kalendar**, dan peraturan sedia
+ada — caj kitaran yang BERMULA dalam period asas — mengendali anchor
+terapung tanpa kod baharu.
+
+| Mod | Baldi kalendar (larian Ogos 2026, aras YEAR) |
 |---|---|
-| POSTPAID | kitaran terakhir yang sudah SELESAI |
-| CURRENT | kitaran yang MENGANDUNGI bulan larian |
-| PREPAID | kitaran BERIKUTNYA |
+| POSTPAID | Jan–Dis **2025** |
+| CURRENT | Jan–Dis **2026** |
+| PREPAID | Jan–Dis **2027** |
+
+### Kenapa BALDI, bukan anchor
+
+Percubaan pertama memilih kitaran yang MENGANDUNGI bulan larian. Itu
+memberi jawapan berbeza bergantung sama ada anchor sudah tiba tahun
+itu. Bukti production, larian Ogos 2026, kedua-duanya CURRENT:
+
+| Anchor | Hasil | Kitaran bermula tahun |
+|---|---|---|
+| Januari | Jan–Dis 2026 | 2026 |
+| November | Nov 2025 – Okt 2026 | **2025** |
+
+Tetapan sama, tahun rujukan berbeza. Baldi kalendar menghapuskan
+percanggahan: CURRENT sentiasa merujuk tahun larian.
+
+**Kitaran yang belum bermula TIDAK digate.** CURRENT anchor 11 pada
+larian Ogos 2026 memberi Nov 2026 – Okt 2027, tiga bulan di hadapan.
+SP yang mahu kitaran berjalan menetapkan POSTPAID. Menggate CURRENT
+akan menjadikannya tidak konsisten dengan anchor Januari, yang juga
+memulangkan kitaran 2026.
 
 `account.charge_frequency` kekal menentukan UFUK — berapa kitaran
 ditarik dalam satu larian. Yang berubah hanya DI MANA anjakan mod
@@ -79,7 +103,7 @@ dikenakan.
 | Akaun | Produk | Lebih kasar | Larian Jul 2026 | Hasil |
 |---|---|---|---|---|
 | MONTHLY | MONTHLY | MONTHLY | POST -1 bulan | Jun 2026 (kekal) |
-| MONTHLY | YEAR anchor 11 | YEAR | POST -1 kitaran | **Nov 2024 – Okt 2025** |
+| MONTHLY | YEAR anchor 11 | YEAR | POST baldi 2025 | **Nov 2025 – Okt 2026** |
 | YEARLY | MONTHLY | YEAR | CURRENT | 12 caj Jan-Dis (kekal) |
 | QUARTERLY | MONTHLY | QUARTER | CURRENT | Jul/Ogos/Sep (kekal) |
 
@@ -92,26 +116,24 @@ menghasilkan sifar.
 diisi (akaun ATAU langganan, lihat 0263ce0) -> prorate dari situ;
 kosong -> kitaran dicaj PENUH.
 
-Contoh: INS anchor 11, kitaran Nov 2024 – Okt 2025, `start_charging`
-1 Jan 2025 -> prorate Jan 2025 hingga hujung kitaran. Tiada
-`start_charging` -> RM231.50 penuh.
+Contoh: INS anchor 11, `start_charging` 1 Jan 2025, larian Julai 2026
+POSTPAID -> DUA caj. Kitaran Nov 2024 – Okt 2025 yang dimasuki di
+tengah, diprorate dari 1 Jan 2025; dan kitaran Nov 2025 – Okt 2026
+penuh. Tiada `start_charging` -> satu caj, RM231.50 penuh.
 
-### Idempotency naik pangkat
+### Idempotency kekal sebagai jaring
 
-Di bawah peraturan ini resolver memulangkan kitaran YANG SAMA pada
-setiap larian sepanjang kitaran itu. `idem_key` yang menapis ulangan.
+Draf pertama keputusan ini memerlukan `idem_key` naik daripada
+pertahanan mendalam kepada peraturan sebenar, kerana resolver akan
+memulangkan kitaran yang sama pada setiap larian selama-lamanya.
 
-Ini BUKAN pelanggaran prinsip 2 (stateless atas stateful): "sudah
-dijana?" dijawab dengan BERTANYA kekangan DB, bukan dengan penunjuk
-boleh-ubah seperti `last_charged_period`. Tiada state baharu disimpan.
+Model baldi kalendar tidak memerlukannya. Gate `chargePoint` dalam
+period asas hidup seperti biasa: setiap larian dalam tahun 2026
+memberi baldi yang sama, tetapi larian 2027 memberi baldi berikutnya.
+Resolver kekal sebagai penjaga "sekali sahaja" dan `idem_key` kekal
+sebagai jaring.
 
-Tetapi `idem_key` berpindah daripada pertahanan mendalam kepada
-peraturan sebenar. Kalau ia tersilap, caj HILANG senyap — bukan
-sekadar terlepas pendua. Itu sebabnya V52 prasyarat: sebelumnya batal
-menyekat penjanaan semula selamanya.
-
-Soalan terbuka 11 (`idem_key` guna `period_start`, bukan `period_id`)
-menjadi lebih penting di bawah keputusan ini.
+Prinsip 2 (stateless atas stateful) tidak tersentuh.
 
 ---
 
