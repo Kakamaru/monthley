@@ -58,12 +58,16 @@ class StatementPdfWriterTest {
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 1, 10), "INVOICE", "INV-001",
                         "Penyelenggaraan & Kumpulan Wang Langsai", null, false,
+                        null, null, new BigDecimal("106.00"),
                         new BigDecimal("106.00"), new BigDecimal("106.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 2, 10), "INVOICE", "INV-002",
                         "Tersilap jana", "Dibatalkan oleh admin", true,
+                        java.time.LocalDateTime.of(2026, 2, 11, 14, 5), "3",
+                        new BigDecimal("106.00"),
                         BigDecimal.ZERO, new BigDecimal("106.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 3, 15), "RECEIPT", "RCP-001",
                         "Bayaran diterima", null, false,
+                        null, null, new BigDecimal("-106.00"),
                         new BigDecimal("-106.00"), BigDecimal.ZERO,
                         List.of(new StatementMatch("INV-001", "Penyelenggaraan",
                                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31),
@@ -74,6 +78,24 @@ class StatementPdfWriterTest {
         return new StatementModel(h, "TST", 1L,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
                 BigDecimal.ZERO, rows, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("Dokumen batal: amaun ASAL dan jejak audit dipaparkan")
+    void batalTunjukAmaunAsalDanAudit() throws Exception {
+        String t = teks(writer.renderPdf(model(header("JMB", "ms", true))));
+
+        // Model ujian: INV-002 batal, amaun asal 106.00, signed 0.00.
+        // Menyembunyikan 106.00 bermakna penyata tidak boleh diaudit —
+        // pembaca tidak dapat tahu berapa dokumen itu SEPATUTNYA.
+        assertThat(t)
+                .contains("INV-002")
+                .contains("Dibatalkan oleh admin");
+
+        // Jejak audit: BILA. Sebab sudah dipaparkan sebagai remark.
+        assertThat(t)
+                .as("cancelledAt mesti sampai ke PDF")
+                .contains("11/02/2026");
     }
 
     private String teks(byte[] pdf) throws Exception {
@@ -127,7 +149,7 @@ class StatementPdfWriterTest {
         var h = header("JMB", "ms", true);
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 7, 23), "INVOICE", "INV-P",
-                        "Invois", null, false,
+                        "Invois", null, false, null, null, new BigDecimal("100.00"),
                         new BigDecimal("100.00"), new BigDecimal("100.00"),
                         List.of(
                                 // bulan penuh -> 'Julai 2026'

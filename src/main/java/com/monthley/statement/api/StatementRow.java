@@ -10,7 +10,7 @@ import java.util.List;
  *
  * amount bertanda: positif menaikkan baki, negatif menurunkannya.
  * Dokumen batal mempunyai amount SIFAR — ia dipaparkan tetapi tidak
- * menggerakkan lajur baki.
+ * menggerakkan lajur baki. originalAmount membawa nombor asalnya.
  */
 public record StatementRow(
         LocalDate docDate,
@@ -19,6 +19,19 @@ public record StatementRow(
         String description,
         String remark,
         boolean cancelled,
+        /** Bila dibatalkan; null kalau tidak. */
+        java.time.LocalDateTime cancelledAt,
+        /** Siapa membatalkan — ID pengguna, bukan nama. */
+        String cancelledBy,
+        /**
+         * Amaun ASAL dokumen (amount + tax).
+         *
+         * Untuk dokumen batal {@code amount} ialah sifar supaya lajur baki
+         * tidak bergerak. Nombor asal tetap dipaparkan, dicoret — dokumen
+         * bernombor tidak hilang, dan menyembunyikan berapa ia SEPATUTNYA
+         * bermakna penyata tidak boleh diaudit.
+         */
+        BigDecimal originalAmount,
         BigDecimal amount,
         BigDecimal runningBalance,
         List<StatementMatch> matches) {

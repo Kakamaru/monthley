@@ -40,13 +40,17 @@ class StatementXlsxWriterTest {
 
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 1, 10), "INVOICE", "INV-X1",
-                        "Parking", null, false,
+                        "Parking", null, false, null, null, new BigDecimal("100.00"),
                         new BigDecimal("100.00"), new BigDecimal("100.00"), List.of()),
+                // Batal: amaun SIFAR pada lajur baki, tetapi 250.00 asal
+                // kekal dipaparkan (V53).
                 new StatementRow(LocalDate.of(2026, 2, 10), "INVOICE", "INV-X2",
                         "Tersilap", "Dibatalkan", true,
+                        java.time.LocalDateTime.of(2026, 2, 11, 9, 30), "7",
+                        new BigDecimal("250.00"),
                         BigDecimal.ZERO, new BigDecimal("100.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 3, 1), "RECEIPT", "RCP-X1",
-                        "Bayaran", null, false,
+                        "Bayaran", null, false, null, null, new BigDecimal("-100.00"),
                         new BigDecimal("-100.00"), BigDecimal.ZERO,
                         List.of(new StatementMatch("INV-X1", "Parking",
                                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31),
@@ -138,9 +142,17 @@ class StatementXlsxWriterTest {
     void amaunNumeric() throws Exception {
         try (Workbook wb = buka(writer.renderXlsx(model()))) {
             Row r = cariBarisPertamaData(wb.getSheet("Transaksi"));
-            assertThat(r.getCell(7).getCellType()).isEqualTo(CellType.NUMERIC);
-            assertThat(r.getCell(7).getNumericCellValue()).isEqualTo(100.00);
-            assertThat(r.getCell(8).getNumericCellValue()).isEqualTo(100.00);
+            // Amaun dan Baki bergeser ke 9 dan 10 selepas dua lajur
+            // pembatalan disisipkan (V53).
+            assertThat(r.getCell(9).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(r.getCell(9).getNumericCellValue()).isEqualTo(100.00);
+            assertThat(r.getCell(10).getNumericCellValue()).isEqualTo(100.00);
+
+            // Baris AKTIF: dua lajur pembatalan kosong, bukan sifar.
+            // Sifar akan disertakan dalam jumlah kalau pengguna memilih
+            // lajur Amaun Asal.
+            assertThat(r.getCell(7)).isNull();
+            assertThat(r.getCell(8)).isNull();
         }
     }
 
@@ -150,10 +162,33 @@ class StatementXlsxWriterTest {
         try (Workbook wb = buka(writer.renderXlsx(model()))) {
             String t = teks(wb.getSheet("Transaksi"));
             assertThat(t).contains("INV-X2").contains("Batal").contains("Dibatalkan");
+            // Amaun ASAL mesti kekal — penyata yang menyembunyikan berapa
+            // dokumen batal SEPATUTNYA tidak boleh diaudit.
+            assertThat(t).contains("250");
+
+            // Amaun Asal mesti NUMERIC, bukan teks — XLSX dibuka untuk
+            // ditapis dan dijumlah.
+            Row b = cariBarisBatal(wb.getSheet("Transaksi"));
+            assertThat(b.getCell(8).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(b.getCell(8).getNumericCellValue()).isEqualTo(250.00);
+            assertThat(b.getCell(9).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(b.getCell(7)).isNotNull();
         }
     }
 
     // ── bantuan ──────────────────────────────────────────────────────
+
+    /** Baris INV-X2 — satu-satunya dokumen batal dalam model ujian. */
+    private Row cariBarisBatal(Sheet sh) {
+        for (Row r : sh) {
+            Cell c3 = r.getCell(3);
+            if (c3 != null && c3.getCellType() == CellType.STRING
+                    && "INV-X2".equals(c3.getStringCellValue())) {
+                return r;
+            }
+        }
+        throw new IllegalStateException("baris batal tidak dijumpai");
+    }
 
     private Row cariBarisPertamaData(Sheet sh) {
         for (Row r : sh) {

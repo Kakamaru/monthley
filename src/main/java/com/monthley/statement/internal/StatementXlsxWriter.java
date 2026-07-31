@@ -58,8 +58,12 @@ class StatementXlsxWriter {
 
         r = kepala(sh, g, m, r);
 
+        // Dua lajur pembatalan sebagai lajur SENDIRI, bukan teks dalam
+        // Catatan: XLSX dibuka untuk ditapis dan dijumlah, dan nombor
+        // dalam sel teks tidak boleh dikira. Kosong untuk baris aktif.
         String[] tajuk = {"No.", "Tarikh", "Dokumen", "No. Dokumen",
-                          "Keterangan", "Catatan", "Status", "Amaun", "Baki"};
+                          "Keterangan", "Catatan", "Status",
+                          "Dibatalkan Pada", "Amaun Asal", "Amaun", "Baki"};
         int barisTajuk = r;
         Row hd = sh.createRow(r++);
         for (int c = 0; c < tajuk.length; c++) {
@@ -78,8 +82,14 @@ class StatementXlsxWriter {
             x.createCell(4).setCellValue(row.description());
             x.createCell(5).setCellValue(row.remark() == null ? "" : row.remark());
             x.createCell(6).setCellValue(row.cancelled() ? "Batal" : "Aktif");
-            wang(x, 7, row.amount(), g);
-            wang(x, 8, row.runningBalance(), g);
+            // Tarikh sebenar, bukan teks — prinsip sama seperti lajur
+            // Tarikh. Jam digugurkan; masa tepat ada pada PDF.
+            if (row.cancelled() && row.cancelledAt() != null) {
+                tarikh(x, 7, row.cancelledAt().toLocalDate(), g);
+                wang(x, 8, row.originalAmount(), g);
+            }
+            wang(x, 9, row.amount(), g);
+            wang(x, 10, row.runningBalance(), g);
         }
 
         // Baris jumlah — pengguna menjangka melihatnya tanpa menulis formula.
@@ -87,8 +97,8 @@ class StatementXlsxWriter {
         Cell lbl = jum.createCell(0);
         lbl.setCellValue("Baki Akhir (" + h.currency() + ")");
         lbl.setCellStyle(g.tebal);
-        sh.addMergedRegion(new CellRangeAddress(r, r, 0, 7));
-        Cell nilai = jum.createCell(8);
+        sh.addMergedRegion(new CellRangeAddress(r, r, 0, 9));
+        Cell nilai = jum.createCell(10);
         nilai.setCellValue(m.closingBalance().doubleValue());
         nilai.setCellStyle(g.wangTebal);
 
@@ -96,7 +106,7 @@ class StatementXlsxWriter {
         // tajuk besar pada baris 1 dan julat tarikh pada blok kepala. Itu
         // menjadikan lajur 'No.' selebar 'Penyata Akaun — JMB Ujian'.
         // Lebar ditetapkan secara eksplisit; unit POI ialah 1/256 aksara.
-        int[] lebar = {6, 12, 12, 16, 30, 22, 9, 14, 14};
+        int[] lebar = {6, 12, 12, 16, 30, 22, 9, 16, 14, 14, 14};
         for (int c = 0; c < lebar.length; c++) {
             sh.setColumnWidth(c, lebar[c] * 256);
         }

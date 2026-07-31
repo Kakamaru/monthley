@@ -69,6 +69,9 @@ class StatementService implements StatementPort {
                         keteranganFor(e, byDoc, fmt),
                         e.cancelReason(),
                         e.cancelled(),
+                        e.cancelledAt(),
+                        e.cancelledBy(),
+                        e.originalAmount(),
                         e.signedAmount(),
                         e.runningBalance(),
                         matchesFor(e, byCredit, byDoc)))

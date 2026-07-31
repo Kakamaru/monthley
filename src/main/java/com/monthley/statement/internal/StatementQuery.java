@@ -238,6 +238,10 @@ class StatementQuery {
                        e.doc_no,
                        e.title,
                        e.cancel_reason,
+                       e.cancelled_at,
+                       e.cancelled_by,
+                       e.amount,
+                       e.tax_amount,
                        e.status,
                        e.signed_amount,
                        :opening + SUM(e.signed_amount)
@@ -261,6 +265,13 @@ class StatementQuery {
                         rs.getString("doc_no"),
                         rs.getString("title"),
                         rs.getString("cancel_reason"),
+                        rs.getTimestamp("cancelled_at") != null
+                                ? rs.getTimestamp("cancelled_at").toLocalDateTime() : null,
+                        rs.getString("cancelled_by"),
+                        // Amaun ASAL dokumen. signed_amount sifar untuk
+                        // dokumen batal (V33) supaya baki tidak bergerak;
+                        // ini yang dipaparkan dicoret di sebelahnya.
+                        rs.getBigDecimal("amount").add(rs.getBigDecimal("tax_amount")),
                         "CANCELLED".equals(rs.getString("status")),
                         rs.getBigDecimal("signed_amount"),
                         rs.getBigDecimal("running_balance")))
@@ -361,7 +372,9 @@ class StatementQuery {
     }
 
     record DocumentEntry(long documentId, LocalDate docDate, String docType, String docNo,
-                         String title, String cancelReason, boolean cancelled,
+                         String title, String cancelReason,
+                         java.time.LocalDateTime cancelledAt, String cancelledBy,
+                         BigDecimal originalAmount, boolean cancelled,
                          BigDecimal signedAmount, BigDecimal runningBalance) {
     }
 }

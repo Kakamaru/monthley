@@ -459,6 +459,11 @@ class AccountController {
                              java.math.BigDecimal amount) {}
     record StatementLine(String date, String docNo, String docType, String item,
                          String remark, boolean cancelled,
+                         // Diformat DI SINI, bukan di frontend — alasan sama
+                         // seperti tempoh pada StatementMatchDto: peraturan
+                         // format tidak boleh wujud di dua tempat (guard 6).
+                         String cancelledAt, String cancelledBy,
+                         java.math.BigDecimal originalAmount,
                          java.math.BigDecimal amount, java.math.BigDecimal balance,
                          List<StatementMatchDto> matches) {}
     record StatementResponse(Long accountId, String accountNo, String accountName,
@@ -503,9 +508,15 @@ class AccountController {
                         fmt.period(x.periodStart(), x.periodEnd()),
                         x.amount()));
             }
+            // Jejak audit pembatalan dibawa ke portal juga. PDF, XLSX dan
+            // portal dibina daripada SATU StatementModel (ADR 0010);
+            // menampal dua sahaja bermakna portal memaparkan 0.00 tanpa
+            // nombor asal dan tanpa siapa membatalkannya.
             asc.add(new StatementLine(
                     r.docDate().toString(), r.docNo(), r.docType(),
                     r.description(), r.remark(), r.cancelled(),
+                    r.cancelledAt() == null ? null : fmt.dateTime(r.cancelledAt()),
+                    r.cancelledBy(), r.originalAmount(),
                     r.amount(), r.runningBalance(), m));
         }
 

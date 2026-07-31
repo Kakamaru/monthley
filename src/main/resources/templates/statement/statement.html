@@ -65,6 +65,8 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
 .docno      { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
               color: #333; white-space: nowrap; }
 .batal      { color: #999; }
+.coret      { text-decoration: line-through; color: #999; }
+.audit      { font-size: 8pt; color: #777; }
 .remark     { font-style: italic; font-size: 8.5pt; color: #555; }
 .sub        { font-size: 8.5pt; color: #333; padding-left: 4mm; }
 .sub td     { border-bottom: none; padding: 0.4mm 2mm; }
@@ -183,9 +185,22 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
         <td>
           <span th:text="${r.description()}"></span>
           <div th:if="${fmt.has(r.remark())}" class="remark" th:text="${r.remark()}"></div>
+          <!-- Jejak audit: SIAPA dan BILA. Sebab sudah dipaparkan sebagai
+               remark di atas. Ketiga-tiganya diperlukan supaya penyata
+               boleh diaudit tanpa membuka pangkalan data. -->
+          <div th:if="${r.cancelled() and r.cancelledAt() != null}"
+               class="audit"
+               th:text="'Dibatalkan ' + ${fmt.dateTime(r.cancelledAt())}
+                        + (${fmt.has(r.cancelledBy())} ? ' oleh ' + ${r.cancelledBy()} : '')"></div>
         </td>
         <td class="c" th:text="${r.cancelled()} ? '&#x2715;' : '&#x2713;'"></td>
-        <td class="r mono" th:text="${fmt.money(r.amount())}"></td>
+        <!-- Amaun asal dicoret di atas sifar: dokumen batal menunjukkan
+             berapa ia SEPATUTNYA, bukan sekadar bahawa ia sifar. -->
+        <td class="r mono">
+          <div th:if="${r.cancelled()}" class="coret"
+               th:text="${fmt.money(r.originalAmount())}"></div>
+          <span th:text="${fmt.money(r.amount())}"></span>
+        </td>
         <td class="r mono" th:text="${fmt.money(r.runningBalance())}"></td>
       </tr>
       <tr th:each="x : ${r.matches()}" class="sub">

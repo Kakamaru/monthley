@@ -20,6 +20,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Skrin dan PDF mesti menunjukkan penyata yang SAMA (ADR 0010).
  *
+ * Termasuk jejak audit pembatalan: PDF, XLSX dan portal dibina daripada
+ * SATU StatementModel. Menampal dua sahaja bermakna portal memaparkan
+ * 0.00 tanpa nombor asal dan tanpa siapa membatalkannya.
+ *
  * Versi terdahulu endpoint ini membina penyatanya sendiri: satu baris per
  * alokasi, plus baris 'advance' yang dikarang daripada (resit - alokasi).
  * Baris itu tidak wujud sebagai rekod — ia corak legacy yang CASE-004
