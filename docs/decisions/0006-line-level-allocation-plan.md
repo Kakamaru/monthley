@@ -1,6 +1,6 @@
 # ADR 0006 — Alokasi Peringkat Line (rancangan pelaksanaan)
 
-- **Status:** Dicadang — menunggu kelulusan sebelum kod
+- **Status:** Dilaksana — P1-P6 selesai 23 Julai 2026
 - **Tarikh:** 23 Julai 2026
 - **Menggantikan:** ADR 0005 (yang hanya mencatat isu)
 

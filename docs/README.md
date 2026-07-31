@@ -86,7 +86,7 @@ Terkini:
   LIMA pemanggil yang sebelum ini menyimpang. Baki boleh negatif (kredit).
   Advance di-knock automatik semasa jana bil, dengan posting ledger
   Dr Customer Deposit / Cr AR. Invariant alokasi kini dua sisi (debit + kredit).
-- **Alokasi peringkat line (ADR 0006, P1-P7 SELESAI)** — sistem tahu bayaran
+- **Alokasi peringkat line (ADR 0006, P1-P6 SELESAI)** — sistem tahu bayaran
   untuk produk mana. Legacy tidak dapat menjawab soalan ini. Backfill
   dijalankan pada SP0002; laporan kutipan ikut produk berkira dengan ledger.
 
@@ -194,7 +194,7 @@ line) menyasar keluarga-keluarga ini.
 | [0003](decisions/0003-account-adjustment.md) | Account adjustment | Diterima |
 | [0004](decisions/0004-manual-payment-idempotency.md) | Idempotency bayaran manual | Dilaksana |
 | [0005](decisions/0005-line-level-allocation.md) | Alokasi peringkat line — catatan isu | Digantikan 0006 |
-| [0006](decisions/0006-line-level-allocation-plan.md) | Alokasi peringkat line — rancangan | P1–P6 siap, P7 tinggal |
+| [0006](decisions/0006-line-level-allocation-plan.md) | Alokasi peringkat line — rancangan | P1–P6 dilaksana |
 | [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Kekangan; modul belum dibina |
 | [0008](decisions/0008-split-invoice-and-gen-day.md) | Split invois ialah binari | Digantikan sebahagian oleh 0011 |
 | [0009](decisions/0009-baki-tunggal-dan-advance.md) | Satu takrifan baki + guna advance | P1–P3 dilaksana |
@@ -248,6 +248,7 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 6 | Kes E CASE-003 (~0.1%) — hipotesis: amaun asas bocor dari txn serentak. Boleh diuji | Pengesahan punca |
 | 7 | Query duplicate J00 merentas 71 SP — belum dijalankan | Skop CASE-001 |
 | 8 | ~~`application-test.yml` menunjuk ke `monthley_new`~~ **SELESAI 28 Julai 2026** — ujian kini guna `monthley_test`. Cipta semula dengan `./mb testdb` (37 migrasi dari kosong). Backend boleh hidup semasa `mvn test` | ✓ |
+| 12 | ~~Prorata tidak dikenakan pada langganan pertengahan bulan~~ **DITARIK BALIK** (e3e207e) — dakwaan ditulis tanpa membaca kod. `InvoiceCalculator` menjadikan prorata bergantung pada `account.start_date`, NULL dengan sengaja (billing-rules §6). Baris dikekalkan supaya jurang nombor tidak disiasat semula | ✓ |
 | 13 | Checkbox pilihan invois pada Manual Payment dihantar tetapi DIABAIKAN apabila `allow_selective = 0` — kerani tanda enam invois, sistem bayar yang ketujuh tanpa amaran (ADR 0011) | UI hormati tetapan |
 | 14 | `sp_document_setting.selective_payment` tiada siapa membacanya; `service_provider.allow_selective` yang digunakan. Dua lajur satu konsep | Gugurkan yang mati |
 | 15 | `allowSelective` menelan RuntimeException dan mengembalikan false — kegagalan query mematikan pemilihan secara senyap | Log, jangan telan |
@@ -261,7 +262,6 @@ Butiran penuh: [`domain/billing-rules.md`](domain/billing-rules.md)
 | 26 | `DocumentPort.cancelDocument` awam membenarkan pembatalan TANPA melepaskan alokasi — `SplitByPeriodTest` menggunakannya. Tiada apa menghalang pemanggil baharu memilih laluan mentah | Jadikan pakej-peribadi, atau namakan `markCancelledOnly` |
 | 27 | ~~Endpoint cancel tiada ujian~~ **SELESAI 30 Julai** — `CancelEndpointTest`, 9 ujian. Disahkan dengan ujian mutasi: menanggalkan `requireRole` memerahkan dua ujian | ✓ |
 | 28 | **Sekatan modul ikut pakej** belum ada. CORAK DIPUTUSKAN 30 Julai: **benarkan masuk, sekat transaksi** — SP boleh membuka skrin dan melihat apa yang ditawarkan, tetapi tindakan yang mengubah data ditolak sehingga dilanggan. Manual Payment ialah rujukan corak (amaran + butang terkunci, backend tetap menguatkuasakan). Menyembunyikan menu ialah jualan yang hilang dan menu yang lenyap secara misteri bila pakej berubah. `sp_module_access` sebagai kebenaran sebenar, pakej sebagai template | Skema belum dibina |
-| 25 | **Label UI bercampur BM dan Inggeris** — 'List of Transaction' bersama 'Kod Produk'; 'Issued To' bersama 'No. Dokumen'; 'Search'/'Clear' bersama 'Tutup'. `sp_billing_setting.language` hanya digunakan dalam PDF; UI tiada mekanisme bahasa dan setiap label ditulis keras. Toggle EN/BM pada bar atas disyaki tidak berfungsi | Satu blok kerja i18n, bukan skrin demi skrin — membetulkan sambil membina bermakna menulis semula bila mekanisme masuk |
 | 23 | ~~**`cancelDocument` tidak membalikkan alokasi**~~ **SELESAI 30 Julai** — `cancelInvoice` melepaskan alokasi dan membalikkan ledger sebagai contra; `cancelReceipt` kini merekod sebab dan membatalkan token. Tiada ADR diperlukan: baki DITERBITKAN daripada dokumen (ADR 0009), jadi ia betul automatik | ✓ |
 | 24 | ~~Tiada penulis PDF **invois**~~ **SELESAI 29 Julai** — V43/V44 `invoice_header`, templat, penulis, endpoint. Nota kredit/debit masih menggunakan templat invois; nota kredit belum ada bentuk sendiri | ✓ separa |
 | 16 | ~~`PaymentResult.receiptId()` menyesatkan~~ **SELESAI 28 Julai** — kini `paymentId` dan `receiptDocumentId`, dua medan untuk dua maksud | ✓ |
@@ -305,7 +305,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] P3 penulis PDF + sub-baris padanan (ADR 0010)
 - [x] P4a `/accounts/my` guna `account_balance` (CASE-005)
 - [x] P4b tiga endpoint penyata + ujian pemilikan & penyewa (ADR 0010)
-- [ ] Penyata akaun: penulis XLSX, ambang baris (ADR 0010 P5-P6)
+- [x] Penyata akaun: penulis XLSX (`StatementXlsxWriter`, 4c50684)
+- [ ] Penyata akaun: ambang baris (ADR 0010 P6 — DITANGGUH selepas diukur)
 - [ ] Aliran e-mel + pautan awam + butang Pay (ADR 0011, CASE-006)
 - [ ] Kumpul ralat per akaun; jangan `break`
 
