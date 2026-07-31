@@ -222,7 +222,13 @@ class ManualPaymentController {
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         String sql = """
-            SELECT d.id, a.account_no, a.account_name, a.id, d.doc_no,
+            SELECT d.id, a.account_no,
+                   -- Invois adhoc dikeluarkan kepada BUKAN pelanggan dan
+                   -- disimpan di bawah satu akaun teknikal ADHOC-SALES
+                   -- (V50). Nama akaun itu 'Jualan Adhoc' — kerani yang
+                   -- mencari invois perlu melihat nama PENERIMA.
+                   COALESCE(NULLIF(d.issued_to_name,''), a.account_name) AS nama,
+                   a.id, d.doc_no,
                    COALESCE(p.name_, d.title) AS descr,
                    d.doc_date, d.due_date,
                    (d.amount + d.tax_amount) AS total,
