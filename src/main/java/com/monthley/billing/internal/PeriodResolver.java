@@ -162,54 +162,23 @@ public final class PeriodResolver {
         }
         validateAnchor(anchorMonth);
 
+        // Frekuensi yang lebih KASAR menentukan BALDI KALENDAR tempat
+        // anjakan mod dikenakan. basePeriod sudah sejajar kalendar, dan
+        // peraturan "caj kitaran yang BERMULA dalam period asas" sudah
+        // mengendali anchor terapung — tiada kod baharu diperlukan.
+        //
+        // Percubaan pertama memilih kitaran ikut ANCHOR (kitaran yang
+        // mengandungi hari ini). Itu memberi jawapan yang berbeza untuk
+        // anchor yang sudah tiba berbanding yang belum: larian Ogos 2026
+        // CURRENT memberi Jan-Dis 2026 untuk anchor Januari tetapi
+        // Nov 2025-Okt 2026 untuk anchor November. Satu merujuk 2026,
+        // satu merujuk 2025, pada tetapan yang sama.
         ChargeFrequency akaun = recurringOrMonthly(accountFreq);
+        ChargeFrequency kasar = akaun.months() >= productFreq.months()
+                ? akaun : productFreq;
 
-        // Akaun sama kasar atau lebih kasar: laluan sedia ada, tidak berubah.
-        if (akaun.months() >= productFreq.months()) {
-            return chargesFor(basePeriod(runMonth, mode, akaun),
-                              productFreq, anchorMonth, effectiveStart, effectiveEnd);
-        }
-        return kitaranKasar(runMonth, mode, productFreq, anchorMonth,
-                            effectiveStart, effectiveEnd);
-    }
-
-    /**
-     * Produk lebih kasar daripada akaun — SATU kitaran, dipilih oleh mod.
-     *
-     * Tiada gate "chargePoint dalam period asas" di sini: kitaran produk
-     * ITULAH periodnya, jadi gate tersebut sentiasa benar dan tidak
-     * bermakna. Akibatnya kitaran yang sama dipulangkan pada setiap larian
-     * sepanjang kitaran itu, dan idem_key yang menapis ulangan (ADR 0013,
-     * prasyarat V52).
-     */
-    private static List<Charge> kitaranKasar(YearMonth runMonth,
-                                             GenMode mode,
-                                             ChargeFrequency freq,
-                                             Integer anchorMonth,
-                                             LocalDate effectiveStart,
-                                             LocalDate effectiveEnd) {
-
-        LocalDate semasa = cycleStartFor(runMonth.atDay(1), freq, anchorMonth);
-        LocalDate mula = switch (mode) {
-            case CURRENT  -> semasa;
-            case PREPAID  -> semasa.plusMonths(freq.months());
-            case POSTPAID -> semasa.minusMonths(freq.months());
-        };
-        LocalDate tamat = mula.plusMonths(freq.months()).minusDays(1);
-
-        LocalDate chargePoint = (effectiveStart == null || effectiveStart.isBefore(mula))
-                ? mula : effectiveStart;
-
-        // Langganan bermula SELEPAS kitaran ini tamat — tiada caj. Ini yang
-        // menghalang caj untuk period sebelum akaun wujud.
-        if (chargePoint.isAfter(tamat)) return List.of();
-        if (effectiveEnd != null && effectiveEnd.isBefore(chargePoint)) return List.of();
-
-        LocalDate coverageEnd = (effectiveEnd != null && effectiveEnd.isBefore(tamat))
-                ? effectiveEnd : tamat;
-
-        return List.of(new Charge(PeriodIds.of(mula, freq),
-                                  mula, tamat, chargePoint, coverageEnd));
+        return chargesFor(basePeriod(runMonth, mode, kasar),
+                          productFreq, anchorMonth, effectiveStart, effectiveEnd);
     }
 
     // ── Dalaman ──────────────────────────────────────────────────────

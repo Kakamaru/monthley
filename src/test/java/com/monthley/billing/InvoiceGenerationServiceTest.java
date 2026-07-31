@@ -369,7 +369,7 @@ class InvoiceGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("ADR 0013: INSURANCE anchor 11, POSTPAID Julai 2026 -> Nov 2024, PENUH")
+    @DisplayName("ADR 0013: INSURANCE anchor 11, POSTPAID Julai 2026 -> Nov 2025, PENUH")
     void insuransDijanaPadaKitaranSelesai() {
         langganInsurans();
         startCharging(null);        // tiada Start Charging -> caj penuh
@@ -381,8 +381,8 @@ class InvoiceGenerationServiceTest {
                 .as("sebelum ADR 0013 ini KOSONG pada ketiga-tiga mod")
                 .hasSize(1);
         assertThat((java.time.LocalDate) baris.get(0)[0])
-                .as("kitaran terakhir yang sudah SELESAI")
-                .isEqualTo(java.time.LocalDate.of(2024, 11, 1));
+                .as("baldi kalendar 2025; kitaran yang BERMULA di dalamnya")
+                .isEqualTo(java.time.LocalDate.of(2025, 11, 1));
         assertThat((BigDecimal) baris.get(0)[1]).isEqualByComparingTo("231.50");
     }
 

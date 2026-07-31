@@ -43,8 +43,8 @@ class PeriodResolverTest {
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
             assertEquals(1, c.size(), "sebelum ADR 0013 ini kosong");
-            assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart());
-            assertEquals(LocalDate.of(2025, 10, 31), c.get(0).cycleEnd());
+            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2026, 10, 31), c.get(0).cycleEnd());
             assertTrue(c.get(0).isFullCycle(), "tiada start charging -> caj PENUH");
         }
 
@@ -56,8 +56,27 @@ class PeriodResolverTest {
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
             assertEquals(1, c.size());
-            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart());
-            assertEquals(LocalDate.of(2026, 10, 31), c.get(0).cycleEnd());
+            assertEquals(LocalDate.of(2026, 11, 1), c.get(0).cycleStart(),
+                    "baldi 2026; kitaran belum bermula TIDAK digate — "
+                    + "SP yang mahu kitaran berjalan menetapkan POSTPAID");
+            assertEquals(LocalDate.of(2027, 10, 31), c.get(0).cycleEnd());
+        }
+
+        @Test
+        @DisplayName("CURRENT anchor Januari DAN November sama-sama merujuk 2026")
+        void currentKonsistenMerentasAnchor() {
+            // Bukti production: larian Ogos 2026 CURRENT memberi Jan-Dis 2026
+            // untuk anchor Januari tetapi Nov 2025-Okt 2026 untuk anchor
+            // November. Tetapan sama, tahun rujukan berbeza.
+            List<Charge> jan = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 8), GenMode.CURRENT,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 1, null, null);
+            List<Charge> nov = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 8), GenMode.CURRENT,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+
+            assertEquals(2026, jan.get(0).cycleStart().getYear());
+            assertEquals(2026, nov.get(0).cycleStart().getYear());
         }
 
         @Test
@@ -68,8 +87,8 @@ class PeriodResolverTest {
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
             assertEquals(1, c.size());
-            assertEquals(LocalDate.of(2026, 11, 1), c.get(0).cycleStart());
-            assertEquals(LocalDate.of(2027, 10, 31), c.get(0).cycleEnd());
+            assertEquals(LocalDate.of(2027, 11, 1), c.get(0).cycleStart());
+            assertEquals(LocalDate.of(2028, 10, 31), c.get(0).cycleEnd());
         }
 
         @Test
@@ -83,35 +102,65 @@ class PeriodResolverTest {
                         ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
                 assertEquals(1, c.size(), "bulan " + m);
-                assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart(),
+                assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart(),
                         "bulan " + m + " mesti kitaran yang sama");
             }
         }
 
         @Test
-        @DisplayName("Sempadan: larian November 2026 -> kitaran BERIKUTNYA")
-        void sempadanKitaranMaju() {
-            List<Charge> c = PeriodResolver.chargesFor(
-                    YearMonth.of(2026, 11), GenMode.POSTPAID,
-                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
+        @DisplayName("Baldi kalendar, bukan anchor: Jan dan Dis larian sama")
+        void baldiKalendarBukanAnchor() {
+            // Anchor terapung tidak menganjak baldi. Larian Januari dan
+            // Disember 2026 kedua-duanya baldi 2026 pada aras YEAR.
+            for (int m : new int[]{1, 12}) {
+                List<Charge> c = PeriodResolver.chargesFor(
+                        YearMonth.of(2026, m), GenMode.POSTPAID,
+                        ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11, null, null);
 
-            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart(),
-                    "kitaran maju satu apabila anchor dilepasi");
+                assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart(),
+                        "bulan larian " + m);
+            }
         }
 
         @Test
-        @DisplayName("Start Charging 1 Jan 2025 -> prorate Jan-Okt 2025")
-        void startChargingMemprorate() {
+        @DisplayName("Start Charging 1 Jan 2025 -> DUA caj: baki kitaran lama + kitaran penuh")
+        void startChargingMenangkapKitaranBerjalan() {
+            // Akaun mula 1 Jan 2025 berada di TENGAH kitaran Nov 2024-Okt 2025.
+            // Cabang "akaun masuk tengah kitaran" menangkapnya kerana
+            // effectiveStart jatuh dalam baldi 2025, dan kitaran yang BERMULA
+            // dalam baldi itu (Nov 2025) turut dicaj. Dua caj satu larian —
+            // corak sama seperti akaun tahunan dengan produk bulanan.
             List<Charge> c = PeriodResolver.chargesFor(
                     YearMonth.of(2026, 7), GenMode.POSTPAID,
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11,
                     LocalDate.of(2025, 1, 1), null);
 
-            assertEquals(1, c.size());
+            assertEquals(2, c.size());
+
+            // Kitaran berjalan yang dimasuki: prorate dari 1 Jan 2025.
             assertEquals(LocalDate.of(2024, 11, 1), c.get(0).cycleStart());
             assertEquals(LocalDate.of(2025, 1, 1), c.get(0).coverageStart());
             assertEquals(LocalDate.of(2025, 10, 31), c.get(0).coverageEnd());
             assertFalse(c.get(0).isFullCycle(), "penyebut kekal kitaran penuh");
+
+            // Kitaran berikutnya: penuh.
+            assertEquals(LocalDate.of(2025, 11, 1), c.get(1).cycleStart());
+            assertTrue(c.get(1).isFullCycle());
+        }
+
+        @Test
+        @DisplayName("Start Charging LAMA -> satu caj penuh, tiada kitaran lama ditarik")
+        void startChargingLamaTiadaKesan() {
+            // 1 Jan 2020 jauh sebelum baldi 2025, jadi cabang tengah-kitaran
+            // tidak berdenyut. Hanya kitaran yang bermula dalam baldi.
+            List<Charge> c = PeriodResolver.chargesFor(
+                    YearMonth.of(2026, 7), GenMode.POSTPAID,
+                    ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11,
+                    LocalDate.of(2020, 1, 1), null);
+
+            assertEquals(1, c.size());
+            assertEquals(LocalDate.of(2025, 11, 1), c.get(0).cycleStart());
+            assertTrue(c.get(0).isFullCycle());
         }
 
         @Test
@@ -120,9 +169,9 @@ class PeriodResolverTest {
             List<Charge> c = PeriodResolver.chargesFor(
                     YearMonth.of(2026, 7), GenMode.POSTPAID,
                     ChargeFrequency.MONTHLY, ChargeFrequency.YEAR, 11,
-                    LocalDate.of(2026, 3, 1), null);
+                    LocalDate.of(2027, 3, 1), null);
 
-            assertTrue(c.isEmpty(), "kitaran Nov24-Okt25 tamat sebelum langganan mula");
+            assertTrue(c.isEmpty(), "kitaran Nov25-Okt26 tamat sebelum langganan mula");
         }
 
         @Test
