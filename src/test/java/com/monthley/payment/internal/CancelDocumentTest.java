@@ -359,6 +359,54 @@ class CancelDocumentTest {
     }
 
     @Test
+    @DisplayName("batal INVOIS membebaskan idem_key — kerani boleh jana semula")
+    void batalInvoisBolehJanaSemula() {
+        // Produk dan period SAMA untuk kedua-dua percubaan; hanya doc_no
+        // berbeza. Kalau produk berbeza, idem_key berbeza dan ujian ini
+        // lulus tanpa membuktikan apa-apa.
+        long pid = periodJulai();
+        long prod = produk("P-REGEN", "150.00");
+
+        long pertama = buatInvois(prod, pid, "CX-REGEN-1", "150.00").orElseThrow();
+
+        // Sebelum batal: kunci dipegang, penjanaan semula DITOLAK.
+        assertThat(buatInvois(prod, pid, "CX-REGEN-2", "150.00"))
+                .as("idem_key menghalang pendua semasa invois masih aktif")
+                .isEmpty();
+
+        payment.cancelInvoice(pertama, "amaun salah", 99L);
+        em.flush();
+        em.clear();
+
+        // Selepas batal: kunci dibebaskan (V52 doc_cancelled), jana semula
+        // dibenarkan. Legacy: penunjuk last_charged_period kekal set dan
+        // produk tersekat selamanya.
+        assertThat(buatInvois(prod, pid, "CX-REGEN-3", "150.00"))
+                .as("batal mesti membebaskan idem_key")
+                .isPresent();
+
+        // Dokumen batal KEKAL — dipapar dengan kesan sifar, tidak hilang.
+        assertThat(jdbc.sql("SELECT status FROM financial_document WHERE id = :id")
+                        .param("id", pertama).query(String.class).single())
+                .isEqualTo("CANCELLED");
+    }
+
+    /** Invois atas produk dan period yang DIBERI — helper invois() mencipta
+     *  produk baharu setiap kali, jadi ia tidak boleh menguji idempotency. */
+    private java.util.Optional<Long> buatInvois(long produkId, long pid,
+                                                String docNo, String amaun) {
+        var line = new NewDocumentLine(produkId, acc, pid,
+                "Yuran", BigDecimal.ONE, new BigDecimal(amaun), BigDecimal.ONE,
+                new BigDecimal(amaun), BigDecimal.ZERO,
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), false);
+        var id = documents.createInvoice(new NewInvoice(SP, acc, pid,
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
+                docNo, List.of(line)));
+        em.flush();
+        return id;
+    }
+
+    @Test
     @DisplayName("batal INVOIS dua kali ditolak")
     void batalInvoisDuaKali() {
         long inv = invois("CX-INV-11", "90.00");

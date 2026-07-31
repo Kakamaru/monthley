@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 interface DocumentLineRepository extends JpaRepository<FinancialDocumentLine, Long> {
 
     /** Baris berulang: kunci = (akaun, produk, mula liputan). Padan idem_key. */
-    boolean existsByAccountIdAndProductIdAndPeriodStartAndActiveTrue(
+    boolean existsByAccountIdAndProductIdAndPeriodStartAndActiveTrueAndDocCancelledFalse(
             Long accountId, Long productId, java.time.LocalDate periodStart);
 
     /**
@@ -13,6 +13,6 @@ interface DocumentLineRepository extends JpaRepository<FinancialDocumentLine, Lo
      * periodStart untuk 1T ialah 1 Jan tahun semasa, jadi semakan di atas
      * akan terlepas caj tahun berikutnya. Padan idem_key ':ONCE'. Rujuk V18.
      */
-    boolean existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrue(
+    boolean existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrueAndDocCancelledFalse(
             Long accountId, Long productId);
 }

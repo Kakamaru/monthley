@@ -73,6 +73,7 @@ Terkini:
 | V49 | `issued_to_phone` + `remarks` pada dokumen |
 | V50 | Akaun `ADHOC-SALES` per SP, dikecualikan daripada kuota |
 | V51 | Butiran penerima pada `invoice_header` — invois adhoc |
+| V52 | `doc_cancelled` pada baris — batal membebaskan `idem_key` |
 
 ### Siap
 
@@ -112,7 +113,10 @@ Terkini:
 
 **Bayaran**
 - Batal resit DAN invois dengan pembalikan penuh — alokasi dilepaskan,
-  ledger dibalikkan sebagai contra, token pautan dibatalkan
+  ledger dibalikkan sebagai contra, token pautan dibatalkan, dan `idem_key`
+  DIBEBASKAN supaya kerani boleh jana semula (V52). `active` TIDAK digunakan
+  untuk ini: ia bermaksud baris ditarik balik, dan baris tidak aktif hilang
+  daripada penyata — dokumen batal mesti kekal kelihatan, ditanda batal.
 - **Invois adhoc** — invois kepada bukan pelanggan (caj clamp, jualan
   pameran). Satu akaun `ADHOC-SALES` per SP; FIFO disekat dan lebihan
   ditolak kerana invois di dalamnya milik orang yang tiada kaitan.

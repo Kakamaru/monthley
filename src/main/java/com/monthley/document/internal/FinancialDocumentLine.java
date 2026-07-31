@@ -70,6 +70,18 @@ public class FinancialDocumentLine {
     private boolean active = true;
 
     // idem_key = generated column dalam DB (STORED) — read-only di sini
+    /**
+     * Denormal daripada financial_document.status (V52).
+     *
+     * Lajur terjana hanya boleh membaca barisnya sendiri, jadi status
+     * dokumen mesti hadir di sini untuk idem_key mengambil kira. `active`
+     * TIDAK digunakan: ia bermaksud baris ditarik balik, dan baris tidak
+     * aktif hilang daripada penyata (V36/V47). Dokumen batal mesti kekal
+     * kelihatan.
+     */
+    @Column(name = "doc_cancelled", nullable = false)
+    private boolean docCancelled = false;
+
     @Column(name = "idem_key", insertable = false, updatable = false)
     private String idemKey;
 
@@ -97,6 +109,8 @@ public class FinancialDocumentLine {
     }
 
     void setDocument(FinancialDocument d) { this.document = d; }
+
+    void markDocCancelled() { this.docCancelled = true; }
 
     public Long getId() { return id; }
     public Long getPeriodId() { return periodId; }

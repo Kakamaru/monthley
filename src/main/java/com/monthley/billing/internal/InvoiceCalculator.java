@@ -124,7 +124,11 @@ class InvoiceCalculator {
      *
      * Legacy guna sub.last_charged_period sebagai penunjuk — batalkan invois
      * dan produk tersekat selamanya. Kita guna idem_key dengan onceOnly=true:
-     * batal -> active=0 -> idem_key NULL -> boleh jana semula.
+     * batal -> doc_cancelled=1 -> idem_key NULL -> boleh jana semula (V52).
+     *
+     * Sehingga V52 komen ini menyebut active=0, tetapi TIADA kod pernah
+     * menetapkannya — mekanisme didokumenkan, tidak dibina, dan ralat
+     * legacy yang sama hidup di sini.
      *
      * Rujukan: legacy-generator-analysis.md §3.4, V18
      */

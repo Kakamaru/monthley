@@ -115,10 +115,6 @@ public class FinancialDocument extends BaseEntity {
         this.taxAmount = java.math.BigDecimal.ZERO;
     }
 
-    public void markCancelled() {
-        markCancelled(null, null);
-    }
-
     /**
      * Lajur cancelled_by dan cancel_reason wujud sejak V1 tetapi tidak
      * pernah diisi — markCancelled() mengisi cancelledAt sahaja. Dialog

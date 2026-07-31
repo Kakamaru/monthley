@@ -36,10 +36,13 @@ class DocumentService implements DocumentPort {
         //       ledger tak padan dokumen.
         for (NewDocumentLine l : inv.lines()) {
             if (inv.skipDuplicateCheck()) break;
+            // Mesti selaras dengan idem_key (V52). Kalau kekangan DB
+            // membenarkan tetapi semakan ini menyekat, sekatan cuma
+            // berpindah dan batal-lalu-jana-semula tetap mustahil.
             boolean exists = l.onceOnly()
-                    ? lines.existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrue(
+                    ? lines.existsByAccountIdAndProductIdAndOnceOnlyTrueAndActiveTrueAndDocCancelledFalse(
                             l.accountId(), l.productId())
-                    : lines.existsByAccountIdAndProductIdAndPeriodStartAndActiveTrue(
+                    : lines.existsByAccountIdAndProductIdAndPeriodStartAndActiveTrueAndDocCancelledFalse(
                             l.accountId(), l.productId(), l.periodStart());
             if (exists) return Optional.empty();
         }
@@ -108,6 +111,10 @@ class DocumentService implements DocumentPort {
         documents.findById(documentId)
                 .map(d -> {
                     d.markCancelled(reason, cancelledBy);
+                    // Bebaskan idem_key supaya kerani boleh jana semula
+                    // (V52). Di SINI, bukan dalam PaymentService: setiap
+                    // laluan batal — invois, resit, adhoc — lalu kaedah ini.
+                    d.getLines().forEach(FinancialDocumentLine::markDocCancelled);
                     // Pautan awam mesti berhenti berfungsi. Tanpa ini
                     // pelanggan membuka pautan e-mel dan melihat dokumen
                     // yang dibatalkan seolah-olah sah — dan menganggapnya
