@@ -1,7 +1,7 @@
 # Monthley — Dokumentasi
 
 > **Mula di sini.** Dokumen ini indeks + keadaan semasa.
-> Kemas kini: 25 Julai 2026
+> Kemas kini: 31 Julai 2026
 
 Projek: penulisan semula greenfield Monthley — SaaS bil berulang multi-tenant
 oleh Rapidevelop Technology Sdn Bhd. Sistem lama (`p302_my`) masih hidup,
@@ -40,8 +40,12 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V32 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V51 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
+
+Migrasi ditulis manual pada DUA pangkalan data: `monthley_new` (pembangunan)
+dan `monthley_test` (ujian). Lihat cara-kerja guard 7 — dirantai dengan `&&`
+supaya kegagalan separuh tidak menyebabkan kedua-duanya menyimpang.
 
 Terkini:
 
@@ -57,6 +61,18 @@ Terkini:
 | V30 | `fi_allocation.debit_document_line_id` — alokasi peringkat line (ADR 0006) |
 | V31 | Gugurkan `invoice_grouping` — split ialah binari (ADR 0008) |
 | V32 | VIEW `account_balance` — satu takrifan baki (ADR 0009) |
+| V33–V37 | VIEW penyata: entri dokumen, padanan alokasi, kepala, baris caj |
+| V38 | VIEW `receipt_header` — resit PDF |
+| V39–V40 | `payment.remarks` (CASE-008 kes 4) |
+| V41 | `document_number_sequence.last_prefix` — reset bila prefix berubah (ADR 0012) |
+| V42 | `document_access_token` — pautan awam tanpa log masuk (CASE-006) |
+| V43–V44 | VIEW `invoice_header` — invois PDF |
+| V45–V46 | `document_payment_status` — PAID / PARTIAL / UNPAID |
+| V47 | `document_line_payment_status` — status bayaran peringkat BARIS |
+| V48 | `fi_allocation.account_id` nullable — asas invois adhoc |
+| V49 | `issued_to_phone` + `remarks` pada dokumen |
+| V50 | Akaun `ADHOC-SALES` per SP, dikecualikan daripada kuota |
+| V51 | Butiran penerima pada `invoice_header` — invois adhoc |
 
 ### Siap
 
@@ -80,6 +96,28 @@ Terkini:
 - Proration, pembundaran denominasi, ONE_TIME sekali seumur hidup
 - `BillingSettingsPort` — tetapan dibaca dari `sp_billing_setting`
 
+**Dokumen**
+- **Penyata akaun (ADR 0010, P1-P5)** — PDF, XLSX dan portal pelanggan
+  daripada SATU model. P6 (ambang baris, tak segerak) DITANGGUH selepas
+  diukur: 1000 baris dirender dalam 1.2 saat, dua puluh kali ganda saiz
+  pengeluaran.
+- **Resit PDF** — dua tarikh dibezakan (diterima lawan dikeluarkan),
+  kuantiti sebagai kadaran bayaran, catatan kerani
+- **Invois PDF** — ringkasan tiga lajur; 'Adjustments' legacy digugurkan
+  kerana pelarasan ialah dokumen berasingan
+- **Dokumen Kewangan** — cari semua jenis, status bayaran, tapis ikut
+  produk pada peringkat BARIS, muat turun CSV, batal, hantar semula
+- **Penomboran dokumen (ADR 0012)** — prefix, saiz dan nombor mula
+  daripada tetapan SP; reset apabila prefix berubah
+
+**Bayaran**
+- Batal resit DAN invois dengan pembalikan penuh — alokasi dilepaskan,
+  ledger dibalikkan sebagai contra, token pautan dibatalkan
+- **Invois adhoc** — invois kepada bukan pelanggan (caj clamp, jualan
+  pameran). Satu akaun `ADHOC-SALES` per SP; FIFO disekat dan lebihan
+  ditolak kerana invois di dalamnya milik orang yang tiada kaitan.
+- E-mel resit dengan pautan awam tanpa log masuk (CASE-006)
+
 **Aplikasi**
 - Auth: register, verify, login, forgot/reset password (Resend)
 - Settings: Profile, Sales Tax, Localization, Invoice, Receipt, Penalty, Roles
@@ -87,26 +125,36 @@ Terkini:
 - Panel Utama (dashboard SP) — statistik agregat, carta kutipan
 - Responsive mobile: portal shell (drawer) + 6 skrin utama
 
-Ujian: 18 kelas, regresi penuh hijau.
+Ujian: **282**, regresi penuh hijau.
 
 ### Sedang berjalan
 
-- **Dashboard v2 (frontend).** Reka bentuk baharu: kad Terkumpul dengan
-  sasaran, donut kadar bayar, Invois vs Kutipan (bar berganda), Kutipan Ikut
-  Produk (donut). **Semua endpoint sudah sedia** — `summary` (dengan sasaran,
-  kadar bayar, MoM), `invoice-vs-collection` (3 siri), `collection-by-product`.
-  Tinggal frontend.
+**Dashboard v2 SIAP** — kedua-dua portal pelanggan dan Panel Utama SP.
+Yang tinggal ialah gantung pada ciri yang belum dibina, bukan dashboard
+itu sendiri:
 
-### Belum hidup (mula di sini sesi depan)
+| Skrin | Tinggal |
+|---|---|
+| Portal pelanggan | Butang "Bayar Semua" — perlukan payment gateway dan gabungan invois merentas SP |
+| Portal pelanggan | Muat turun resit dan invois belum berfungsi |
+| Portal pelanggan | Butang "Clear" pada carian sejarah |
+| Panel Utama SP | "Lihat semua" pada Transaksi Terkini — pautan mati |
+| Panel Utama SP | "Laporan" pada Tunggakan — modul Laporan belum dibina |
+| Panel Utama SP | Data belum disahkan lawan pengeluaran (UI/UX sudah muktamad) |
+
+### Belum hidup
 
 | Kerja | Nota |
 |---|---|
 | **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
-
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | `cached_balance` lajur mati | Diisytihar dalam entity, tidak dibaca/ditulis. Perlu digugurkan. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
 | PER_USE, kumpul ralat per akaun | Belum |
+| Tapisan produk pada skrin Akaun | Diminta 30 Julai; modal Adhoc akan guna semula |
+| Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
+| i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
+| Sekatan modul ikut pakej | Corak diputuskan: benarkan masuk, sekat transaksi (soalan 28) |
 
 ---
 
@@ -148,6 +196,11 @@ line) menyasar keluarga-keluarga ini.
 | [0005](decisions/0005-line-level-allocation.md) | Alokasi peringkat line — catatan isu | Digantikan 0006 |
 | [0006](decisions/0006-line-level-allocation-plan.md) | Alokasi peringkat line — rancangan | P1–P6 siap, P7 tinggal |
 | [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Kekangan; modul belum dibina |
+| [0008](decisions/0008-split-invoice-and-gen-day.md) | Split invois ialah binari | Digantikan sebahagian oleh 0011 |
+| [0009](decisions/0009-baki-tunggal-dan-advance.md) | Satu takrifan baki + guna advance | P1–P3 dilaksana |
+| [0010](decisions/0010-penyata-akaun.md) | Penyata akaun | P1–P5 siap; P6 ditangguh selepas diukur |
+| [0011](decisions/0011-split-ikut-tempoh.md) | Split ikut TEMPOH, bukan produk sahaja | Dilaksana |
+| [0012](decisions/0012-penomboran-dokumen.md) | Penomboran baca tetapan SP | Dilaksana |
 
 ---
 
