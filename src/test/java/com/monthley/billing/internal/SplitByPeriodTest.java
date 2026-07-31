@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Split ikut PRODUK dan TEMPOH (ADR 0011, meminda ADR 0008).
@@ -170,6 +171,21 @@ class SplitByPeriodTest {
     }
 
     @Test
+    @DisplayName("batal ID yang tidak wujud melontar, bukan pulang senyap")
+    void batalIdTakWujudMelontar() {
+        // Terus pada port, MEMINTAS controller. Controller ada guardnya
+        // sendiri; ujian ini mengunci tingkah laku service, kerana
+        // pemanggil baharu boleh memintas controller.
+        //
+        // Sebelum 31 Julai 2026 ini `ifPresent` — pulang SENYAP dan
+        // pemanggil percaya pembatalan berjaya.
+        assertThatThrownBy(() ->
+                documents.cancelDocument(99999999L, "cuba", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("99999999");
+    }
+
+    @Test
     @DisplayName("SEBAB perubahan ini: batal satu tempoh, yang lain tidak tersentuh")
     void batalSatuTempohSahaja() {
         billing.generateForSp(SP, YearMonth.of(2026, 3), GenMode.CURRENT, ctx(true));
@@ -180,7 +196,7 @@ class SplitByPeriodTest {
 
         // Kadar berubah selepas AGM: batalkan tempoh terakhir sahaja.
         Long sasaran = ((Number) docs.get(docs.size() - 1)[0]).longValue();
-        documents.cancelDocument(sasaran);
+        documents.cancelDocument(sasaran, "kadar berubah selepas AGM", null);
         em.flush();
         em.clear();
 

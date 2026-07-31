@@ -101,19 +101,21 @@ class DocumentService implements DocumentPort {
 
     @Override
     @Transactional
-    public void cancelDocument(Long documentId) {
-        cancelDocument(documentId, null, null);
-    }
-
-    @Override
-    @Transactional
     public void cancelDocument(Long documentId, String reason, Long cancelledBy) {
-        documents.findById(documentId).ifPresent(d -> {
-            d.markCancelled(reason, cancelledBy);
-            // Pautan awam mesti berhenti berfungsi. Tanpa ini pelanggan
-            // membuka pautan e-mel dan melihat dokumen yang dibatalkan
-            // seolah-olah sah — dan menganggapnya bukti bayaran.
-            access.revoke(documentId);
-        });
+        // orElseThrow, bukan ifPresent: ID yang tidak wujud dahulu pulang
+        // SENYAP dan pemanggil percaya pembatalan berjaya. Controller ada
+        // guard sendiri, tetapi pemanggil yang memintasnya tidak.
+        documents.findById(documentId)
+                .map(d -> {
+                    d.markCancelled(reason, cancelledBy);
+                    // Pautan awam mesti berhenti berfungsi. Tanpa ini
+                    // pelanggan membuka pautan e-mel dan melihat dokumen
+                    // yang dibatalkan seolah-olah sah — dan menganggapnya
+                    // bukti bayaran.
+                    access.revoke(documentId);
+                    return d;
+                })
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Dokumen tak wujud: " + documentId));
     }
 }

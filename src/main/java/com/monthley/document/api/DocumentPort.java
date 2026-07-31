@@ -50,8 +50,4 @@ public interface DocumentPort {
      * yang melakukan kedua-duanya.
      */
     void cancelDocument(Long documentId, String reason, Long cancelledBy);
-
-    /** @deprecated sebab pembatalan hilang; gunakan varian tiga argumen. */
-    @Deprecated
-    void cancelDocument(Long documentId);
 }
