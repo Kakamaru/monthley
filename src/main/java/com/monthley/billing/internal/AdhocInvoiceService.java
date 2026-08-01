@@ -140,9 +140,9 @@ public class AdhocInvoiceService {
                        issued_to_phone = :fon, remarks = :catatan
                 WHERE  id = :id
                 """)
-                .setParameter("nama", req.issuedToName().trim())
+                .setParameter("nama", req.issuedToName().trim().toUpperCase())
                 .setParameter("emel", kosongJadiNull(req.issuedToEmail()))
-                .setParameter("fon", kosongJadiNull(req.issuedToPhone()))
+                .setParameter("fon", digitSahaja(req.issuedToPhone()))
                 .setParameter("catatan", kosongJadiNull(req.remarks()))
                 .setParameter("id", docId.get())
                 .executeUpdate();
@@ -237,5 +237,21 @@ public class AdhocInvoiceService {
 
     private static String kosongJadiNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
+    }
+
+    /**
+     * Telefon sebagai DIGIT sahaja.
+     *
+     * Borang menyekat input kepada digit, tetapi borang bukan guard:
+     * panggilan API terus boleh menghantar '012-345 6789'. Nombor yang
+     * sama dalam empat bentuk berbeza bermakna setiap tempat yang
+     * mencari atau membandingkannya perlu menormalkan semula.
+     *
+     * Normalisasi SEKALI, di sini, sebagai satu-satunya penulis.
+     */
+    private static String digitSahaja(String v) {
+        if (v == null) return null;
+        String d = v.replaceAll("\\D", "");
+        return d.isEmpty() ? null : d;
     }
 }

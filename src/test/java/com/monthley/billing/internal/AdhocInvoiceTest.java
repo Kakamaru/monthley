@@ -366,6 +366,55 @@ class AdhocInvoiceTest {
     }
 
     @Test
+    @DisplayName("Nama dinormalkan HURUF BESAR, telefon DIGIT sahaja")
+    void butiranPenerimaDinormalkan() {
+        // Borang menyekat input, tetapi borang bukan guard: panggilan API
+        // terus boleh menghantar apa sahaja. Nombor yang sama dalam empat
+        // bentuk berbeza bermakna setiap tempat yang mencarinya perlu
+        // menormalkan semula.
+        var req = new AdhocInvoiceService.Request(
+                null, "  kamal azman  ", "kamal@contoh.com", "012-345 6789",
+                periodId, LocalDate.of(2026, 8, 15),
+                "Ujian normalisasi",
+                List.of(new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+
+        var r = adhoc.create(SP, req);
+        em.flush();
+        em.clear();
+
+        var d = jdbc.sql("""
+                SELECT issued_to_name, issued_to_phone
+                FROM   financial_document WHERE id = :id
+                """).param("id", r.documentId())
+                .query((rs, n) -> new String[]{ rs.getString(1), rs.getString(2) })
+                .single();
+
+        assertThat(d[0]).isEqualTo("KAMAL AZMAN");
+        assertThat(d[1]).isEqualTo("0123456789");
+    }
+
+    @Test
+    @DisplayName("Telefon yang tiada digit langsung jadi NULL")
+    void telefonTanpaDigitJadiNull() {
+        var req = new AdhocInvoiceService.Request(
+                null, "SITI", null, "  --  ",
+                periodId, LocalDate.of(2026, 8, 15), null,
+                List.of(new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+
+        var r = adhoc.create(SP, req);
+        em.flush();
+        em.clear();
+
+        assertThat(jdbc.sql(
+                "SELECT issued_to_phone FROM financial_document WHERE id = :id")
+                .param("id", r.documentId())
+                .query(String.class).optional())
+                .as("rentetan kosong pada medan telefon lebih teruk daripada "
+                    + "NULL — ia kelihatan seperti nombor yang wujud")
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("PDF adhoc: nama PENERIMA, bukan 'Jualan Adhoc'")
     void pdfAdhocNamaPenerima() throws Exception {
         var inv = adhoc.create(SP, permintaan(
