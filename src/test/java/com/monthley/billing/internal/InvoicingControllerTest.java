@@ -32,6 +32,102 @@ class InvoicingControllerTest {
 
     Long accountId, productId;
 
+    // ── Laporan penjanaan (ADR 0014 P2) ──────────────────────────────
+
+    /** Admin SP dengan e-mel — penerima laporan. */
+    private void adminSp(String email, String role) {
+        em.createNativeQuery("""
+                INSERT INTO app_user (email, full_name, password_hash, status, uuid)
+                VALUES (:e, 'Admin Ujian', 'x', 'ACTIVE', UUID())
+                """).setParameter("e", email).executeUpdate();
+        long uid = ((Number) em.createNativeQuery(
+                "SELECT id FROM app_user WHERE email = :e")
+                .setParameter("e", email).getSingleResult()).longValue();
+        em.createNativeQuery("""
+                INSERT INTO sp_membership (sp_code, user_id, role, status)
+                VALUES ('SPC', :u, :r, 'ACTIVE')
+                """).setParameter("u", uid).setParameter("r", role).executeUpdate();
+        em.flush();
+    }
+
+    private void notifikasi(int emailOnInvoice) {
+        em.createNativeQuery("""
+                INSERT INTO sp_notification_setting (sp_code, email_on_invoice, version)
+                VALUES ('SPC', :v, 0)
+                ON DUPLICATE KEY UPDATE email_on_invoice = :v
+                """).setParameter("v", emailOnInvoice).executeUpdate();
+        em.flush();
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.List<Object[]> barisOutbox() {
+        em.flush();
+        em.clear();
+        return em.createNativeQuery("""
+                SELECT to_email, param1_key, param1_val, param2_key, param2_val
+                FROM   email_outbox
+                WHERE  sp_code = 'SPC' AND kind = 'GENERATION_REPORT'
+                ORDER  BY to_email
+                """).getResultList();
+    }
+
+    @Test
+    @DisplayName("Laporan diberatur untuk SP_ADMIN sahaja, satu baris setiap admin")
+    void laporanBeraturUntukAdminSahaja() {
+        // Kerani mengendalikan bayaran, bukan mengawasi larian bil.
+        adminSp("admin1@ujian.my", "SP_ADMIN");
+        adminSp("admin2@ujian.my", "SP_ADMIN");
+        adminSp("kerani@ujian.my", "CLERK");
+        notifikasi(1);
+
+        controller.generate(null);
+
+        var baris = barisOutbox();
+        assertThat(baris).hasSize(2);
+        assertThat(baris.get(0)[0]).isEqualTo("admin1@ujian.my");
+        assertThat(baris.get(1)[0]).isEqualTo("admin2@ujian.my");
+
+        // Params dibaca ikut KUNCI oleh renderer, tetapi susunan tetap
+        // dijamin di sini: LinkedHashMap dengan put() berturutan, bukan
+        // Map.of yang menyusun ikut hash.
+        assertThat(baris.get(0)[1]).isEqualTo("p_sp_name");
+        assertThat(baris.get(0)[2]).isEqualTo("SP Controller Test");
+        assertThat(baris.get(0)[3]).isEqualTo("p_summary");
+        assertThat((String) baris.get(0)[4])
+                .as("tarikh|akaun|invois|jumlah|tempoh")
+                .contains("|")
+                .startsWith(java.time.LocalDate.now().toString());
+    }
+
+    @Test
+    @DisplayName("email_on_invoice = 0: TIADA laporan diberatur")
+    void tetapanMatiTiadaLaporan() {
+        // CASE-008: tetapan yang disimpan dan dibaca tetapi tidak pernah
+        // dikuatkuasakan. Ujian ini membuktikan menukarnya MENGUBAH
+        // tingkah laku, bukan sekadar bahawa ia tersimpan.
+        adminSp("admin@ujian.my", "SP_ADMIN");
+        notifikasi(0);
+
+        controller.generate(null);
+
+        assertThat(barisOutbox()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Tiada SP_ADMIN: tiada laporan, invois tetap dijana")
+    void tiadaAdminTiadaLaporan() {
+        adminSp("kerani@ujian.my", "CLERK");
+        notifikasi(1);
+
+        var hasil = controller.generate(null);
+
+        assertThat(hasil.invoicesPosted())
+                .as("kegagalan notifikasi tidak boleh menghalang bil")
+                .isPositive();
+        assertThat(barisOutbox()).isEmpty();
+    }
+
+
     @BeforeEach
     void setup() {
         em.createNativeQuery("""
