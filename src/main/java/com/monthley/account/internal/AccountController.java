@@ -166,6 +166,77 @@ class AccountController {
             Long productId, java.math.BigDecimal quantity,
             LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice) {}
 
+    record SubscriberDto(Long accountId, String accountNo, String accountName,
+                         java.math.BigDecimal quantity, LocalDate startDate,
+                         boolean accountActive) {}
+
+    record SubscriberPage(long total, long aktif, int page, int size,
+                          List<SubscriberDto> items) {}
+
+    /**
+     * Akaun yang melanggan satu produk — untuk skrin Produk.
+     *
+     * Duduk dalam modul ACCOUNT, bukan catalog: "akaun mana melanggan
+     * produk X" ialah soalan tentang akaun, dan catalog mempunyai
+     * allowedDependencies = { shared } sahaja. Menambah account::api di
+     * sana untuk satu skrin akan mengotorkan modul yang kini bersih.
+     *
+     * LANGGANAN TAMAT DITAPIS KELUAR: end_date yang sudah lepas bermakna
+     * produk itu tidak lagi dicaj, dan senarai ini menjawab "siapa
+     * melanggan SEKARANG".
+     *
+     * AKAUN TIDAK AKTIF DIPAPARKAN, dengan penanda. Akaun ditutup yang
+     * masih melanggan tetap berkaitan — admin SP perlu melihatnya, dan
+     * menyembunyikannya menjadikan kiraan tidak boleh dibandingkan
+     * dengan senarai.
+     *
+     * Dua kiraan: jumlah langganan dalam tempoh, dan berapa daripadanya
+     * akaunnya aktif.
+     */
+    @GetMapping("/by-product/{productId}")
+    @SuppressWarnings("unchecked")
+    SubscriberPage byProduct(@PathVariable Long productId,
+                             @RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "10") int size) {
+
+        String where = """
+            WHERE a.sp_code = :sp
+              AND s.product_id = :prod
+              AND COALESCE(a.account_type,'') <> 'ADHOC'
+              -- Langganan tamat: produk tidak lagi dicaj.
+              AND (s.end_date IS NULL OR s.end_date >= CURRENT_DATE)
+            """;
+
+        Object[] kira = (Object[]) em.createNativeQuery(
+                "SELECT COUNT(*), COALESCE(SUM(a.status = 'ACTIVE'), 0) "
+                + "FROM account_subscription s JOIN account a ON a.id = s.account_id "
+                + where)
+                .setParameter("sp", sp()).setParameter("prod", productId)
+                .getSingleResult();
+
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT a.id, a.account_no, a.account_name, s.quantity, s.start_date, "
+                + "       a.status "
+                + "FROM account_subscription s JOIN account a ON a.id = s.account_id "
+                + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off")
+                .setParameter("sp", sp()).setParameter("prod", productId)
+                .setParameter("lim", size).setParameter("off", page * size)
+                .getResultList();
+
+        List<SubscriberDto> items = new ArrayList<>();
+        for (Object[] r : rows) {
+            items.add(new SubscriberDto(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (java.math.BigDecimal) r[3],
+                    r[4] == null ? null : ((java.sql.Date) r[4]).toLocalDate(),
+                    "ACTIVE".equals(r[5])));
+        }
+
+        return new SubscriberPage(
+                ((Number) kira[0]).longValue(), ((Number) kira[1]).longValue(),
+                page, size, items);
+    }
+
     @GetMapping("/config")
     java.util.Map<String, Object> config() {
         var cfg = settings.forSp(sp());

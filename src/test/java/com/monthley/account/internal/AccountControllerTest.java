@@ -97,6 +97,80 @@ class AccountControllerTest {
                 .toList();
     }
 
+    // ── Senarai pelanggan produk (skrin Produk) ──────────────────────
+
+    private void akaunTakAktif(String no) {
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name, status)
+                VALUES ('SPX', :no, :no, 'INACTIVE')
+                """).setParameter("no", no).executeUpdate();
+    }
+
+    private long idAkaun(String no) {
+        return ((Number) em.createNativeQuery(
+                "SELECT id FROM account WHERE sp_code='SPX' AND account_no = :no")
+                .setParameter("no", no).getSingleResult()).longValue();
+    }
+
+    @Test
+    @DisplayName("Pelanggan produk: langganan TAMAT ditapis keluar")
+    void pelangganTamatDitapis() {
+        // end_date yang sudah lepas bermakna produk tidak lagi dicaj.
+        // Senarai menjawab "siapa melanggan SEKARANG".
+        long p = produkUji("P-SUB-A", "50.00");
+        long kekal = akaunUji("SUB-KEKAL");
+        long tamat = akaunUji("SUB-TAMAT");
+        langganUji(kekal, p, "ACTIVE", null);
+        langganUji(tamat, p, "ACTIVE", "2020-01-01");
+        em.clear();
+
+        var hasil = controller.byProduct(p, 0, 50);
+
+        assertThat(hasil.total()).isEqualTo(1L);
+        assertThat(hasil.items()).singleElement()
+                .extracting(AccountController.SubscriberDto::accountNo)
+                .isEqualTo("SUB-KEKAL");
+    }
+
+    @Test
+    @DisplayName("Pelanggan produk: akaun TIDAK AKTIF dipaparkan dengan penanda")
+    void pelangganTakAktifDipaparkan() {
+        // Akaun ditutup yang masih melanggan tetap berkaitan. Menyembunyikannya
+        // menjadikan kiraan tidak boleh dibandingkan dengan senarai.
+        long p = produkUji("P-SUB-B", "60.00");
+        long aktif = akaunUji("SUB-AKTIF");
+        akaunTakAktif("SUB-MATI");
+        long mati = idAkaun("SUB-MATI");
+        langganUji(aktif, p, "ACTIVE", null);
+        langganUji(mati, p, "ACTIVE", null);
+        em.clear();
+
+        var hasil = controller.byProduct(p, 0, 50);
+
+        assertThat(hasil.total()).as("kedua-duanya melanggan").isEqualTo(2L);
+        assertThat(hasil.aktif()).as("satu sahaja akaunnya aktif").isEqualTo(1L);
+        assertThat(hasil.items())
+                .extracting(AccountController.SubscriberDto::accountActive)
+                .containsExactlyInAnyOrder(true, false);
+    }
+
+    @Test
+    @DisplayName("Pelanggan produk: ADHOC-SALES dikecualikan")
+    void pelangganAdhocDikecualikan() {
+        // Akaun teknikal, bukan pelanggan. Ia dikecualikan daripada
+        // senarai akaun dan mesti dikecualikan di sini juga — kalau
+        // tidak dua skrin memberi kiraan berbeza.
+        long p = produkUji("P-SUB-C", "70.00");
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name, account_type, status)
+                VALUES ('SPX', 'ADHOC-SALES', 'Jualan Adhoc', 'ADHOC', 'ACTIVE')
+                """).executeUpdate();
+        langganUji(idAkaun("ADHOC-SALES"), p, "ACTIVE", null);
+        em.clear();
+
+        assertThat(controller.byProduct(p, 0, 50).total()).isZero();
+    }
+
     @Test
     @DisplayName("Tapis produk: hanya akaun yang MELANGGAN produk itu")
     void tapisProdukIkutLangganan() {
