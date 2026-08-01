@@ -66,6 +66,7 @@ class AccountController {
     PageResponse<AccountDto> list(
             @RequestParam(defaultValue = "true") boolean active,
             @RequestParam(required = false) Long category,
+            @RequestParam(required = false) Long product,
             @RequestParam(required = false) Boolean linked,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
@@ -82,6 +83,21 @@ class AccountController {
               -- senarai akaun mahupun kiraan.
               AND COALESCE(a.account_type,'') <> 'ADHOC'
               AND (:category IS NULL OR a.category_id = :category)
+              -- Akaun yang TIE UP dengan produk: baris LANGGANAN wujud.
+              --
+              -- Bukan baris dokumen. Draf pertama menggunakan
+              -- document_line_payment_status, iaitu akaun yang pernah
+              -- DIBIL produk itu — dan produk yang baru ditambah kepada
+              -- langganan tidak mempunyai invois lagi, jadi carian
+              -- memulangkan sifar untuk akaun yang jelas melanggannya.
+              --
+              -- Tiada tapisan status. Langganan yang tamat tempoh masih
+              -- baris dalam senarai langganan akaun itu; ia hanya hilang
+              -- apabila kerani membuangnya. Yang dilihat kerani pada skrin
+              -- akaun ialah yang menentukan sama ada akaun itu muncul.
+              AND (:product IS NULL OR EXISTS (
+                    SELECT 1 FROM account_subscription s
+                    WHERE s.account_id = a.id AND s.product_id = :product))
               AND (:linkedFlag IS NULL
                    OR (:linkedFlag = 1 AND a.payer_user_id IS NOT NULL)
                    OR (:linkedFlag = 0 AND a.payer_user_id IS NULL))
@@ -90,7 +106,7 @@ class AccountController {
 
         // Jumlah rekod
         var countQ = em.createNativeQuery("SELECT COUNT(*) FROM account a " + where);
-        bind(countQ, status, category, linked, search);
+        bind(countQ, status, category, product, linked, search);
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         // Data + baki diderive
@@ -103,7 +119,7 @@ class AccountController {
             """ + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
-        bind(dataQ, status, category, linked, search);
+        bind(dataQ, status, category, product, linked, search);
         dataQ.setParameter("lim", size);
         dataQ.setParameter("off", page * size);
 
@@ -652,10 +668,11 @@ class AccountController {
     }
 
     private void bind(jakarta.persistence.Query query, String status, Long category,
-                      Boolean linked, String search) {
+                      Long product, Boolean linked, String search) {
         query.setParameter("sp", sp());
         query.setParameter("status", status);
         query.setParameter("category", category);
+        query.setParameter("product", product);
         query.setParameter("linkedFlag", linked == null ? null : (linked ? 1 : 0));
         query.setParameter("q", search);
     }

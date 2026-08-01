@@ -49,6 +49,98 @@ class AccountControllerTest {
     @AfterEach
     void clear() { TenantContext.clear(); }
 
+    // ── Tapisan produk pada senarai akaun ────────────────────────────
+    //
+    // "Akaun yang tie up dengan produk" bermaksud baris LANGGANAN wujud.
+    // Bukan baris dokumen: produk yang baru ditambah belum ada invois,
+    // dan akaun itu jelas melanggannya.
+
+    private long produkUji(String kod, String harga) {
+        em.createNativeQuery("""
+                INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
+                                     main_product, mandatory, prorated, late_penalty,
+                                     status, version)
+                VALUES ('SPX', :k, :k, 'MONTHLY', :h, 0,0,0,0, 'ACTIVE', 0)
+                """).setParameter("k", kod).setParameter("h", new BigDecimal(harga))
+                .executeUpdate();
+        return ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPX' AND code = :k")
+                .setParameter("k", kod).getSingleResult()).longValue();
+    }
+
+    private long akaunUji(String no) {
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name, status)
+                VALUES ('SPX', :no, :no, 'ACTIVE')
+                """).setParameter("no", no).executeUpdate();
+        return ((Number) em.createNativeQuery(
+                "SELECT id FROM account WHERE sp_code='SPX' AND account_no = :no")
+                .setParameter("no", no).getSingleResult()).longValue();
+    }
+
+    private void langganUji(long akaun, long produk, String status, String tamat) {
+        em.createNativeQuery("""
+                INSERT INTO account_subscription
+                  (sp_code, account_id, product_id, quantity, status, end_date, version)
+                VALUES ('SPX', :acc, :prod, 1, :st, :tamat, 0)
+                """).setParameter("acc", akaun).setParameter("prod", produk)
+                .setParameter("st", status)
+                .setParameter("tamat", tamat == null ? null : java.time.LocalDate.parse(tamat))
+                .executeUpdate();
+        em.flush();
+    }
+
+    private List<String> cariIkutProduk(Long produkId) {
+        return controller.list(true, null, produkId, null, null, 0, 50)
+                .items().stream()
+                .map(AccountController.AccountDto::no)
+                .toList();
+    }
+
+    @Test
+    @DisplayName("Tapis produk: hanya akaun yang MELANGGAN produk itu")
+    void tapisProdukIkutLangganan() {
+        long pA = produkUji("P-TAPIS-A", "50.00");
+        long pB = produkUji("P-TAPIS-B", "80.00");
+        long ada = akaunUji("TP-ADA");
+        long lain = akaunUji("TP-LAIN");
+        akaunUji("TP-KOSONG");            // tiada langganan langsung
+        langganUji(ada, pA, "ACTIVE", null);
+        langganUji(lain, pB, "ACTIVE", null);
+        em.clear();
+
+        assertThat(cariIkutProduk(pA)).containsExactly("TP-ADA");
+        assertThat(cariIkutProduk(pB)).containsExactly("TP-LAIN");
+    }
+
+    @Test
+    @DisplayName("Tapis produk: langganan TAMAT TEMPOH tetap muncul")
+    void tapisProdukLangganaTamatTetapMuncul() {
+        // Baris masih wujud dalam senarai langganan akaun; ia hanya hilang
+        // apabila kerani membuangnya. Yang dilihat kerani pada skrin akaun
+        // ialah yang menentukan sama ada akaun itu muncul.
+        long p = produkUji("P-TAPIS-C", "30.00");
+        long tamat = akaunUji("TP-TAMAT");
+        akaunUji("TP-TAMAT-LAIN");        // tanpa langganan produk ini
+        langganUji(tamat, p, "ENDED", "2025-12-31");
+        em.clear();
+
+        assertThat(cariIkutProduk(p)).containsExactly("TP-TAMAT");
+    }
+
+    @Test
+    @DisplayName("Tapis produk NULL: semua akaun, tiada regresi")
+    void tapisProdukNullSemua() {
+        long p = produkUji("P-TAPIS-D", "20.00");
+        long acc = akaunUji("TP-NULL-1");
+        akaunUji("TP-NULL-2");
+        langganUji(acc, p, "ACTIVE", null);
+        em.clear();
+
+        assertThat(cariIkutProduk(null))
+                .contains("TP-NULL-1", "TP-NULL-2");
+    }
+
     @Test
     @DisplayName("create() simpan teras + ahli + dua alamat")
     void createsFullAccount() {
