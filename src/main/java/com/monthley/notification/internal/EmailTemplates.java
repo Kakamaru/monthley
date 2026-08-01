@@ -133,6 +133,43 @@ final class EmailTemplates {
     }
 
     /**
+     * Laporan penjanaan bil kepada admin SP.
+     *
+     * TIADA butang. Laporan ini maklumat, bukan tindakan — admin yang
+     * mahu melihat invois membuka skrin Dokumen Kewangan, dan pautan
+     * ke situ memerlukan log masuk yang e-mel tidak boleh andaikan.
+     *
+     * Tempoh disenaraikan kerana ia SELALUNYA bukan bulan larian:
+     * POSTPAID pada Julai membilkan Jun, dan akaun tahunan boleh
+     * menghasilkan dua belas tempoh dalam satu larian.
+     */
+    static String generationReport(String spName, String tarikh,
+                                   int akaunDiimbas, int invoisDikeluarkan,
+                                   String jumlah, java.util.List<String> tempoh) {
+        String senarai = (tempoh == null || tempoh.isEmpty())
+                ? "<em>tiada</em>"
+                : tempoh.stream().map(EmailTemplates::esc)
+                        .reduce((a, b) -> a + ", " + b).orElse("");
+
+        return shell(
+            "Laporan Penjanaan Bil",
+            "Bil untuk <strong>" + esc(spName) + "</strong> telah dijana pada "
+            + esc(tarikh) + ".<br><br>"
+            + "<table style=\"font-size:14px;line-height:1.8\">"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Akaun diimbas</td>"
+            + "<td><strong>" + akaunDiimbas + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Invois dikeluarkan</td>"
+            + "<td><strong>" + invoisDikeluarkan + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Jumlah</td>"
+            + "<td><strong>" + esc(jumlah) + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tempoh dibil</td>"
+            + "<td>" + senarai + "</td></tr>"
+            + "</table>",
+            null, null,
+            "Penyata akan dihantar kepada pelanggan secara berasingan.");
+    }
+
+    /**
      * Dokumen dihantar semula — resit atau invois.
      *
      * Ayat pembuka berbeza mengikut jenis: resit mengesahkan bayaran

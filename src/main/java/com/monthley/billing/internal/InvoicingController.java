@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.monthley.document.api.DocumentAccessPort;
 import com.monthley.document.api.DocumentType;
+import com.monthley.notification.api.EmailOutboxPort;
 import com.monthley.notification.api.EmailPort;
 import com.monthley.statement.api.StatementPort;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ class InvoicingController {
     private final StatementPort statements;
     private final DocumentAccessPort access;
     private final EmailPort email;
+    private final EmailOutboxPort outbox;
     private final String appUrl;
 
     private static final Logger log = LoggerFactory.getLogger(InvoicingController.class);
@@ -56,6 +58,7 @@ class InvoicingController {
                         StatementPort statements,
                         DocumentAccessPort access,
                         EmailPort email,
+                        EmailOutboxPort outbox,
                         @Value("${monthley.app-url:http://localhost:4200}") String appUrl) {
         this.billing = billing;
         this.settings = settings;
@@ -64,6 +67,7 @@ class InvoicingController {
         this.statements = statements;
         this.access = access;
         this.email = email;
+        this.outbox = outbox;
         this.appUrl = appUrl;
     }
 
@@ -122,9 +126,153 @@ class InvoicingController {
                     .setParameter("ids", out.billedPeriodIds())
                     .getResultList();
 
+        beraturLaporan(sp, out, billed);
+
         return new GenerateResult(sp, runMonth.toString(), mode.name(), out.invoicesPosted(),
                 out.accountsScanned(), out.skippedNoSubscription(),
                 out.skippedNothingToCharge(), out.skippedAlreadyGenerated(), billed);
+    }
+
+    /**
+     * Laporan penjanaan kepada admin SP (ADR 0014 P2).
+     *
+     * Legacy menghantarnya dan ia berguna: tanpa laporan, larian tengah
+     * malam yang gagal separuh jalan tidak diketahui sehingga seseorang
+     * perasan invois hilang.
+     *
+     * SATU BARIS SETIAP ADMIN, bukan satu baris dengan senarai alamat.
+     * Kegagalan kepada satu alamat tidak menjejaskan yang lain — itu
+     * sebab utama outbox wujud.
+     *
+     * SP_ADMIN sahaja. Kerani mengendalikan bayaran, bukan mengawasi
+     * larian bil.
+     *
+     * Penerima dibaca semasa BERATUR, bukan semasa menghantar: kalau
+     * admin dibuang antara larian dan penghantaran, laporan tetap pergi
+     * kepada orang yang berhak pada masa larian itu.
+     *
+     * Ringkasan disimpan sebagai SNAPSHOT. Menyoal semula semasa
+     * menghantar memberi nombor yang BERBEZA kalau kerani menjana
+     * sekali lagi — dan laporan melaporkan larian itu, bukan keadaan
+     * sekarang.
+     */
+    @SuppressWarnings("unchecked")
+    private void beraturLaporan(String spCode,
+                                InvoiceGenerationService.GenerationOutcome out,
+                                java.util.List<String> tempoh) {
+        try {
+            // Tetapan DISEMAK, bukan diandaikan. sp_notification_setting
+            // wujud sejak awal dan ini penggunaan pertamanya — corak
+            // CASE-008 ialah tetapan yang disimpan, dibaca, dan tidak
+            // pernah dikuatkuasakan.
+            // tinyint(1) dipulangkan sebagai Boolean oleh Connector/J,
+            // bukan Number — cast kepada Number melontar ClassCastException
+            // semasa larian, bukan semasa kompil.
+            Object hidup = em.createNativeQuery(
+                    "SELECT email_on_invoice FROM sp_notification_setting WHERE sp_code = :sp")
+                    .setParameter("sp", spCode)
+                    .getResultList().stream().findFirst().orElse(null);
+            if (hidup != null && !benar(hidup)) {
+                return;
+            }
+
+            // Nama SP dan mata wang dalam satu query — currency tiada
+            // dalam BillingSettings, dan dua query untuk dua medan pada
+            // baris yang berkaitan ialah kerja tanpa faedah.
+            Object[] sp1 = (Object[]) em.createNativeQuery("""
+                    SELECT p.name, COALESCE(b.currency, 'MYR')
+                    FROM   service_provider p
+                    LEFT   JOIN sp_billing_setting b ON b.sp_code = p.sp_code
+                    WHERE  p.sp_code = :sp
+                    """).setParameter("sp", spCode).getSingleResult();
+            String spName = (String) sp1[0];
+            String currency = (String) sp1[1];
+
+            // DISTINCT: seorang pengguna boleh memegang SP_ADMIN dan
+            // CLERK pada SP yang sama, dan tidak sepatutnya menerima
+            // laporan dua kali.
+            List<String> alamat = em.createNativeQuery("""
+                    SELECT DISTINCT u.email
+                    FROM   sp_membership m
+                    JOIN   app_user u ON u.id = m.user_id
+                    WHERE  m.sp_code = :sp
+                      AND  m.role = 'SP_ADMIN'
+                      AND  m.status = 'ACTIVE'
+                      AND  u.status = 'ACTIVE'
+                      AND  u.email IS NOT NULL
+                    """).setParameter("sp", spCode).getResultList();
+
+            String hariIni = java.time.LocalDate.now().toString();
+            String ringkasan = String.join("|",
+                    hariIni,
+                    String.valueOf(out.accountsScanned()),
+                    String.valueOf(out.invoicesPosted()),
+                    currency + " " + jumlahDibil(spCode, out.billedPeriodIds()),
+                    String.join(",", tempoh));
+
+            for (String to : alamat) {
+                // ref_key termasuk TARIKH: kerani yang menjana dua kali
+                // dalam bulan yang sama mendapat dua laporan, kerana
+                // setiap larian menghasilkan invois baharu yang dia
+                // patut tahu. Alamat disertakan supaya tiga admin
+                // menghasilkan tiga baris tanpa berlanggar pada UNIQUE.
+                outbox.queue(spCode, EmailOutboxPort.Kind.GENERATION_REPORT,
+                        spCode + ":" + hariIni + ":" + to,
+                        to, null,
+                        params("p_sp_name", spName, "p_summary", ringkasan));
+            }
+
+        } catch (RuntimeException e) {
+            // Invois sudah dijana dan dipos. Laporan yang gagal beratur
+            // tidak boleh menggulungnya.
+            log.error("Gagal beratur laporan penjanaan untuk {}: {}", spCode, e.getMessage());
+        }
+    }
+
+    /**
+     * LinkedHashMap dengan susunan penulisan yang DIJAMIN.
+     *
+     * new LinkedHashMap<>(Map.of(...)) TIDAK berbuat demikian: Map.of
+     * menyusun ikut hash, dan membalutnya mengekalkan susunan rawak itu.
+     * Laporan pertama yang beratur menyimpan ringkasan dalam param1 dan
+     * nama SP dalam param2 — terbalik, dan renderer menolaknya.
+     */
+    private static java.util.Map<String, String> params(String k1, String v1,
+                                                        String k2, String v2) {
+        var m = new java.util.LinkedHashMap<String, String>();
+        m.put(k1, v1);
+        m.put(k2, v2);
+        return m;
+    }
+
+    /**
+     * tinyint(1) daripada native query.
+     *
+     * Connector/J memulangkannya sebagai Boolean, bukan Number. Menerima
+     * kedua-duanya supaya perubahan pemacu atau taip lajur tidak
+     * memecahkan semakan tetapan secara senyap.
+     */
+    private static boolean benar(Object v) {
+        if (v instanceof Boolean b) return b;
+        if (v instanceof Number n) return n.intValue() != 0;
+        return Boolean.parseBoolean(String.valueOf(v));
+    }
+
+    /** Jumlah invois yang dikeluarkan dalam larian ini. */
+    private String jumlahDibil(String spCode, java.util.Set<Long> periodIds) {
+        if (periodIds.isEmpty()) return "0.00";
+        Object v = em.createNativeQuery("""
+                SELECT COALESCE(SUM(l.amount + l.tax_amount), 0)
+                FROM   financial_document_line l
+                JOIN   financial_document d ON d.id = l.document_id
+                WHERE  d.sp_code = :sp AND d.doc_type = 'INVOICE'
+                  AND  d.status <> 'CANCELLED' AND l.active = 1
+                  AND  l.period_id IN (:ids)
+                """).setParameter("sp", spCode)
+                .setParameter("ids", periodIds)
+                .getSingleResult();
+        return new java.math.BigDecimal(v.toString()).setScale(2,
+                java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
     record GenerateSingleRequest(Long accountId, String period, String mode) {}

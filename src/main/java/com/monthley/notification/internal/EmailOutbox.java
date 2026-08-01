@@ -50,7 +50,8 @@ class EmailOutbox {
     @Column(name = "param2_key")
     private String param2Key;
 
-    @Column(name = "param2_val")
+    /** 500 aksara (V56) — senarai tempoh laporan boleh mencecah dua belas. */
+    @Column(name = "param2_val", length = 500)
     private String param2Val;
 
     @Enumerated(EnumType.STRING)

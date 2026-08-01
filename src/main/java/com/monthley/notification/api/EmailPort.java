@@ -19,6 +19,24 @@ public interface EmailPort {
     void sendInvitation(String to, String spName, String registerUrl);
 
     /**
+     * Laporan penjanaan bil kepada admin SP.
+     *
+     * BUKAN dokumen: tiada nombor, tiada amaun tunggal, tiada pautan
+     * awam. resendDocument menjangka ketiga-tiganya, jadi ia tidak boleh
+     * dipakai semula di sini.
+     *
+     * Legacy menghantarnya dan ia berguna: tanpa laporan, larian tengah
+     * malam yang gagal separuh jalan tidak diketahui sehingga seseorang
+     * perasan invois hilang.
+     *
+     * @param tempoh tempoh yang BENAR-BENAR dibilkan, bukan bulan larian
+     *               — POSTPAID pada Julai membilkan Jun
+     */
+    void sendGenerationReport(String to, String spName, String tarikh,
+                              int akaunDiimbas, int invoisDikeluarkan,
+                              String jumlah, java.util.List<String> tempoh);
+
+    /**
      * Resit selepas bayaran — PAUTAN, bukan lampiran.
      *
      * PDF tidak dilampirkan: e-mel menjadi berat, resit yang dibatalkan

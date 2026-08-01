@@ -34,6 +34,15 @@ class ResendEmailService implements EmailPort {
     }
 
     @Override
+    public void sendGenerationReport(String to, String spName, String tarikh,
+                                     int akaunDiimbas, int invoisDikeluarkan,
+                                     String jumlah, java.util.List<String> tempoh) {
+        send(to, "Laporan Penjanaan Bil — " + spName,
+                EmailTemplates.generationReport(spName, tarikh, akaunDiimbas,
+                        invoisDikeluarkan, jumlah, tempoh));
+    }
+
+    @Override
     public void sendVerification(String to, String name, String verifyUrl) {
         send(to, "Sahkan e-mel anda — Monthley", EmailTemplates.verification(name, verifyUrl));
     }
