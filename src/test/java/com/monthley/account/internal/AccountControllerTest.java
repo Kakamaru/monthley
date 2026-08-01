@@ -155,6 +155,55 @@ class AccountControllerTest {
     }
 
     @Test
+    @DisplayName("Pelanggan produk: start_date BERISI dipetakan betul")
+    void pelangganStartDateBerisi() {
+        // Ujian lain menggunakan start_date NULL, jadi cabang cast tidak
+        // pernah dijalankan dan ClassCastException hanya muncul apabila
+        // seseorang mengisi tarikh pada data sebenar: senarai kosong
+        // sementara kiraan menunjukkan enam.
+        //
+        // Connector/J memulangkan LocalDate, bukan java.sql.Date.
+        long p = produkUji("P-SUB-D", "40.00");
+        long acc = akaunUji("SUB-TARIKH");
+        langganUji(acc, p, "ACTIVE", null);
+        em.createNativeQuery("""
+                UPDATE account_subscription SET start_date = '2026-06-01'
+                WHERE  account_id = :a AND product_id = :p
+                """).setParameter("a", acc).setParameter("p", p).executeUpdate();
+        em.flush();
+        em.clear();
+
+        var hasil = controller.byProduct(p, 0, 50);
+
+        assertThat(hasil.items()).singleElement()
+                .extracting(AccountController.SubscriberDto::startDate)
+                .isEqualTo(java.time.LocalDate.of(2026, 6, 1));
+    }
+
+    @Test
+    @DisplayName("Pelanggan produk: kategori akaun dipaparkan")
+    void pelangganKategoriDipaparkan() {
+        long p = produkUji("P-SUB-E", "45.00");
+        long acc = akaunUji("SUB-KAT");
+        em.createNativeQuery("""
+                INSERT INTO account_category (sp_code, code, name, version)
+                VALUES ('SPX', 'K1', 'BLOK UJIAN', 0)
+                """).executeUpdate();
+        long kat = ((Number) em.createNativeQuery(
+                "SELECT id FROM account_category WHERE sp_code='SPX' AND code='K1'")
+                .getSingleResult()).longValue();
+        em.createNativeQuery("UPDATE account SET category_id = :k WHERE id = :a")
+                .setParameter("k", kat).setParameter("a", acc).executeUpdate();
+        langganUji(acc, p, "ACTIVE", null);
+        em.flush();
+        em.clear();
+
+        assertThat(controller.byProduct(p, 0, 50).items()).singleElement()
+                .extracting(AccountController.SubscriberDto::categoryName)
+                .isEqualTo("BLOK UJIAN");
+    }
+
+    @Test
     @DisplayName("Pelanggan produk: ADHOC-SALES dikecualikan")
     void pelangganAdhocDikecualikan() {
         // Akaun teknikal, bukan pelanggan. Ia dikecualikan daripada

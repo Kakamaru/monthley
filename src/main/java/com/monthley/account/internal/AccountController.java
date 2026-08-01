@@ -167,6 +167,7 @@ class AccountController {
             LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice) {}
 
     record SubscriberDto(Long accountId, String accountNo, String accountName,
+                         String categoryName,
                          java.math.BigDecimal quantity, LocalDate startDate,
                          boolean accountActive) {}
 
@@ -215,9 +216,10 @@ class AccountController {
                 .getSingleResult();
 
         List<Object[]> rows = em.createNativeQuery(
-                "SELECT a.id, a.account_no, a.account_name, s.quantity, s.start_date, "
-                + "       a.status "
+                "SELECT a.id, a.account_no, a.account_name, c.name, s.quantity, "
+                + "       s.start_date, a.status "
                 + "FROM account_subscription s JOIN account a ON a.id = s.account_id "
+                + "LEFT JOIN account_category c ON c.id = a.category_id "
                 + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off")
                 .setParameter("sp", sp()).setParameter("prod", productId)
                 .setParameter("lim", size).setParameter("off", page * size)
@@ -227,9 +229,8 @@ class AccountController {
         for (Object[] r : rows) {
             items.add(new SubscriberDto(
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    (java.math.BigDecimal) r[3],
-                    r[4] == null ? null : ((java.sql.Date) r[4]).toLocalDate(),
-                    "ACTIVE".equals(r[5])));
+                    (String) r[3], (java.math.BigDecimal) r[4],
+                    tarikh(r[5]), "ACTIVE".equals(r[6])));
         }
 
         return new SubscriberPage(
@@ -616,6 +617,24 @@ class AccountController {
                 acc.getId(), acc.getAccountNo(), acc.getAccountName(), year,
                 model.openingBalance(), model.closingBalance(), model.arrears(),
                 total, page, size, new ArrayList<>(asc.subList(from, to)));
+    }
+
+    /**
+     * DATE daripada native query.
+     *
+     * Connector/J memulangkan LocalDate, bukan java.sql.Date. Cast
+     * kepada java.sql.Date melontar semasa larian — dan HANYA apabila
+     * nilai itu bukan null, jadi ujian dengan start_date NULL lulus
+     * tanpa pernah menyentuh cabang itu.
+     *
+     * Ditemui dua kali: sekali pada penyata (java.sql.Date -> LocalDate),
+     * sekali di sini (arah bertentangan). Menerima kedua-duanya.
+     */
+    private static LocalDate tarikh(Object v) {
+        if (v == null) return null;
+        if (v instanceof LocalDate d) return d;
+        if (v instanceof java.sql.Date d) return d.toLocalDate();
+        return LocalDate.parse(v.toString());
     }
 
     /** Native numeric -> BigDecimal selamat (elak float drift). */
