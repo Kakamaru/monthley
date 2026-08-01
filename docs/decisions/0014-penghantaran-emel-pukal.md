@@ -1,6 +1,6 @@
 # ADR 0014 — Penghantaran e-mel pukal (outbox)
 
-- **Status:** Dicadang — menunggu kelulusan sebelum kod
+- **Status:** Diterima 1 Ogos 2026 — P1-P7 belum dilaksana
 - **Tarikh:** 1 Ogos 2026
 - **Prasyarat:** V42 (token pautan awam), ADR 0010 (penyata), ADR 0011 (token bukan dokumen)
 
@@ -91,8 +91,22 @@ menunjukkan tunggakan selama-lamanya.
 
 ### 4. Pencetus: penjanaan invois, bukan jadual berasingan
 
-Penyata dihantar apabila invois dijana — untuk akaun yang BENAR-BENAR
-menerima invois, bukan semua akaun aktif.
+Penyata dihantar apabila invois dijana, kepada **semua akaun AKTIF yang
+mempunyai e-mel** — bukan hanya akaun yang menerima invois dalam larian
+itu.
+
+Draf pertama menghadkannya kepada akaun yang dibil, yang bermakna
+`GenerationOutcome` perlu memulangkan `billedAccountIds`. Tidak perlu:
+penyata ialah keadaan AKAUN, bukan resit bagi satu invois.
+
+**SATU penyata per AKAUN, bukan per invois.** Satu larian boleh
+menghasilkan lapan belas invois untuk satu akaun (produk berbilang x
+tempoh berbilang, ADR 0011). Menghantar satu e-mel setiap satu bermakna
+puluhan ribu e-mel dan peti masuk pelanggan yang tidak boleh dibaca.
+
+Dua alamat setiap akaun: e-mel akaun dan e-mel kedua
+(`billto_email_secondary`). Legacy menyimpan yang kedua pada baris
+gilir sebagai `add_emails`; kita ikut.
 
 Tiga pencetus:
 
@@ -102,9 +116,39 @@ Tiga pencetus:
 | Jana tunggal (butang) | sudah ada |
 | Auto pada `invoice_gen_day` | **belum wujud** |
 
-`GenerationOutcome` menambah `billedAccountIds`. Titik pengumpulan ialah
-`created > 0` dalam gelung sedia ada — satu baris, tiada perubahan
-struktur.
+`GenerationOutcome` tidak berubah.
+
+### 4b. Baris membawa PARAMETER, bukan badan siap
+
+Legacy menyimpan HTML penuh dalam `body_full` — `String.format` dengan
+tiga belas argumen, templat dalam pemalar Java. Untuk lampiran ia
+menyimpan nama laporan (`m_invoice_dark.prpt`) dan parameternya, bukan
+PDF: fail dijana semasa menghantar, bukan semasa beratur.
+
+Corak kedua itu betul dan digunakan untuk keseluruhan baris. Outbox
+menyimpan jenis, rujukan dan parameter; badan dirender semasa
+menghantar.
+
+  jenis      STATEMENT | GENERATION_REPORT | REMINDER
+  rujukan    akaun + tempoh, atau sp + tempoh
+  parameter  kunci/nilai generik, corak `p_acc_no` / `p_period` legacy
+
+Menyimpan badan siap bermakna sepuluh ribu salinan HTML setiap bulan,
+dan pembetulan templat tidak menjejaskan baris yang sudah beratur.
+
+### 4c. Satu saluran, direka untuk lebih
+
+Lajur `channel` dengan satu nilai — `EMAIL`. SMS mungkin menyusul;
+menambahnya kemudian menjadi baris data, bukan migrasi struktur.
+
+WhatsApp DIKECUALIKAN dengan sengaja. Penghantaran pukal di sana
+menyebabkan nombor disekat sebagai spam — bukan had teknikal yang boleh
+dikendalikan, tetapi dasar platform yang menjadikan kes penggunaan ini
+mustahil.
+
+`body_short` legacy (versi SMS) tidak disimpan buat masa ini kerana
+saluran itu tidak digunakan. Ia dirender daripada parameter yang sama
+apabila diperlukan.
 
 ### 5. Reminder ialah aliran BERBEZA
 
@@ -176,6 +220,22 @@ sehingga ada data sebenar.
 **Hantar dalam transaksi jana bil.** Satu penyedia yang perlahan menahan
 kunci baris untuk keseluruhan larian, dan kegagalan e-mel menggulung
 invois. Duit lebih penting daripada notifikasi.
+
+**Baris gilir dalam memori di samping DB (corak legacy).** Legacy
+menulis DUA kali untuk satu peristiwa:
+
+```java
+notifService.add(q);   // ke DB
+notifQueue.put(q);     // ke Hazelcast — "this will block"
+```
+
+Kalau DB berjaya dan baris gilir gagal, `catch` hanya log dan baris
+kekal 'P' selama-lamanya tanpa sesiapa memprosesnya. Kalau baris gilir
+berjaya dan transaksi digulung kemudian, e-mel keluar untuk invois yang
+tidak wujud.
+
+Satu tulisan, ke DB, dalam transaksi yang sama. Tugas berjadual
+meninjau. Tiada perkhidmatan kedua untuk gagal secara berasingan.
 
 **Baris gilir luaran (Redis, RabbitMQ).** Satu lagi perkhidmatan untuk
 dijalankan, dipantau dan dipulihkan. Sepuluh ribu baris sebulan tidak
