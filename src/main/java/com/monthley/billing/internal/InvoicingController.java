@@ -15,6 +15,14 @@ import java.util.List;
 import java.util.ArrayList;
 import org.springframework.web.bind.annotation.*;
 
+import com.monthley.document.api.DocumentAccessPort;
+import com.monthley.document.api.DocumentType;
+import com.monthley.notification.api.EmailPort;
+import com.monthley.statement.api.StatementPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.math.BigDecimal;
 import java.time.YearMonth;
 
@@ -32,17 +40,31 @@ class InvoicingController {
     private final BillingSettingsPort settings;
     private final LedgerPort ledger;
     private final AdhocInvoiceService adhoc;
+    private final StatementPort statements;
+    private final DocumentAccessPort access;
+    private final EmailPort email;
+    private final String appUrl;
+
+    private static final Logger log = LoggerFactory.getLogger(InvoicingController.class);
 
     @PersistenceContext private EntityManager em;
 
     InvoicingController(InvoiceGenerationService billing,
                         BillingSettingsPort settings,
                         LedgerPort ledger,
-                        AdhocInvoiceService adhoc) {
+                        AdhocInvoiceService adhoc,
+                        StatementPort statements,
+                        DocumentAccessPort access,
+                        EmailPort email,
+                        @Value("${monthley.app-url:http://localhost:4200}") String appUrl) {
         this.billing = billing;
         this.settings = settings;
         this.ledger = ledger;
         this.adhoc = adhoc;
+        this.statements = statements;
+        this.access = access;
+        this.email = email;
+        this.appUrl = appUrl;
     }
 
     record GenerateRequest(
@@ -232,7 +254,54 @@ class InvoicingController {
     AdhocInvoiceService.Result adhocInvoice(
             @RequestBody AdhocInvoiceService.Request req) {
         Access.requireAnyRole("menjana invois adhoc", "SP_ADMIN", "CLERK");
-        return adhoc.create(sp(), req);
+        var hasil = adhoc.create(sp(), req);
+        hantarInvoisAdhoc(hasil.documentId());
+        return hasil;
+    }
+
+    /**
+     * E-mel invois adhoc — PAUTAN, bukan lampiran (EmailPort).
+     *
+     * Penerima adhoc BUKAN pelanggan berdaftar: alamat duduk pada
+     * dokumen (issued_to_email), bukan pada akaun. Akaun ADHOC-SALES
+     * dikongsi dan tidak membawa e-mel sesiapa, jadi membaca
+     * header().billtoEmail() seperti laluan resit akan sentiasa kosong.
+     *
+     * Senyap jika tiada alamat — borang menyatakan "tanpa e-mel, invois
+     * mesti dicetak dan diserahkan sendiri". Itu pilihan yang sah, bukan
+     * ralat.
+     *
+     * Kegagalan e-mel TIDAK menggagalkan invois. Dokumen sudah wujud dan
+     * ledger sudah dipos; membiarkan penyedia e-mel menggulung transaksi
+     * bermakna kerani kehilangan invois kerana Resend sedang tunggang.
+     * Corak sama seperti hantarResit dalam ManualPaymentController.
+     *
+     * Invois BERULANG tidak dihantar dari sini — lihat package-info.
+     */
+    private void hantarInvoisAdhoc(long documentId) {
+        try {
+            var m = statements.invoice(sp(), documentId);
+            String to = m.issuedToEmail();
+            if (to == null || to.isBlank()) {
+                return;
+            }
+
+            String token = access.tokenFor(sp(), documentId, DocumentType.INVOICE);
+
+            email.resendDocument(
+                    List.of(to),
+                    m.issuedToName(),
+                    m.header().spName(),
+                    m.documentTitle(),
+                    m.invoiceNo(),
+                    m.header().currency() + " " + m.totalDue().toPlainString(),
+                    m.invoiceDate().toString(),
+                    appUrl + "/api/v1/pub/invoices/" + token);
+
+        } catch (RuntimeException e) {
+            log.error("Gagal hantar e-mel invois adhoc untuk dokumen {}: {}",
+                    documentId, e.getMessage());
+        }
     }
 
     /** period_id BULAN yang dikecualikan untuk SP ini (invoice_exclude_period). */

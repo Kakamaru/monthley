@@ -44,6 +44,16 @@ class AdhocInvoiceTest {
     private static final String SP = "SPAD";
 
     @Autowired AdhocInvoiceService adhoc;
+    @Autowired InvoicingController invoicing;
+
+    /**
+     * EmailPort dimock: ujian ini menuntut e-mel DIHANTAR, bukan bahawa
+     * penyedia sebenar menerimanya. Tanpa mock, resend-key kosong dalam
+     * ujian bermakna ResendEmailService hanya log — dan log bukan
+     * tuntutan.
+     */
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.monthley.notification.api.EmailPort email;
     @Autowired PaymentPort payment;
     @Autowired StatementPort statements;
     @Autowired StatementRenderPort renderer;
@@ -80,10 +90,24 @@ class AdhocInvoiceTest {
                 .query(Long.class).single();
 
         TenantContext.set(SP);
+        // Access.requireAnyRole berjalan pada laluan CONTROLLER. Ujian
+        // e-mel melalui controller kerana penghantaran duduk di situ,
+        // bukan dalam service — memanggil service terus akan melangkau
+        // e-mel sepenuhnya dan menguji tiada apa.
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("clerk", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_" + SP + "_CLERK"))));
     }
 
     @AfterEach
-    void clear() { TenantContext.clear(); }
+    void clear() {
+        TenantContext.clear();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 
     private String teks(byte[] pdf) throws Exception {
         try (PDDocument doc = Loader.loadPDF(pdf)) {
@@ -363,6 +387,46 @@ class AdhocInvoiceTest {
                 .as("bayaran kurang bukan masalah — tunggakan direkod dan "
                     + "dicontra kemudian")
                 .isEqualByComparingTo("15.00");
+    }
+
+    @Test
+    @DisplayName("E-mel invois adhoc dihantar kepada PENERIMA")
+    void emelAdhocDihantar() {
+        // Alamat duduk pada DOKUMEN. Akaun ADHOC-SALES dikongsi dan tidak
+        // membawa e-mel sesiapa, jadi membaca header().billtoEmail()
+        // seperti laluan resit akan sentiasa kosong.
+        invoicing.adhocInvoice(permintaan(
+                new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+        em.flush();
+
+        var alamat = org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        org.mockito.Mockito.verify(email).resendDocument(
+                alamat.capture(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        assertThat(alamat.getValue()).containsExactly("ahmad@contoh.com");
+    }
+
+    @Test
+    @DisplayName("Tiada e-mel penerima: senyap, bukan ralat")
+    void emelAdhocTiadaAlamatSenyap() {
+        // Borang menyatakan "tanpa e-mel, invois mesti dicetak dan
+        // diserahkan sendiri". Itu pilihan yang sah.
+        var req = new AdhocInvoiceService.Request(
+                null, "TANPA EMEL", null, "0123456789",
+                periodId, LocalDate.of(2026, 8, 15), null,
+                List.of(new AdhocInvoiceService.AdhocLine(produkA, BigDecimal.ONE)));
+
+        var r = invoicing.adhocInvoice(req);
+        em.flush();
+
+        assertThat(r.documentId()).isNotNull();
+        org.mockito.Mockito.verifyNoInteractions(email);
     }
 
     @Test
