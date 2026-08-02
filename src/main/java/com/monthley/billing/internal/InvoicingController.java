@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.monthley.document.api.DocumentAccessPort;
@@ -47,6 +48,7 @@ class InvoicingController {
     private final StatementAccessPort stmtAccess;
     private final EmailPort email;
     private final EmailOutboxPort outbox;
+    private final UsageChargeService usage;
     private final String appUrl;
 
     private static final Logger log = LoggerFactory.getLogger(InvoicingController.class);
@@ -67,6 +69,7 @@ class InvoicingController {
                         StatementAccessPort stmtAccess,
                         EmailPort email,
                         EmailOutboxPort outbox,
+                        UsageChargeService usage,
                         @Value("${monthley.app-url:http://localhost:4200}") String appUrl) {
         this.billing = billing;
         this.settings = settings;
@@ -77,6 +80,7 @@ class InvoicingController {
         this.stmtAccess = stmtAccess;
         this.email = email;
         this.outbox = outbox;
+        this.usage = usage;
         this.appUrl = appUrl;
     }
 
@@ -518,6 +522,63 @@ class InvoicingController {
      * Semua berkongsi satu akaun ADHOC-SALES (V50) dan butiran penerima
      * duduk pada dokumen.
      */
+    // ── Caj berasaskan penggunaan (V58) ──────────────────────────────
+
+    /**
+     * Templat Excel dengan senarai akaun aktif.
+     *
+     * Kerani mengisi kuantiti ATAU amaun, dan memuat naiknya semula.
+     * Baris yang dibiarkan kosong dilangkau — templat mengandungi setiap
+     * akaun kerana kerani tidak tahu awal-awal siapa yang akan dicaj.
+     */
+    @GetMapping("/usage/template")
+    ResponseEntity<byte[]> usageTemplate() {
+        Access.requireAnyRole("memuat turun templat caj penggunaan", "SP_ADMIN", "CLERK");
+
+        byte[] xlsx = usage.templat(sp());
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename("caj-penggunaan-" + sp() + ".xlsx")
+                                .build().toString())
+                .body(xlsx);
+    }
+
+    /**
+     * Baca fail dan padankan dengan akaun — TIDAK menyimpan.
+     *
+     * Kerani menyemak di skrin sebelum menyimpan. Baris yang tidak
+     * padan dipulangkan dengan sebabnya, bukan digugurkan senyap.
+     */
+    @PostMapping("/usage/preview")
+    List<UsageChargeService.Baris> usagePreview(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam Long productId) {
+        Access.requireAnyRole("memuat naik caj penggunaan", "SP_ADMIN", "CLERK");
+        try {
+            return usage.parse(sp(), productId, file.getInputStream());
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Fail tidak boleh dibaca: " + e.getMessage(), e);
+        }
+    }
+
+    record UsageSaveRequest(Long productId, Long periodId,
+                            List<UsageChargeService.Baris> lines) {}
+
+    @PostMapping("/usage")
+    UsageChargeService.SimpanHasil usageSave(@RequestBody UsageSaveRequest req) {
+        Access.requireAnyRole("menyimpan caj penggunaan", "SP_ADMIN", "CLERK");
+        if (req.productId() == null || req.periodId() == null
+                || req.lines() == null || req.lines().isEmpty()) {
+            return new UsageChargeService.SimpanHasil(0, 0,
+                    List.of("Produk, tempoh dan baris diperlukan."));
+        }
+        return usage.simpan(sp(), req.productId(), req.periodId(), req.lines(),
+                com.monthley.shared.Access.isSuperadmin() ? "SUPERADMIN" : sp());
+    }
+
     @PostMapping("/adhoc-invoice")
     AdhocInvoiceService.Result adhocInvoice(
             @RequestBody AdhocInvoiceService.Request req) {
