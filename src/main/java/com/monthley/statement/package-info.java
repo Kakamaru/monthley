@@ -13,6 +13,10 @@
  * document::api dibenarkan untuk DocumentAccessPort sahaja — pautan awam
  * memerlukan penyelesaian token, dan modul ini yang merender dokumen
  * yang token itu tunjuk. Ia TIDAK menulis melalui DocumentPort.
+ *
+ * StatementAccessPort juga datang daripada document::api — pautan awam
+ * penyata memerlukan penyelesaian token, dan modul ini yang merender
+ * penyata itu.
  */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Account Statement",

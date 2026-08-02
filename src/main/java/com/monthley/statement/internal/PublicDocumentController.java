@@ -1,5 +1,6 @@
 package com.monthley.statement.internal;
 
+import com.monthley.document.api.StatementAccessPort;
 import com.monthley.document.api.DocumentAccessPort;
 import com.monthley.document.api.DocumentType;
 import com.monthley.statement.api.StatementPort;
@@ -28,14 +29,49 @@ import java.nio.charset.StandardCharsets;
 class PublicDocumentController {
 
     private final DocumentAccessPort access;
+    private final StatementAccessPort stmtAccess;
     private final StatementPort statements;
     private final StatementRenderPort renderer;
 
-    PublicDocumentController(DocumentAccessPort access, StatementPort statements,
+    PublicDocumentController(DocumentAccessPort access,
+                             StatementAccessPort stmtAccess,
+                             StatementPort statements,
                              StatementRenderPort renderer) {
         this.access = access;
+        this.stmtAccess = stmtAccess;
         this.statements = statements;
         this.renderer = renderer;
+    }
+
+    /**
+     * Penyata awam — token BERASINGAN daripada dokumen.
+     *
+     * Penyata bukan dokumen: ia unjuran atas julat tarikh dan tiada
+     * baris dalam financial_document. Token memegang (akaun, tahun),
+     * dan pautan yang sama berfungsi sepanjang tahun — penyata yang
+     * dibukanya menunjukkan keadaan SEMASA, bukan snapshot pada masa
+     * e-mel dihantar.
+     *
+     * Itu sifat: pelanggan yang membayar selepas menerima e-mel membuka
+     * pautan lama dan melihat baki yang sudah dikemas kini.
+     */
+    @GetMapping(value = "/stmt/{token}", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> statement(@PathVariable String token) {
+        var s = stmtAccess.resolve(token).orElse(null);
+        if (s == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        var m = statements.forYear(s.spCode(), s.accountId(), s.year());
+        var f = renderer.renderPdfFile(m);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(f.filename(), StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
     }
 
     /**
