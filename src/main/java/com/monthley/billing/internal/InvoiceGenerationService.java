@@ -42,18 +42,20 @@ public class InvoiceGenerationService {
 
     private final AccountPort accounts;
     private final InvoiceCalculator calculator;
+    private final UsageChargeQuery usageCharges;
     private final DocumentPort documents;
     private final LedgerPort ledger;
     private final AdvancePort advance;
 
     InvoiceGenerationService(AccountPort accounts, InvoiceCalculator calculator,
                              DocumentPort documents, LedgerPort ledger,
-                             AdvancePort advance) {
+                             AdvancePort advance, UsageChargeQuery usageCharges) {
         this.accounts = accounts;
         this.calculator = calculator;
         this.documents = documents;
         this.ledger = ledger;
         this.advance = advance;
+        this.usageCharges = usageCharges;
     }
 
     /**
@@ -82,23 +84,18 @@ public class InvoiceGenerationService {
         for (AccountView account : accounts.activeAccountsFor(spCode)) {
             scanned++;
 
-            List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
-            if (subs.isEmpty()) { noSub++; continue; }
+            // Tempoh LIPUTAN dikumpul di dalam janaSatuAkaun: akaun YEAR
+            // dengan produk MONTHLY menghasilkan dua belas invois Jan-Dis
+            // dalam satu larian, dan merekod base.periodId() melaporkan
+            // SATU tempoh sambil menyembunyikan sebelas yang lain.
+            int created = janaSatuAkaun(spCode, account, runMonth, mode, ctx, periods);
 
-            Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
-
-            List<CalculatedLine> lines = calculator.linesFor(
-                    account, subs, base, runMonth, mode, ctx);
-            if (lines.isEmpty()) { nothing++; continue; }
-
-            int created = createGrouped(spCode, account, base, lines, ctx);
-            if (created == 0) already++;
-            else {
-                // Tempoh LIPUTAN, bukan tempoh larian. Akaun YEAR dengan
-                // produk MONTHLY menghasilkan dua belas invois Jan-Dis
-                // dalam satu larian; merekod base.periodId() melaporkan
-                // SATU tempoh dan menyembunyikan sebelas yang lain.
-                lines.forEach(l -> periods.add(l.charge().periodId()));
+            if (created == 0) {
+                // Tiada langganan DAN tiada caj penggunaan, atau
+                // idem_key menolak. Dibezakan supaya laporan penjanaan
+                // bermakna.
+                if (accounts.activeSubscriptions(account.id()).isEmpty()) noSub++;
+                else nothing++;
             }
             posted += created;
         }
@@ -130,24 +127,18 @@ public class InvoiceGenerationService {
             return new GenerationOutcome(0, 0, 0, 0, 0, java.util.Set.of());
         }
 
-        List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
-        if (subs.isEmpty()) {
-            return new GenerationOutcome(0, 1, 1, 0, 0, java.util.Set.of());
-        }
-
-        Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
-        List<CalculatedLine> lines = calculator.linesFor(
-                account, subs, base, runMonth, mode, ctx);
-        if (lines.isEmpty()) {
-            return new GenerationOutcome(0, 1, 0, 1, 0, java.util.Set.of());
-        }
-
-        int created = createGrouped(spCode, account, base, lines, ctx);
+        // Laluan SAMA seperti jana pukal, termasuk caj penggunaan.
+        // Kerani yang memuat naik Excel dan menekan Generate Single
+        // Invoice mesti mendapat caj itu — dokumen penggunaan menunjukkan
+        // tepat aliran tersebut.
         java.util.Set<Long> periods = new java.util.LinkedHashSet<>();
-        if (created > 0) {
-            lines.forEach(l -> periods.add(l.charge().periodId()));
-        }
-        return new GenerationOutcome(created, 1, 0, 0, created == 0 ? 1 : 0, periods);
+        int created = janaSatuAkaun(spCode, account, runMonth, mode, ctx, periods);
+
+        boolean tiadaLanggan = accounts.activeSubscriptions(account.id()).isEmpty();
+        return new GenerationOutcome(created, 1,
+                created == 0 && tiadaLanggan ? 1 : 0,
+                created == 0 && !tiadaLanggan ? 1 : 0,
+                0, periods);
     }
 
     /**
@@ -191,10 +182,70 @@ public class InvoiceGenerationService {
      *
      * @return bilangan dokumen yang benar-benar dicipta (0 kalau semua diskip)
      */
+    /**
+     * Satu akaun: baris langganan DAN caj penggunaan, dicipta bersama.
+     *
+     * Dipanggil oleh kedua-dua laluan penjanaan — pukal dan tunggal.
+     * Menyalin logik ini bermakna satu laluan mengambil caj penggunaan
+     * dan satu lagi tidak, dan tiada apa yang memberitahu kerani
+     * mengapa invoisnya berbeza.
+     *
+     * TIADA LANGGANAN BUKAN PENGHALANG. Caj penggunaan tidak memerlukan
+     * langganan — kerani memuat naik Excel untuk mana-mana akaun di
+     * bawah SP. Akaun yang hanya mempunyai caj penggunaan tetap
+     * mendapat invois.
+     *
+     * @return bilangan dokumen dicipta; 0 bermakna tiada apa untuk dibil
+     *         ATAU idem_key menolak
+     */
+    private int janaSatuAkaun(String spCode, AccountView account, YearMonth runMonth,
+                              GenMode mode, BillingContext ctx,
+                              java.util.Set<Long> periodsOut) {
+
+        List<SubscriptionView> subs = accounts.activeSubscriptions(account.id());
+        Charge base = PeriodResolver.basePeriod(runMonth, mode, account.chargeFrequency());
+
+        List<CalculatedLine> lines = new ArrayList<>();
+        if (!subs.isEmpty()) {
+            lines.addAll(calculator.linesFor(account, subs, base, runMonth, mode, ctx));
+        }
+
+        // Caj penggunaan membawa tempoh SENDIRI, dipilih semasa muat
+        // naik — bukan tempoh yang mod bil akan kira. Dua muat naik
+        // untuk produk yang sama (Jun dan Julai) menghasilkan DUA baris
+        // dalam larian yang sama.
+        var usage = usageCharges.pendingFor(spCode, account.id());
+        usage.forEach(u -> lines.add(u.line()));
+
+        if (lines.isEmpty()) {
+            return 0;
+        }
+
+        List<Long> docIds = new ArrayList<>();
+        int created = createGrouped(spCode, account, base, lines, ctx, docIds);
+
+        if (created > 0) {
+            lines.forEach(l -> periodsOut.add(l.charge().periodId()));
+
+            // Tandakan caj penggunaan sebagai sudah dibil. Transaksi
+            // SAMA: kalau penciptaan invois digulung, tandaan hilang
+            // bersamanya dan caj kekal PENDING untuk larian seterusnya.
+            if (!usage.isEmpty() && !docIds.isEmpty()) {
+                usageCharges.tandaInvois(
+                        usage.stream().map(UsageChargeQuery.Baris::id).toList(),
+                        docIds.get(0));
+            }
+        }
+        return created;
+    }
+
     private int createGrouped(String spCode, AccountView account, Charge base,
-                              List<CalculatedLine> lines, BillingContext ctx) {
+                              List<CalculatedLine> lines, BillingContext ctx,
+                              List<Long> docIdsOut) {
         if (!ctx.splitByProduct()) {
-            return createAndPost(spCode, account, base, lines, ctx) ? 1 : 0;
+            var id = createAndPost(spCode, account, base, lines, ctx);
+            id.ifPresent(docIdsOut::add);
+            return id.isPresent() ? 1 : 0;
         }
 
         // Kunci = (tempoh liputan, produk). LinkedHashMap mengekalkan susunan
@@ -216,7 +267,9 @@ public class InvoiceGenerationService {
             // dua belas invois bulanan semuanya bertanda '2025' dan tidak
             // boleh dibezakan dalam senarai.
             Charge tempohDok = e.getValue().get(0).charge();
-            if (createAndPost(spCode, account, tempohDok, e.getValue(), ctx)) {
+            var id = createAndPost(spCode, account, tempohDok, e.getValue(), ctx);
+            if (id.isPresent()) {
+                docIdsOut.add(id.get());
                 created++;
             }
         }
@@ -224,8 +277,15 @@ public class InvoiceGenerationService {
     }
 
     /** @return true kalau invois dicipta & di-post; false kalau diskip (idempotent). */
-    private boolean createAndPost(String spCode, AccountView account, Charge base,
-                                  List<CalculatedLine> lines, BillingContext ctx) {
+    /**
+     * Pulang id dokumen, bukan boolean.
+     *
+     * docId sudah wujud di dalam; membuangnya bermakna pemanggil tidak
+     * boleh menandakan caj penggunaan sebagai sudah dibil. Kosong =
+     * idem_key menolak (sudah dijana).
+     */
+    private Optional<Long> createAndPost(String spCode, AccountView account, Charge base,
+                                         List<CalculatedLine> lines, BillingContext ctx) {
 
         LocalDate docDate = LocalDate.now();
 
@@ -246,7 +306,7 @@ public class InvoiceGenerationService {
 
         Optional<Long> docId = documents.createInvoice(inv);
         if (docId.isEmpty()) {
-            return false;   // sudah dijana — idem_key menolak
+            return Optional.empty();   // sudah dijana — idem_key menolak
         }
 
         ledger.post(new PostingRequest(
@@ -263,7 +323,7 @@ public class InvoiceGenerationService {
         // Payment, dan kerani boleh menerima bayaran KEDUA.
         advance.applyAdvance(spCode, account.id(), docId.get());
 
-        return true;
+        return docId;
     }
 
     /**
