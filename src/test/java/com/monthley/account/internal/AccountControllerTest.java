@@ -97,6 +97,121 @@ class AccountControllerTest {
                 .toList();
     }
 
+    // ── Langganan pukal (skrin Produk, Add Account) ──────────────────
+
+    private void bolehTulis() {
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("admin", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_SPX_SP_ADMIN"))));
+    }
+
+    private long bilanganLanggan(long produkId) {
+        return ((Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM account_subscription WHERE product_id = :p")
+                .setParameter("p", produkId).getSingleResult()).longValue();
+    }
+
+    @Test
+    @DisplayName("Pukal: semua akaun dilanggan, kuantiti dan tarikh dihormati")
+    void pukalMenambahSemua() {
+        bolehTulis();
+        long p = produkUji("P-BULK-A", "50.00");
+        long a1 = akaunUji("BULK-1");
+        long a2 = akaunUji("BULK-2");
+        em.flush();
+
+        var hasil = controller.bulkSubscribe(new AccountController.BulkSubscribeRequest(
+                p, java.util.List.of(
+                        new AccountController.BulkLine(a1, new java.math.BigDecimal("2"),
+                                java.time.LocalDate.of(2026, 8, 1), null),
+                        new AccountController.BulkLine(a2, null, null, null))));
+        em.flush();
+        em.clear();
+
+        assertThat(hasil.getBody().ditambah()).isEqualTo(2);
+        assertThat(hasil.getBody().dilangkau()).isZero();
+
+        var r = em.createNativeQuery("""
+                SELECT quantity, start_date FROM account_subscription
+                WHERE  account_id = :a AND product_id = :p
+                """).setParameter("a", a1).setParameter("p", p).getSingleResult();
+        assertThat(((Object[]) r)[0]).isEqualTo(new java.math.BigDecimal("2.0000"));
+        assertThat(tarikhUji(((Object[]) r)[1])).isEqualTo(java.time.LocalDate.of(2026, 8, 1));
+
+        // Kuantiti null -> 1, bukan null. Baris tanpa kuantiti tidak
+        // boleh dibil.
+        assertThat(em.createNativeQuery(
+                "SELECT quantity FROM account_subscription WHERE account_id = :a AND product_id = :p")
+                .setParameter("a", a2).setParameter("p", p).getSingleResult())
+                .isEqualTo(new java.math.BigDecimal("1.0000"));
+    }
+
+    @Test
+    @DisplayName("Pukal: akaun yang SUDAH melanggan dilangkau, bukan menggagalkan kelompok")
+    void pukalPenduaDilangkau() {
+        // Frontend menapis akaun yang sudah melanggan, tetapi senarai
+        // boleh basi antara memuat dan menyimpan — kerani lain menambah
+        // langganan sementara dialog terbuka.
+        //
+        // Menggagalkan keseluruhan kelompok kerana satu pendua bermakna
+        // sembilan puluh sembilan langganan yang sah hilang.
+        bolehTulis();
+        long p = produkUji("P-BULK-B", "60.00");
+        long lama = akaunUji("BULK-LAMA");
+        long baru = akaunUji("BULK-BARU");
+        langganUji(lama, p, "ACTIVE", null);
+        em.flush();
+
+        var hasil = controller.bulkSubscribe(new AccountController.BulkSubscribeRequest(
+                p, java.util.List.of(
+                        new AccountController.BulkLine(lama, null, null, null),
+                        new AccountController.BulkLine(baru, null, null, null))));
+        em.flush();
+
+        assertThat(hasil.getBody().ditambah()).isEqualTo(1);
+        assertThat(hasil.getBody().dilangkau()).isEqualTo(1);
+        assertThat(hasil.getBody().sebab()).singleElement()
+                .asString().contains("BULK-LAMA").contains("sudah melanggan");
+        assertThat(bilanganLanggan(p)).as("tiada pendua dicipta").isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Pukal: akaun SP lain dilangkau")
+    void pukalSpLainDilangkau() {
+        bolehTulis();
+        long p = produkUji("P-BULK-C", "70.00");
+        em.createNativeQuery("""
+                INSERT IGNORE INTO service_provider (sp_code, name, status, version)
+                VALUES ('SPXX', 'SP Lain', 'ACTIVE', 0)
+                """).executeUpdate();
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name, status)
+                VALUES ('SPXX', 'LAIN-1', 'Akaun SP Lain', 'ACTIVE')
+                """).executeUpdate();
+        long lain = ((Number) em.createNativeQuery(
+                "SELECT id FROM account WHERE sp_code='SPXX' AND account_no='LAIN-1'")
+                .getSingleResult()).longValue();
+        em.flush();
+
+        var hasil = controller.bulkSubscribe(new AccountController.BulkSubscribeRequest(
+                p, java.util.List.of(new AccountController.BulkLine(lain, null, null, null))));
+        em.flush();
+
+        assertThat(hasil.getBody().ditambah()).isZero();
+        assertThat(bilanganLanggan(p)).isZero();
+    }
+
+    private static java.time.LocalDate tarikhUji(Object v) {
+        if (v == null) return null;
+        if (v instanceof java.time.LocalDate d) return d;
+        if (v instanceof java.sql.Date d) return d.toLocalDate();
+        return java.time.LocalDate.parse(v.toString());
+    }
+
     // ── Senarai pelanggan produk (skrin Produk) ──────────────────────
 
     private void akaunTakAktif(String no) {

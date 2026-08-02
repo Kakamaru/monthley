@@ -1,5 +1,6 @@
 package com.monthley.account.internal;
 
+import com.monthley.shared.Access;
 import com.monthley.shared.ChargeFrequency;
 import com.monthley.tenancy.api.BillingSettingsPort;
 import com.monthley.notification.api.EmailPort;
@@ -165,6 +166,78 @@ class AccountController {
     record SubLine(
             Long productId, java.math.BigDecimal quantity,
             LocalDate startDate, LocalDate endDate, java.math.BigDecimal unitPrice) {}
+
+    record BulkLine(Long accountId, java.math.BigDecimal quantity,
+                    LocalDate startDate, LocalDate endDate) {}
+
+    record BulkSubscribeRequest(Long productId, List<BulkLine> lines) {}
+
+    record BulkSubscribeResult(int ditambah, int dilangkau, List<String> sebab) {}
+
+    /**
+     * Langgan satu produk untuk BANYAK akaun (skrin Produk, Add Account).
+     *
+     * Arah bertentangan daripada POST /{id}/subscriptions, yang melanggan
+     * banyak produk untuk SATU akaun. Logik menulisnya serupa tetapi
+     * bentuk permintaan berbeza sepenuhnya, dan memaksa satu endpoint
+     * melayani kedua-duanya menghasilkan borang yang tidak menyerupai
+     * mana-mana skrin.
+     *
+     * GUARD CASE-007 DIPANGGIL DI SINI JUGA. Guard itu hidup dalam
+     * laluan kemas kini akaun, bukan dalam repository — endpoint baharu
+     * TIDAK mewarisinya. Akaun 260 mendapat dua langganan produk 197
+     * melalui laluan yang terlepas guard, dan invoisnya mengecaj Julai
+     * 2026 dua kali.
+     *
+     * MELANGKAU, bukan menggagalkan. Frontend menapis akaun yang sudah
+     * melanggan, tetapi senarai boleh basi antara memuat dan menyimpan
+     * — kerani lain menambah langganan sementara dialog terbuka.
+     * Menggagalkan keseluruhan kelompok kerana satu pendua bermakna
+     * sembilan puluh sembilan langganan yang sah hilang.
+     */
+    @PostMapping("/bulk-subscribe")
+    @Transactional
+    ResponseEntity<BulkSubscribeResult> bulkSubscribe(@RequestBody BulkSubscribeRequest req) {
+        Access.requireAnyRole("melanggan produk secara pukal", "SP_ADMIN", "CLERK");
+
+        if (req.productId() == null || req.lines() == null || req.lines().isEmpty()) {
+            return ResponseEntity.badRequest().body(
+                    new BulkSubscribeResult(0, 0, List.of("Tiada akaun dipilih.")));
+        }
+
+        String sp = sp();
+        int ditambah = 0, dilangkau = 0;
+        List<String> sebab = new ArrayList<>();
+
+        for (BulkLine line : req.lines()) {
+            if (line.accountId() == null) continue;
+
+            var akaun = accounts.findById(line.accountId())
+                    .filter(a -> a.getSpCode().equals(sp))
+                    .orElse(null);
+            if (akaun == null) {
+                dilangkau++;
+                sebab.add("Akaun " + line.accountId() + " tidak dijumpai.");
+                continue;
+            }
+
+            if (subscriptions.existsByAccountIdAndProductIdAndStatus(
+                    akaun.getId(), req.productId(), AccountSubscription.Status.ACTIVE)) {
+                dilangkau++;
+                sebab.add(akaun.getAccountNo() + " sudah melanggan produk ini.");
+                continue;
+            }
+
+            var qty = line.quantity() == null ? java.math.BigDecimal.ONE : line.quantity();
+            var sub = new AccountSubscription(sp, akaun.getId(), req.productId(),
+                    qty, line.startDate());
+            if (line.endDate() != null) sub.setEndDate(line.endDate());
+            subscriptions.save(sub);
+            ditambah++;
+        }
+
+        return ResponseEntity.ok(new BulkSubscribeResult(ditambah, dilangkau, sebab));
+    }
 
     record SubscriberDto(Long accountId, String accountNo, String accountName,
                          String categoryName,
