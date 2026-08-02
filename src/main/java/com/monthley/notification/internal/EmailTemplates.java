@@ -133,6 +133,54 @@ final class EmailTemplates {
     }
 
     /**
+     * Penyata akaun kepada pelanggan.
+     *
+     * Baki dipaparkan supaya pelanggan tahu keadaannya tanpa membuka
+     * pautan — tetapi dengan tarikh, kerana ia menjadi basi sebaik dia
+     * membayar.
+     */
+    static String statement(String name, String spName, String accountNo,
+                            String tempoh, String baki,
+                            String spEmail, String spPhone, String url) {
+        // Baris hubungan DISEMBUNYIKAN kalau kosong. Legacy memaparkan
+        // 'Email:' dan 'Telephone:' tanpa nilai apabila SP tidak
+        // mengisinya — pelanggan melihat label yang menjanjikan sesuatu
+        // yang tiada.
+        String hubungan = "";
+        if ((spEmail != null && !spEmail.isBlank())
+                || (spPhone != null && !spPhone.isBlank())) {
+            hubungan = "<br>Untuk pertanyaan penyata, hubungi <strong>"
+                    + esc(spName) + "</strong>";
+            if (spEmail != null && !spEmail.isBlank()) {
+                hubungan += " di " + esc(spEmail);
+            }
+            if (spPhone != null && !spPhone.isBlank()) {
+                hubungan += (spEmail != null && !spEmail.isBlank() ? " atau " : " di ")
+                        + esc(spPhone);
+            }
+            hubungan += ".";
+        }
+
+        return shell(
+            "Penyata Akaun",
+            "Hai <strong>" + esc(name) + "</strong>,<br><br>"
+            + "Penyata akaun anda daripada <strong>" + esc(spName)
+            + "</strong> untuk " + esc(tempoh) + " sudah sedia.<br><br>"
+            + "<table style=\"font-size:14px;line-height:1.8\">"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">No. Akaun</td>"
+            + "<td><strong>" + esc(accountNo) + "</strong></td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tempoh</td>"
+            + "<td>" + esc(tempoh) + "</td></tr>"
+            + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Baki semasa</td>"
+            + "<td><strong>" + esc(baki) + "</strong></td></tr>"
+            + "</table>",
+            "Lihat Penyata", url,
+            "Baki di atas adalah pada tarikh e-mel ini dihantar. Pautan "
+            + "sentiasa menunjukkan keadaan terkini dan kekal sah."
+            + hubungan);
+    }
+
+    /**
      * Laporan penjanaan bil kepada admin SP.
      *
      * TIADA butang. Laporan ini maklumat, bukan tindakan — admin yang

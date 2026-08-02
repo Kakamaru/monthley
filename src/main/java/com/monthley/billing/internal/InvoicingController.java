@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import org.springframework.web.bind.annotation.*;
 
 import com.monthley.document.api.DocumentAccessPort;
+import com.monthley.document.api.StatementAccessPort;
 import com.monthley.document.api.DocumentType;
 import com.monthley.notification.api.EmailOutboxPort;
 import com.monthley.notification.api.EmailPort;
@@ -43,11 +44,17 @@ class InvoicingController {
     private final AdhocInvoiceService adhoc;
     private final StatementPort statements;
     private final DocumentAccessPort access;
+    private final StatementAccessPort stmtAccess;
     private final EmailPort email;
     private final EmailOutboxPort outbox;
     private final String appUrl;
 
     private static final Logger log = LoggerFactory.getLogger(InvoicingController.class);
+
+    /** Nama bulan untuk tajuk e-mel penyata. */
+    private static final String[] BULAN = {
+            "Januari", "Februari", "Mac", "April", "Mei", "Jun",
+            "Julai", "Ogos", "September", "Oktober", "November", "Disember" };
 
     @PersistenceContext private EntityManager em;
 
@@ -57,6 +64,7 @@ class InvoicingController {
                         AdhocInvoiceService adhoc,
                         StatementPort statements,
                         DocumentAccessPort access,
+                        StatementAccessPort stmtAccess,
                         EmailPort email,
                         EmailOutboxPort outbox,
                         @Value("${monthley.app-url:http://localhost:4200}") String appUrl) {
@@ -66,6 +74,7 @@ class InvoicingController {
         this.adhoc = adhoc;
         this.statements = statements;
         this.access = access;
+        this.stmtAccess = stmtAccess;
         this.email = email;
         this.outbox = outbox;
         this.appUrl = appUrl;
@@ -126,11 +135,122 @@ class InvoicingController {
                     .setParameter("ids", out.billedPeriodIds())
                     .getResultList();
 
+        beraturPenyata(sp, runMonth);
         beraturLaporan(sp, out, billed);
 
         return new GenerateResult(sp, runMonth.toString(), mode.name(), out.invoicesPosted(),
                 out.accountsScanned(), out.skippedNoSubscription(),
                 out.skippedNothingToCharge(), out.skippedAlreadyGenerated(), billed);
+    }
+
+    /**
+     * Penyata kepada pelanggan selepas jana bil (ADR 0014 P4).
+     *
+     * SEMUA akaun aktif yang mempunyai e-mel — bukan hanya akaun yang
+     * menerima invois dalam larian ini. Penyata ialah keadaan AKAUN,
+     * bukan resit bagi satu invois.
+     *
+     * SATU e-mel per AKAUN. Satu larian boleh menghasilkan lapan belas
+     * invois untuk satu akaun (produk berbilang x tempoh berbilang);
+     * satu e-mel setiap satu bermakna puluhan ribu e-mel dan peti masuk
+     * yang tidak boleh dibaca.
+     *
+     * SEMUA DATA DISIMPAN PADA BARIS. Renderer dalam modul notification
+     * tidak boleh menyoal penyata — allowedDependencies = { shared },
+     * dan menambah statement::api mencipta kitaran.
+     *
+     * Itu juga lebih betul: baki pada masa BERATUR ialah baki yang
+     * e-mel patut laporkan. Sepuluh ribu penyata mengambil kira-kira
+     * seratus minit untuk dihantar; menyoal baki semasa penghantaran
+     * bermakna e-mel terakhir melaporkan nombor yang berbeza daripada
+     * yang pertama, untuk larian yang sama.
+     *
+     * Token idempoten (V57): larian kedua bagi tahun yang sama
+     * menggunakan pautan yang SAMA, dan e-mel lama kekal berfungsi.
+     */
+    @SuppressWarnings("unchecked")
+    private void beraturPenyata(String spCode, YearMonth runMonth) {
+        try {
+            Object hidup = em.createNativeQuery(
+                    "SELECT email_on_invoice FROM sp_notification_setting WHERE sp_code = :sp")
+                    .setParameter("sp", spCode)
+                    .getResultList().stream().findFirst().orElse(null);
+            if (hidup != null && !benar(hidup)) {
+                return;
+            }
+
+            // helpdesk_* ialah alamat pertanyaan yang dimaksudkan; kalau
+            // SP tidak mengisinya, contact_email dan phone menjadi
+            // sandaran. Baris hubungan disembunyikan kalau kedua-duanya
+            // kosong — legacy memaparkan 'Email:' tanpa nilai.
+            Object[] sp1 = (Object[]) em.createNativeQuery("""
+                    SELECT p.name, COALESCE(b.currency, 'MYR'),
+                           COALESCE(NULLIF(p.helpdesk_email,''), p.contact_email, ''),
+                           COALESCE(NULLIF(p.helpdesk_phone,''), p.phone, '')
+                    FROM   service_provider p
+                    LEFT   JOIN sp_billing_setting b ON b.sp_code = p.sp_code
+                    WHERE  p.sp_code = :sp
+                    """).setParameter("sp", spCode).getSingleResult();
+            String spName = (String) sp1[0];
+            String currency = (String) sp1[1];
+            String spEmail = (String) sp1[2];
+            String spPhone = (String) sp1[3];
+
+            int tahun = runMonth.getYear();
+
+            // Akaun teknikal ADHOC-SALES dikecualikan: ia dikongsi dan
+            // tidak mempunyai pemilik untuk dihantar penyata.
+            //
+            // billto_email ialah alamat utama; billto_email_secondary
+            // menjadi cc. Akaun tanpa kedua-duanya dilangkau — bil
+            // diserahkan sendiri, dan itu pilihan yang sah.
+            List<Object[]> akaun = em.createNativeQuery("""
+                    SELECT a.id, a.account_no,
+                           COALESCE(NULLIF(a.billto_name,''), a.account_name),
+                           a.billto_email, a.billto_email_secondary
+                    FROM   account a
+                    WHERE  a.sp_code = :sp
+                      AND  a.status = 'ACTIVE'
+                      AND  COALESCE(a.account_type,'') <> 'ADHOC'
+                      AND  a.billto_email IS NOT NULL AND a.billto_email <> ''
+                    ORDER  BY a.account_no
+                    """).setParameter("sp", spCode).getResultList();
+
+            // Bulan LARIAN, bukan tahun. Kandungan penyata ialah
+            // tahun-ke-tarikh (ADR 0010), tetapi 'Tahun 2026' tidak
+            // membezakan penghantaran Ogos daripada September, dan
+            // pelanggan menerima dua belas e-mel setahun.
+            String tempoh = BULAN[runMonth.getMonthValue() - 1] + " " + tahun;
+            int beratur = 0;
+
+            for (Object[] r : akaun) {
+                long id = ((Number) r[0]).longValue();
+
+                var m = statements.forYear(spCode, id, tahun);
+                String baki = currency + " " + m.closingBalance().toPlainString();
+                String token = stmtAccess.tokenFor(spCode, id, tahun);
+
+                boolean baharu = outbox.queue(spCode, EmailOutboxPort.Kind.STATEMENT,
+                        // Satu penyata per akaun per LARIAN, bukan per
+                        // tahun: kerani yang menjana bil setiap bulan
+                        // menghantar penyata setiap bulan.
+                        id + ":" + tahun + ":" + runMonth,
+                        (String) r[3], (String) r[4],
+                        params("p_nama", (String) r[2],
+                               "p_stmt", String.join("|", spName, (String) r[1],
+                                       tempoh, baki, spEmail, spPhone,
+                                       appUrl + "/api/v1/pub/stmt/" + token)));
+                if (baharu) beratur++;
+            }
+
+            log.info("Penyata diberatur untuk {}: {} daripada {} akaun",
+                    spCode, beratur, akaun.size());
+
+        } catch (RuntimeException e) {
+            // Invois sudah dijana dan dipos. Penyata yang gagal beratur
+            // tidak boleh menggulungnya.
+            log.error("Gagal beratur penyata untuk {}: {}", spCode, e.getMessage());
+        }
     }
 
     /**

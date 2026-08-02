@@ -14,8 +14,19 @@ import java.util.List;
  * siapa tahu pelanggan tidak menerima apa-apa.
  *
  *   GENERATION_REPORT  P2 — SIAP
- *   STATEMENT          P4 — perlukan statement_access_token (P3)
+ *   STATEMENT          P4 — SIAP
  *   REMINDER           P7
+ *
+ * SEMUA DATA DATANG DARIPADA BARIS. Renderer tidak menyoal penyata,
+ * tidak menjana token, tidak mengira baki — modul notification
+ * mempunyai allowedDependencies = { shared }, dan menambah
+ * statement::api di sini mencipta kitaran (statement sudah bergantung
+ * padanya untuk e-mel resit).
+ *
+ * Itu juga lebih betul: baki pada masa BERATUR ialah baki yang e-mel
+ * patut laporkan. Menyoalnya semasa menghantar memberi nombor yang
+ * berbeza seratus minit kemudian, dan e-mel akan bercanggah dengan
+ * dirinya sendiri.
  */
 @Component
 class DefaultEmailOutboxRenderer implements EmailOutboxRenderer {
@@ -31,6 +42,7 @@ class DefaultEmailOutboxRenderer implements EmailOutboxRenderer {
         Kind kind = Kind.valueOf(baris.getKind());
         switch (kind) {
             case GENERATION_REPORT -> laporanPenjanaan(baris);
+            case STATEMENT -> penyata(baris);
             default -> throw new UnsupportedOperationException(
                     "Renderer untuk " + kind + " belum dilaksana (ADR 0014). "
                     + "Baris " + baris.getId() + " kekal dalam gilir.");
@@ -66,6 +78,32 @@ class DefaultEmailOutboxRenderer implements EmailOutboxRenderer {
 
         email.sendGenerationReport(baris.getToEmail(), spName, f[0],
                 Integer.parseInt(f[1]), Integer.parseInt(f[2]), f[3], tempoh);
+    }
+
+    /**
+     * param1 = nama penerima, param2 = butiran berpisah.
+     *
+     * Bentuk: 'spName|akaunNo|tempoh|baki|spEmail|spPhone|url'
+     *
+     * Tujuh nilai dalam satu lajur kerana outbox mempunyai dua pasang
+     * kunci/nilai sahaja. Menambah lajur untuk satu jenis notifikasi
+     * bermakna jadual berkembang setiap kali jenis baharu muncul.
+     *
+     * cc datang daripada LAJUR cc_email, bukan daripada rentetan ini —
+     * ia sudah ada tempatnya, dan menyimpannya di dua tempat bermakna
+     * dua tempat untuk menyimpang.
+     */
+    private void penyata(EmailOutbox baris) {
+        String nama = nilai(baris, "p_nama");
+        String butiran = nilai(baris, "p_stmt");
+        String[] f = (butiran == null ? "" : butiran).split("\\|", -1);
+        if (f.length < 7) {
+            throw new IllegalStateException(
+                    "Butiran penyata tidak lengkap pada baris " + baris.getId());
+        }
+
+        email.sendStatement(baris.getToEmail(), baris.getCcEmail(),
+                nama, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
     }
 
     /** Nilai param mengikut kunci, tanpa mengira lajur mana ia duduk. */

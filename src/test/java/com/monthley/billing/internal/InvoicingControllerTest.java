@@ -71,6 +71,93 @@ class InvoicingControllerTest {
                 """).getResultList();
     }
 
+    private void akaunBerEmel(String no, String emel, String cc) {
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name,
+                                     billto_email, billto_email_secondary, status)
+                VALUES ('SPC', :no, :no, :e, :cc, 'ACTIVE')
+                """).setParameter("no", no).setParameter("e", emel)
+                .setParameter("cc", cc).executeUpdate();
+        em.flush();
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.List<Object[]> barisPenyata() {
+        em.flush();
+        em.clear();
+        return em.createNativeQuery("""
+                SELECT to_email, cc_email, param1_val, param2_val, ref_key
+                FROM   email_outbox
+                WHERE  sp_code = 'SPC' AND kind = 'STATEMENT'
+                ORDER  BY to_email
+                """).getResultList();
+    }
+
+    @Test
+    @DisplayName("Penyata: SEMUA akaun aktif yang ada e-mel, satu per akaun")
+    void penyataUntukAkaunBerEmel() {
+        // Penyata ialah keadaan AKAUN, bukan resit bagi satu invois.
+        // Akaun yang tidak menerima invois dalam larian ini tetap
+        // mendapat penyata — bakinya mungkin masih tertunggak.
+        adminSp("admin@ujian.my", "SP_ADMIN");
+        notifikasi(1);
+        akaunBerEmel("PS-1", "satu@ujian.my", "dua@ujian.my");
+        akaunBerEmel("PS-2", "tiga@ujian.my", null);
+
+        controller.generate(null);
+
+        var baris = barisPenyata();
+        assertThat(baris).hasSize(2);
+
+        // cc daripada LAJUR, bukan rentetan butiran.
+        assertThat(baris.get(0)[0]).isEqualTo("satu@ujian.my");
+        assertThat(baris.get(0)[1]).isEqualTo("dua@ujian.my");
+        assertThat(baris.get(1)[1]).as("tiada alamat kedua").isNull();
+
+        // spName|akaunNo|tempoh|baki|spEmail|spPhone|url
+        String[] f = ((String) baris.get(0)[3]).split("\\|", -1);
+        assertThat(f).hasSize(7);
+        assertThat(f[1]).as("nombor akaun").isEqualTo("PS-1");
+        assertThat(f[6]).as("pautan awam").contains("/api/v1/pub/stmt/");
+    }
+
+    @Test
+    @DisplayName("Penyata: akaun TANPA e-mel dilangkau")
+    void penyataAkaunTanpaEmelDilangkau() {
+        // SP boleh mempunyai akaun tanpa e-mel — bil diserahkan sendiri.
+        // Itu pilihan yang sah, bukan kegagalan.
+        adminSp("admin@ujian.my", "SP_ADMIN");
+        notifikasi(1);
+        akaunBerEmel("PS-ADA", "ada@ujian.my", null);
+        em.createNativeQuery("""
+                INSERT INTO account (sp_code, account_no, account_name, status)
+                VALUES ('SPC', 'PS-TIADA', 'PS-TIADA', 'ACTIVE')
+                """).executeUpdate();
+        em.flush();
+
+        controller.generate(null);
+
+        assertThat(barisPenyata()).singleElement()
+                .extracting(r -> ((Object[]) r)[0])
+                .isEqualTo("ada@ujian.my");
+    }
+
+    @Test
+    @DisplayName("Penyata: larian KEDUA bulan sama tidak menghantar dua kali")
+    void penyataTidakBerulangDalamBulanSama() {
+        // ref_key membawa bulan larian: kerani yang menekan Jana Bil
+        // sekali lagi tidak menghantar penyata kedua kepada semua
+        // pelanggan.
+        adminSp("admin@ujian.my", "SP_ADMIN");
+        notifikasi(1);
+        akaunBerEmel("PS-DUP", "dup@ujian.my", null);
+
+        controller.generate(null);
+        controller.generate(null);
+
+        assertThat(barisPenyata()).hasSize(1);
+    }
+
     @Test
     @DisplayName("Laporan diberatur untuk SP_ADMIN sahaja, satu baris setiap admin")
     void laporanBeraturUntukAdminSahaja() {

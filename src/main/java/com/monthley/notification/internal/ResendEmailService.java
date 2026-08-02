@@ -34,6 +34,28 @@ class ResendEmailService implements EmailPort {
     }
 
     @Override
+    public void sendStatement(String to, String cc, String name, String spName,
+                              String accountNo, String tempoh, String baki,
+                              String spEmail, String spPhone, String url) {
+        // cc dihantar sebagai e-mel BERASINGAN, bukan pada baris Cc:
+        // penerima tidak sepatutnya melihat alamat satu sama lain —
+        // pelanggan berbeza boleh berkongsi satu akaun.
+        //
+        // Tajuk membawa BULAN LARIAN, bukan tahun. Kandungan penyata
+        // ialah tahun-ke-tarikh (ADR 0010), tetapi 'Tahun 2026' tidak
+        // membezakan penghantaran Ogos daripada September — pelanggan
+        // yang menerima dua belas e-mel setahun perlu tahu yang mana
+        // terbaharu. Legacy menggunakan bulan atas sebab yang sama.
+        String subjek = "Penyata Akaun " + tempoh + " — " + spName;
+        String html = EmailTemplates.statement(name, spName, accountNo, tempoh,
+                baki, spEmail, spPhone, url);
+        send(to, subjek, html);
+        if (cc != null && !cc.isBlank()) {
+            send(cc.trim(), subjek, html);
+        }
+    }
+
+    @Override
     public void sendGenerationReport(String to, String spName, String tarikh,
                                      int akaunDiimbas, int invoisDikeluarkan,
                                      String jumlah, java.util.List<String> tempoh) {

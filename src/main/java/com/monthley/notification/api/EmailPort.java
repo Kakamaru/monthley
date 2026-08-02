@@ -19,6 +19,30 @@ public interface EmailPort {
     void sendInvitation(String to, String spName, String registerUrl);
 
     /**
+     * Penyata akaun kepada pelanggan.
+     *
+     * BUKAN dokumen: penyata tiada nombor, dan "amaun" ialah BAKI pada
+     * tarikh penyata, bukan jumlah satu dokumen. resendDocument
+     * menjangka kedua-duanya.
+     *
+     * Baki disebut dalam badan supaya pelanggan tahu keadaannya tanpa
+     * membuka pautan. Butiran — transaksi mana, tempoh mana — berada di
+     * hujung pautan.
+     *
+     * PAUTAN, bukan lampiran. Sepuluh ribu PDF dijana sebelum menghantar
+     * ialah satu gigabait melalui penyedia e-mel, untuk fail yang
+     * kebanyakannya tidak dibuka. Pautan juga sentiasa menunjukkan
+     * keadaan SEMASA: pelanggan yang membayar selepas menerima e-mel
+     * membukanya dan melihat baki yang sudah dikemas kini.
+     *
+     * @param baki sudah diformat dengan mata wang; modul ini tidak tahu
+     *             tetapan SP
+     */
+    void sendStatement(String to, String cc, String name, String spName,
+                       String accountNo, String tempoh, String baki,
+                       String spEmail, String spPhone, String url);
+
+    /**
      * Laporan penjanaan bil kepada admin SP.
      *
      * BUKAN dokumen: tiada nombor, tiada amaun tunggal, tiada pautan

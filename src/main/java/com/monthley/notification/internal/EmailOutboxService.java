@@ -46,6 +46,25 @@ class EmailOutboxService implements EmailOutboxPort {
         var p1 = it.hasNext() ? it.next() : null;
         var p2 = it.hasNext() ? it.next() : null;
 
+        // SEMAK DAHULU, walaupun UNIQUE menangkapnya.
+        //
+        // Draf pertama bergantung sepenuhnya pada kekangan: sisip, tangkap
+        // DataIntegrityViolationException, pulang false. Itu menutup lubang
+        // perlumbaan tetapi merosakkan SESI Hibernate — pengecualian semasa
+        // flush menjadikan setiap operasi seterusnya dalam transaksi yang
+        // sama melontar AssertionFailure.
+        //
+        // Kesannya: kerani yang menjana bil dua kali memecahkan larian
+        // kedua sepenuhnya, dan laporan penjanaan gagal beratur selepasnya.
+        //
+        // Semakan menangani kes NORMAL (larian kedua bagi tempoh yang
+        // sama); UNIQUE kekal sebagai jaring untuk perlumbaan sebenar,
+        // yang jarang dan gagal dengan bersih kerana tiada apa berlaku
+        // selepasnya dalam transaksi itu.
+        if (outbox.existsBySpCodeAndKindAndRefKey(spCode, kind.name(), refKey)) {
+            return false;
+        }
+
         try {
             outbox.saveAndFlush(new EmailOutbox(
                     spCode, kind.name(), refKey, to.trim(),
