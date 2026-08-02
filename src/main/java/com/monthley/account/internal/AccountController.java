@@ -62,6 +62,22 @@ class AccountController {
             BigDecimal balance, boolean linked, Long categoryId,
             String chargeFrequency, boolean active) {}
 
+    /**
+     * Peranan ialah TUGAS, bukan tingkat.
+     *
+     *   SP_ADMIN  semua kecuali manual payment
+     *   CLERK     bayaran, adhoc, adjustment — TIDAK mencipta akaun
+     *   VIEWER    lihat, cari, cetak penyata
+     *
+     * Admin yang mahu menerima tunai diberi CLERK juga. Itu pemisahan
+     * tugas yang sengaja: sesetengah SP tidak membenarkan admin memegang
+     * kutipan.
+     *
+     * VIEWER wujud untuk pengawal pondok jaga JMB — senarai akaun dan
+     * penyata, tiada lagi.
+     */
+    private static final String[] BACA = { "SP_ADMIN", "CLERK", "VIEWER" };
+
     @GetMapping
     @SuppressWarnings("unchecked")
     PageResponse<AccountDto> list(
@@ -73,6 +89,7 @@ class AccountController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+        Access.requireAnyRole("melihat senarai akaun", BACA);
 
         String status = active ? "ACTIVE" : "INACTIVE";
         String search = (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase() + "%";
@@ -214,7 +231,7 @@ class AccountController {
     @PostMapping("/bulk-subscribe")
     @Transactional
     ResponseEntity<BulkSubscribeResult> bulkSubscribe(@RequestBody BulkSubscribeRequest req) {
-        Access.requireAnyRole("melanggan produk secara pukal", "SP_ADMIN", "CLERK");
+        Access.requireRole("SP_ADMIN", "melanggan produk secara pukal");
 
         if (req.productId() == null || req.lines() == null || req.lines().isEmpty()) {
             return ResponseEntity.badRequest().body(
@@ -288,6 +305,7 @@ class AccountController {
     SubscriberPage byProduct(@PathVariable Long productId,
                              @RequestParam(defaultValue = "0") int page,
                              @RequestParam(defaultValue = "10") int size) {
+        Access.requireAnyRole("melihat pelanggan produk", BACA);
 
         String where = """
             WHERE a.sp_code = :sp
@@ -329,6 +347,7 @@ class AccountController {
 
     @GetMapping("/config")
     java.util.Map<String, Object> config() {
+        Access.requireAnyRole("melihat tetapan akaun", BACA);
         var cfg = settings.forSp(sp());
         return java.util.Map.of("allowPriceOverride", cfg.allowPriceOverride());
     }
@@ -337,6 +356,7 @@ class AccountController {
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
     ResponseEntity<?> getOne(@PathVariable Long id) {
+        Access.requireAnyRole("melihat akaun", BACA);
         String sp = sp();
         Account a = accounts.findById(id).orElse(null);
         if (a == null || !sp.equals(a.getSpCode())) {
@@ -410,6 +430,9 @@ class AccountController {
         @PostMapping
     @Transactional
     ResponseEntity<?> create(@Valid @RequestBody SaveAccountRequest r) {
+        // CLERK menerima bayaran, tidak mencipta akaun. Admin yang
+        // memerlukan kedua-duanya diberi kedua-dua peranan.
+        Access.requireRole("SP_ADMIN", "mencipta akaun");
         String sp = sp();
 
         // account_no mesti unik dalam SP
@@ -498,6 +521,10 @@ class AccountController {
     @PutMapping("/{id}")
     @Transactional
     ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody EditAccountRequest r) {
+        // Termasuk langganan — laluan ini menguruskan kedua-duanya.
+        // Kerani yang perlu membetulkan nombor telefon di kaunter
+        // memerlukan peranan SP_ADMIN juga.
+        Access.requireRole("SP_ADMIN", "mengemas kini akaun");
         String sp = sp();
         Account a = accounts.findById(id).orElse(null);
         if (a == null || !sp.equals(a.getSpCode())) {
@@ -656,6 +683,8 @@ class AccountController {
                                 @RequestParam(required = false) Integer year,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "100") int size) {
+        // VIEWER wujud untuk ini — pengawal pondok jaga mencetak penyata.
+        Access.requireAnyRole("melihat penyata akaun", BACA);
         var acc = accounts.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Akaun tak wujud: " + id));
 
@@ -736,6 +765,7 @@ class AccountController {
     @GetMapping("/search-user")
     @Transactional(readOnly = true)
     ResponseEntity<?> searchUser(@RequestParam String email) {
+        Access.requireAnyRole("mencari pengguna berdaftar", BACA);
         sp();  // pastikan tenant
         String e = email == null ? "" : email.trim().toLowerCase();
         if (e.isEmpty()) return ResponseEntity.badRequest().body(java.util.Map.of("message", "Email diperlukan."));
@@ -758,6 +788,11 @@ class AccountController {
     @PostMapping("/{id}/link")
     @Transactional
     ResponseEntity<?> link(@PathVariable Long id, @Valid @RequestBody LinkRequest r) {
+        // Memautkan akaun memberi orang LUAR akses kepada data kewangan
+        // akaun itu melalui portal. Admin sahaja.
+        Access.requireRole("SP_ADMIN", "memautkan akaun kepada pengguna");
+        // Memautkan akaun memberi orang LUAR akses kepada data kewangan
+        // akaun itu melalui portal. Admin sahaja.
         String sp = sp();
         Account a = accounts.findById(id).orElse(null);
         if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
@@ -789,6 +824,7 @@ class AccountController {
     @DeleteMapping("/{id}/link")
     @Transactional
     ResponseEntity<?> unlink(@PathVariable Long id) {
+        Access.requireRole("SP_ADMIN", "menyahpaut akaun");
         String sp = sp();
         Account a = accounts.findById(id).orElse(null);
         if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();
@@ -807,6 +843,7 @@ class AccountController {
     @PostMapping("/{id}/subscriptions")
     @Transactional
     ResponseEntity<?> addSubscriptions(@PathVariable Long id, @RequestBody AddSubscriptionsRequest r) {
+        Access.requireRole("SP_ADMIN", "menambah langganan");
         String sp = sp();
         Account a = accounts.findById(id).orElse(null);
         if (a == null || !sp.equals(a.getSpCode())) return ResponseEntity.notFound().build();

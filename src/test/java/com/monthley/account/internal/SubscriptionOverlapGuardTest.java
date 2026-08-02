@@ -49,6 +49,14 @@ class SubscriptionOverlapGuardTest {
                 """).param("sp", "SOVL").update();
         sp = "SOVL";
         TenantContext.set(sp);
+        // Semakan peranan kini dikuatkuasakan pada setiap endpoint akaun.
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("admin", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_" + sp + "_SP_ADMIN"))));
 
         String kod = "OVL-" + System.nanoTime();
         jdbc.sql("""
@@ -69,7 +77,10 @@ class SubscriptionOverlapGuardTest {
     }
 
     @AfterEach
-    void clear() { TenantContext.clear(); }
+    void clear() {
+        TenantContext.clear();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 
     private void langgan(LocalDate start, LocalDate end,
                          AccountSubscription.Status status) {

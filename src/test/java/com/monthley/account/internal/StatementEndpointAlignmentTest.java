@@ -84,10 +84,23 @@ class StatementEndpointAlignmentTest {
                 .param("dd", inv).param("cd", rcp).update();
 
         TenantContext.set(sp);
+        // Semakan peranan kini dikuatkuasakan pada setiap endpoint akaun.
+        // SP_ADMIN memberi akses penuh; ujian yang menguji SEKATAN
+        // menetapkan peranan lain secara eksplisit.
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("admin", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_" + sp + "_SP_ADMIN"))));
     }
 
     @AfterEach
-    void clear() { TenantContext.clear(); }
+    void clear() {
+        TenantContext.clear();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 
     @Test
     @DisplayName("skrin dan model bersetuju pada baki penutup")

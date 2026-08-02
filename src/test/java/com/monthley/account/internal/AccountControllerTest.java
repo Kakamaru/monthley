@@ -21,6 +21,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Menguji AccountController.create() — laluan cipta akaun penuh (teras + ahli +
@@ -44,10 +46,23 @@ class AccountControllerTest {
             VALUES ('SPX', 'Akaun Test', 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         TenantContext.set("SPX");
+        // Semakan peranan kini dikuatkuasakan pada setiap endpoint akaun.
+        // SP_ADMIN memberi akses penuh; ujian yang menguji SEKATAN
+        // menetapkan peranan lain secara eksplisit.
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("admin", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_SPX_SP_ADMIN"))));
     }
 
     @AfterEach
-    void clear() { TenantContext.clear(); }
+    void clear() {
+        TenantContext.clear();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 
     // ── Tapisan produk pada senarai akaun ────────────────────────────
     //
@@ -95,6 +110,93 @@ class AccountControllerTest {
                 .items().stream()
                 .map(AccountController.AccountDto::no)
                 .toList();
+    }
+
+    // ── Semakan peranan ──────────────────────────────────────────────
+    //
+    // Peranan ialah TUGAS, bukan tingkat:
+    //   SP_ADMIN  semua kecuali manual payment
+    //   CLERK     bayaran, adhoc, adjustment — TIDAK mencipta akaun
+    //   VIEWER    lihat, cari, cetak penyata
+    //
+    // VIEWER wujud untuk pengawal pondok jaga JMB.
+
+    private void sebagai(String role) {
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("u", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_SPX_" + role))));
+    }
+
+    /**
+     * Bentuk yang sama seperti createsFullAccount — 33 medan, dan
+     * mengira null sendiri mudah tersasar.
+     */
+    private AccountController.SaveAccountRequest akaunBaharu(String no) {
+        return new AccountController.SaveAccountRequest(
+                no, "Nama " + no, null, "MONTHLY",
+                java.time.LocalDate.of(2026, 1, 1), null,
+                "Ahli Ujian", "900101-01-1234", "ujian@contoh.com", "0123456789",
+                "No 1", "Jalan Satu", "Taman Dua", null,
+                "40000", "Selangor", "MY",
+                "Penyewa", "penyewa@contoh.com", "0198765432",
+                "No 2", "Jalan Tiga", null, null,
+                "50000", "Wp Kuala Lumpur", "MY",
+                null, null, null, null, null, java.util.List.of());
+    }
+
+    @Test
+    @DisplayName("VIEWER: boleh LIHAT, tidak boleh CIPTA")
+    void viewerBacaSahaja() {
+        // Pengawal pondok jaga memerlukan senarai dan penyata. Tanpa
+        // semakan ini dia boleh mencipta akaun, dan tiada apa
+        // menghalangnya kecuali skrin yang menyembunyikan butang.
+        sebagai("VIEWER");
+
+        assertThatCode(() -> controller.list(true, null, null, null, null, null, 0, 10))
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> controller.create(akaunBaharu("VW-1")))
+                .isInstanceOf(com.monthley.shared.Access.AccessDeniedException.class)
+                .hasMessageContaining("SP_ADMIN");
+    }
+
+    @Test
+    @DisplayName("CLERK: boleh LIHAT, tidak boleh CIPTA")
+    void clerkTidakCipta() {
+        // Kerani menerima bayaran. Admin yang perlu memegang kutipan
+        // diberi CLERK juga; kerani yang perlu mencipta akaun diberi
+        // SP_ADMIN juga. Peranan ialah tugas, bukan tingkat.
+        sebagai("CLERK");
+
+        assertThatCode(() -> controller.list(true, null, null, null, null, null, 0, 10))
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> controller.create(akaunBaharu("CL-1")))
+                .isInstanceOf(com.monthley.shared.Access.AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("VIEWER: tidak boleh melanggan produk secara pukal")
+    void viewerTidakLanggan() {
+        sebagai("VIEWER");
+        long p = produkUji("P-ROLE-A", "50.00");
+
+        assertThatThrownBy(() -> controller.bulkSubscribe(
+                new AccountController.BulkSubscribeRequest(p, java.util.List.of())))
+                .isInstanceOf(com.monthley.shared.Access.AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("Tiada peranan langsung: ditolak")
+    void tiadaPerananDitolak() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> controller.list(true, null, null, null, null, null, 0, 10))
+                .isInstanceOf(com.monthley.shared.Access.AccessDeniedException.class);
     }
 
     // ── Songsang: akaun yang BELUM melanggan ─────────────────────────
@@ -603,6 +705,16 @@ class AccountControllerTest {
             """).executeUpdate();
         seeder.seedFor("SPS");
         TenantContext.set("SPS");
+        // Peranan diikat kepada TENANT: hasRole membina authority sebagai
+        // SP_<tenant>_<role>, jadi SP_SPX_SP_ADMIN tidak berguna di sini.
+        // Itu pengasingan penyewa berfungsi seperti direka.
+        org.springframework.security.core.context.SecurityContextHolder
+                .getContext().setAuthentication(
+                new org.springframework.security.authentication
+                        .UsernamePasswordAuthenticationToken("admin", "n/a",
+                        java.util.List.of(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("SP_SPS_SP_ADMIN"))));
 
         em.createNativeQuery("""
             INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,

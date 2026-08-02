@@ -312,6 +312,10 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Penyata akaun: penulis XLSX (`StatementXlsxWriter`, 4c50684)
 - [ ] Penyata akaun: ambang baris (ADR 0010 P6 — DITANGGUH selepas diukur)
 - [ ] Aliran e-mel + pautan awam + butang Pay (ADR 0011, CASE-006)
+- [ ] Notifikasi adjustment kepada admin SP lain — legacy menghantarnya
+      ("adjustments have been made to account D0716 by FARA AZWA due to
+      WATER 12 AUG 2022 - 12 NOV 2022"). Adjustment ialah kerani menukar
+      baki tanpa duit bergerak; admin lain perlu tahu ia berlaku
 - [ ] Kumpul ralat per akaun; jangan `break`
 
 **Jangan tiru**
