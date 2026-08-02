@@ -111,6 +111,34 @@ class ProductController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Tukar status sahaja — endpoint berasingan, bukan update penuh.
+     *
+     * update() menuntut SaveProductRequest LENGKAP. Menukar status
+     * melaluinya bermakna frontend menghantar semula setiap medan, dan
+     * satu yang terlepas menjadi null secara SENYAP.
+     *
+     * TIADA PADAM. Produk yang pernah dilanggan atau dibil mempunyai
+     * baris yang merujuknya; memadamnya meninggalkan rujukan yatim atau
+     * melanggar FK. Nyahaktif menyembunyikannya daripada senarai aktif
+     * dan daripada penjanaan bil, dan sejarah kekal boleh dibaca.
+     *
+     * Boleh diaktifkan semula — tab Tidak Aktif wujud untuk itu.
+     */
+    @PutMapping("/{id}/status")
+    ResponseEntity<ProductDto> setStatus(@PathVariable Long id,
+                                         @RequestBody StatusRequest r) {
+        return products.findById(id)
+                .filter(p -> p.getSpCode().equals(sp()))
+                .map(p -> {
+                    if (r.active()) p.activate(); else p.deactivate();
+                    return ResponseEntity.ok(ProductDto.from(products.save(p)));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    record StatusRequest(boolean active) {}
+
     private void apply(Product p, SaveProductRequest r) {
         p.setSubscriptionCode(r.subscriptionCode());
         p.setCategoryId(r.categoryId());
