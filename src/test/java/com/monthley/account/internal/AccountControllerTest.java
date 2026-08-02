@@ -91,10 +91,48 @@ class AccountControllerTest {
     }
 
     private List<String> cariIkutProduk(Long produkId) {
-        return controller.list(true, null, produkId, null, null, 0, 50)
+        return controller.list(true, null, produkId, null, null, null, 0, 50)
                 .items().stream()
                 .map(AccountController.AccountDto::no)
                 .toList();
+    }
+
+    // ── Songsang: akaun yang BELUM melanggan ─────────────────────────
+
+    private List<String> cariBelumLanggan(Long produkId) {
+        return controller.list(true, null, null, produkId, null, null, 0, 50)
+                .items().stream()
+                .map(AccountController.AccountDto::no)
+                .toList();
+    }
+
+    @Test
+    @DisplayName("excludeProduct: akaun yang MELANGGAN ditapis keluar")
+    void songsangTapisYangMelanggan() {
+        long p = produkUji("P-EX-A", "50.00");
+        long sudah = akaunUji("EX-SUDAH");
+        akaunUji("EX-BELUM");
+        langganUji(sudah, p, "ACTIVE", null);
+        em.clear();
+
+        assertThat(cariBelumLanggan(p))
+                .contains("EX-BELUM")
+                .doesNotContain("EX-SUDAH");
+    }
+
+    @Test
+    @DisplayName("excludeProduct: langganan TAMAT boleh melanggan semula")
+    void songsangLangganTamatMuncul() {
+        // Guard CASE-007 hanya menyekat langganan ACTIVE. Akaun yang
+        // berhenti melanggan boleh melanggan semula, dan senarai "siapa
+        // boleh ditambah" mesti menunjukkannya — kalau tidak kerani
+        // tidak boleh menambahnya melalui dialog langsung.
+        long p = produkUji("P-EX-B", "60.00");
+        long tamat = akaunUji("EX-TAMAT");
+        langganUji(tamat, p, "ENDED", "2025-12-31");
+        em.clear();
+
+        assertThat(cariBelumLanggan(p)).contains("EX-TAMAT");
     }
 
     // ── Langganan pukal (skrin Produk, Add Account) ──────────────────

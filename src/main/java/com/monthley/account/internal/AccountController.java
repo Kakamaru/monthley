@@ -68,6 +68,7 @@ class AccountController {
             @RequestParam(defaultValue = "true") boolean active,
             @RequestParam(required = false) Long category,
             @RequestParam(required = false) Long product,
+            @RequestParam(required = false) Long excludeProduct,
             @RequestParam(required = false) Boolean linked,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
@@ -99,6 +100,21 @@ class AccountController {
               AND (:product IS NULL OR EXISTS (
                     SELECT 1 FROM account_subscription s
                     WHERE s.account_id = a.id AND s.product_id = :product))
+              -- Songsang: akaun yang BELUM melanggan produk ini.
+              --
+              -- Dialog Add Account pada skrin Produk memerlukan "siapa
+              -- boleh ditambah". Endpoint berasingan akan menyalin ketiga
+              -- tapisan yang sudah ada di sini — nama, nombor akaun,
+              -- kategori — dan dua senarai akaun akan menyimpang.
+              --
+              -- Langganan TAMAT dikira sebagai belum melanggan: guard
+              -- CASE-007 hanya menyekat langganan ACTIVE, jadi akaun yang
+              -- berhenti boleh melanggan semula.
+              AND (:excludeProduct IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM account_subscription s2
+                    WHERE s2.account_id = a.id
+                      AND s2.product_id = :excludeProduct
+                      AND s2.status = 'ACTIVE'))
               AND (:linkedFlag IS NULL
                    OR (:linkedFlag = 1 AND a.payer_user_id IS NOT NULL)
                    OR (:linkedFlag = 0 AND a.payer_user_id IS NULL))
@@ -107,7 +123,7 @@ class AccountController {
 
         // Jumlah rekod
         var countQ = em.createNativeQuery("SELECT COUNT(*) FROM account a " + where);
-        bind(countQ, status, category, product, linked, search);
+        bind(countQ, status, category, product, excludeProduct, linked, search);
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         // Data + baki diderive
@@ -120,7 +136,7 @@ class AccountController {
             """ + where + " ORDER BY a.account_no LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
-        bind(dataQ, status, category, product, linked, search);
+        bind(dataQ, status, category, product, excludeProduct, linked, search);
         dataQ.setParameter("lim", size);
         dataQ.setParameter("off", page * size);
 
@@ -831,11 +847,12 @@ class AccountController {
     }
 
     private void bind(jakarta.persistence.Query query, String status, Long category,
-                      Long product, Boolean linked, String search) {
+                      Long product, Long excludeProduct, Boolean linked, String search) {
         query.setParameter("sp", sp());
         query.setParameter("status", status);
         query.setParameter("category", category);
         query.setParameter("product", product);
+        query.setParameter("excludeProduct", excludeProduct);
         query.setParameter("linkedFlag", linked == null ? null : (linked ? 1 : 0));
         query.setParameter("q", search);
     }
