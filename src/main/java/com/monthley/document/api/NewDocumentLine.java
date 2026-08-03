@@ -21,6 +21,8 @@ public record NewDocumentLine(
         Long accountId,
         long periodId,
         String description,
+        /** Catatan baris — caj penggunaan membawa apa yang kerani taip. */
+        String remarks,
         BigDecimal quantity,
         BigDecimal unitPrice,
         BigDecimal prorationRatio,

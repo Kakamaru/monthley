@@ -54,7 +54,9 @@ class AdjustmentController {
                 label + " berjaya dicipta.");
     }
 
-    record InvoiceOption(Long id, String docNo, java.math.BigDecimal outstanding) {}
+    record InvoiceOption(Long id, String docNo, java.math.BigDecimal outstanding,
+                         /** Keterangan invois SATU baris; null kalau berbilang. */
+                         String description) {}
 
     /** Invois akaun yang masih ada baki (untuk dropdown Reduction). */
     @GetMapping("/adjustment/invoices")
@@ -66,7 +68,21 @@ class AdjustmentController {
                 SELECT d.id, d.doc_no,
                        (d.amount + d.tax_amount) - COALESCE((
                          SELECT SUM(al.amount) FROM fi_allocation al
-                         WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) AS outstanding
+                         WHERE al.debit_document_id = d.id AND al.status = 'ACTIVE'), 0) AS outstanding,
+                       -- Keterangan, peraturan SAMA seperti penyata: invois
+                       -- satu baris menunjukkan produk, berbilang baris
+                       -- menunjukkan tajuk dokumen. Kerani yang melihat
+                       -- 'I2600119 — baki MYR 8.67' tidak tahu itu invois
+                       -- apa, dan penyata di sebelahnya menamakannya.
+                       --
+                       -- account_document_line ialah VIEW yang sama yang
+                       -- penyata baca. Menulis logik ini sekali lagi
+                       -- terhadap financial_document_line bermakna dua
+                       -- keterangan untuk dokumen yang sama, dan yang
+                       -- menyimpang tidak kelihatan menyimpang.
+                       (SELECT CASE WHEN COUNT(*) = 1 THEN MAX(l.description) END
+                          FROM account_document_line l
+                         WHERE l.document_id = d.id) AS descr
                 FROM financial_document d
                 WHERE d.account_id = :acc AND d.sp_code = :sp
                   AND d.doc_type = 'INVOICE' AND d.status <> 'CANCELLED'
@@ -80,7 +96,8 @@ class AdjustmentController {
         List<InvoiceOption> out = new ArrayList<>();
         for (Object[] r : rows) {
             out.add(new InvoiceOption(
-                    ((Number) r[0]).longValue(), (String) r[1], (java.math.BigDecimal) r[2]));
+                    ((Number) r[0]).longValue(), (String) r[1],
+                    (java.math.BigDecimal) r[2], (String) r[3]));
         }
         return out;
     }

@@ -340,7 +340,7 @@ class StatementQuery {
     List<DocumentLine> lines(String spCode, long accountId,
                              LocalDate from, LocalDate to) {
         return jdbc.sql("""
-                SELECT l.document_id, l.description,
+                SELECT l.document_id, l.description, l.remarks,
                        l.period_start, l.period_end, l.amount
                 FROM   account_document_line l
                 JOIN   account_document_entry e ON e.document_id = l.document_id
@@ -356,6 +356,7 @@ class StatementQuery {
                 .query((rs, n) -> new DocumentLine(
                         rs.getLong("document_id"),
                         rs.getString("description"),
+                        rs.getString("remarks"),
                         rs.getDate("period_start") != null
                                 ? rs.getDate("period_start").toLocalDate() : null,
                         rs.getDate("period_end") != null
@@ -365,6 +366,8 @@ class StatementQuery {
     }
 
     record DocumentLine(long documentId, String description,
+                        /** Catatan baris — caj penggunaan sahaja. */
+                        String remarks,
                         LocalDate periodStart, LocalDate periodEnd,
                         BigDecimal amount) {
     }

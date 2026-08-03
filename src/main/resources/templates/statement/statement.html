@@ -185,6 +185,11 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
         <td>
           <span th:text="${r.description()}"></span>
           <div th:if="${fmt.has(r.remark())}" class="remark" th:text="${r.remark()}"></div>
+          <!-- Catatan baris — caj penggunaan membawa apa yang kerani
+               taip semasa memuat naik ('bacaan meter 1213'). Ia
+               menerangkan MENGAPA amaun itu. -->
+          <div th:if="${fmt.has(r.lineRemarks())}" class="remark"
+               th:text="${r.lineRemarks()}"></div>
           <!-- Jejak audit: SIAPA dan BILA. Sebab sudah dipaparkan sebagai
                remark di atas. Ketiga-tiganya diperlukan supaya penyata
                boleh diaudit tanpa membuka pangkalan data. -->
@@ -212,6 +217,8 @@ table.txn td   { padding: 1.4mm 2mm; border-bottom: 0.4pt solid #ccc;
           <span th:text="${x.productName()}"></span>
           <span th:if="${x.periodStart() != null}" style="white-space:nowrap"
                 th:text="'  ' + ${fmt.period(x.periodStart(), x.periodEnd())}"></span>
+          <div th:if="${fmt.has(x.remarks())}" class="remark"
+               th:text="${x.remarks()}"></div>
         </td>
         <td></td>
         <td class="r mono" th:text="${fmt.money(x.amount())}"></td>

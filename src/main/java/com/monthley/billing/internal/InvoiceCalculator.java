@@ -130,7 +130,7 @@ class InvoiceCalculator {
         if (amount.signum() == 0) return Optional.empty();
 
         return Optional.of(new CalculatedLine(
-                product.id(), account.id(), charge, product.name(),
+                product.id(), account.id(), charge, product.name(), null,
                 sub.quantity(), rate, ratio, amount,
                 ProrationCalculator.taxAmount(amount, ctx.taxRate()),
                 product.incomeGlAccountId(),
@@ -176,7 +176,7 @@ class InvoiceCalculator {
         if (amount.signum() == 0) return Optional.empty();
 
         return Optional.of(new CalculatedLine(
-                product.id(), account.id(), charge, product.name(),
+                product.id(), account.id(), charge, product.name(), null,
                 sub.quantity(), rate, BigDecimal.ONE, amount,
                 ProrationCalculator.taxAmount(amount, ctx.taxRate()),
                 product.incomeGlAccountId(),

@@ -54,7 +54,7 @@ class DocumentService implements DocumentPort {
 
         for (NewDocumentLine l : inv.lines()) {
             doc.addLine(new FinancialDocumentLine(
-                    l.productId(), l.accountId(), l.periodId(), l.description(),
+                    l.productId(), l.accountId(), l.periodId(), l.description(), l.remarks(),
                     l.quantity(), l.unitPrice(), l.prorationRatio(), l.amount(), l.taxAmount(),
                     l.periodStart(), l.periodEnd(), l.onceOnly()));
         }

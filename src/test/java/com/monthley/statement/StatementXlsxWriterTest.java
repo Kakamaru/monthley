@@ -40,19 +40,19 @@ class StatementXlsxWriterTest {
 
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 1, 10), "INVOICE", "INV-X1",
-                        "Parking", null, false, null, null, new BigDecimal("100.00"),
+                        "Parking", null, null, false, null, null, new BigDecimal("100.00"),
                         new BigDecimal("100.00"), new BigDecimal("100.00"), List.of()),
                 // Batal: amaun SIFAR pada lajur baki, tetapi 250.00 asal
                 // kekal dipaparkan (V53).
                 new StatementRow(LocalDate.of(2026, 2, 10), "INVOICE", "INV-X2",
-                        "Tersilap", "Dibatalkan", true,
+                        "Tersilap", "Dibatalkan", null, true,
                         java.time.LocalDateTime.of(2026, 2, 11, 9, 30), "7",
                         new BigDecimal("250.00"),
                         BigDecimal.ZERO, new BigDecimal("100.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 3, 1), "RECEIPT", "RCP-X1",
-                        "Bayaran", null, false, null, null, new BigDecimal("-100.00"),
+                        "Bayaran", null, null, false, null, null, new BigDecimal("-100.00"),
                         new BigDecimal("-100.00"), BigDecimal.ZERO,
-                        List.of(new StatementMatch("INV-X1", "Parking",
+                        List.of(new StatementMatch("INV-X1", "Parking", null,
                                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31),
                                 new BigDecimal("100.00")))));
 

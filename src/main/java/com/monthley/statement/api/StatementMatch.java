@@ -21,6 +21,8 @@ import java.time.LocalDate;
 public record StatementMatch(
         String documentNo,
         String productName,
+        /** Catatan baris — caj penggunaan sahaja; null untuk langganan. */
+        String remarks,
         LocalDate periodStart,
         LocalDate periodEnd,
         BigDecimal amount) {

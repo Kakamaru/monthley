@@ -57,22 +57,22 @@ class StatementPdfWriterTest {
     private StatementModel model(StatementHeader h) {
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 1, 10), "INVOICE", "INV-001",
-                        "Penyelenggaraan & Kumpulan Wang Langsai", null, false,
+                        "Penyelenggaraan & Kumpulan Wang Langsai", null, null, false,
                         null, null, new BigDecimal("106.00"),
                         new BigDecimal("106.00"), new BigDecimal("106.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 2, 10), "INVOICE", "INV-002",
-                        "Tersilap jana", "Dibatalkan oleh admin", true,
+                        "Tersilap jana", "Dibatalkan oleh admin", null, true,
                         java.time.LocalDateTime.of(2026, 2, 11, 14, 5), "3",
                         new BigDecimal("106.00"),
                         BigDecimal.ZERO, new BigDecimal("106.00"), List.of()),
                 new StatementRow(LocalDate.of(2026, 3, 15), "RECEIPT", "RCP-001",
-                        "Bayaran diterima", null, false,
+                        "Bayaran diterima", null, null, false,
                         null, null, new BigDecimal("-106.00"),
                         new BigDecimal("-106.00"), BigDecimal.ZERO,
-                        List.of(new StatementMatch("INV-001", "Penyelenggaraan",
+                        List.of(new StatementMatch("INV-001", "Penyelenggaraan", null,
                                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31),
                                         new BigDecimal("100.00")),
-                                new StatementMatch("INV-001", "Kumpulan Wang Langsai",
+                                new StatementMatch("INV-001", "Kumpulan Wang Langsai", null,
                                         LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28),
                                         new BigDecimal("6.00")))));
         return new StatementModel(h, "TST", 1L,
@@ -149,15 +149,15 @@ class StatementPdfWriterTest {
         var h = header("JMB", "ms", true);
         var rows = List.of(
                 new StatementRow(LocalDate.of(2026, 7, 23), "INVOICE", "INV-P",
-                        "Invois", null, false, null, null, new BigDecimal("100.00"),
+                        "Invois", null, null, false, null, null, new BigDecimal("100.00"),
                         new BigDecimal("100.00"), new BigDecimal("100.00"),
                         List.of(
                                 // bulan penuh -> 'Julai 2026'
-                                new StatementMatch(null, "Parking",
+                                new StatementMatch(null, "Parking", null,
                                         LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
                                         new BigDecimal("50.00")),
                                 // sebahagian -> '19-31 Julai 2026'
-                                new StatementMatch(null, "Parking",
+                                new StatementMatch(null, "Parking", null,
                                         LocalDate.of(2026, 7, 19), LocalDate.of(2026, 7, 31),
                                         new BigDecimal("50.00")))));
         var m = new StatementModel(h, "TST", 1L,

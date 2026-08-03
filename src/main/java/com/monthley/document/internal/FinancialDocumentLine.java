@@ -43,6 +43,17 @@ public class FinancialDocumentLine {
     @Column(name = "description")
     private String description;
 
+    /**
+     * Catatan yang menerangkan baris ini.
+     *
+     * Caj penggunaan membawa apa yang kerani taip dalam Excel —
+     * 'bacaan meter 1213'. Berasingan daripada description, yang
+     * memegang nama produk: satu lajur yang bermakna dua perkara
+     * bergantung pada jenis baris tidak boleh disoal.
+     */
+    @Column(name = "remarks")
+    private String remarks;
+
     /** Kuantiti ASAL — ratio TIDAK dibakar ke dalamnya. Rujuk V20. */
     @Column(name = "quantity", nullable = false, precision = 15, scale = 4)
     private BigDecimal quantity = BigDecimal.ONE;
@@ -88,7 +99,7 @@ public class FinancialDocumentLine {
     protected FinancialDocumentLine() {}
 
     public FinancialDocumentLine(Long productId, Long accountId, Long periodId,
-                                 String description,
+                                 String description, String remarks,
                                  BigDecimal quantity, BigDecimal unitPrice,
                                  BigDecimal prorationRatio,
                                  BigDecimal amount, BigDecimal taxAmount,
@@ -98,6 +109,7 @@ public class FinancialDocumentLine {
         this.accountId = accountId;
         this.periodId = periodId;
         this.description = description;
+        this.remarks = remarks;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.prorationRatio = prorationRatio == null ? BigDecimal.ONE : prorationRatio;

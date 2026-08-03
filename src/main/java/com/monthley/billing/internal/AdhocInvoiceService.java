@@ -109,7 +109,7 @@ public class AdhocInvoiceService {
             dikira.add(new Dikira(l.productId(), nama, harga, kuantiti, amaun, incomeGl));
 
             docLines.add(new NewDocumentLine(
-                    l.productId(), accountId, req.periodId(), nama,
+                    l.productId(), accountId, req.periodId(), nama, null,
                     kuantiti, harga, BigDecimal.ONE, amaun, BigDecimal.ZERO,
                     null, null,
                     // onceOnly=false: idem_key untuk baris adhoc menjadi

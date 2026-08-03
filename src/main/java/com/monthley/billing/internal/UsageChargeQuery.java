@@ -46,7 +46,7 @@ class UsageChargeQuery {
     List<Baris> pendingFor(String spCode, long accountId) {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT u.id, u.product_id, u.period_id, u.quantity, u.amount,
-                       COALESCE(NULLIF(u.remarks,''), p.name) AS descr,
+                       p.name AS descr, u.remarks AS remarks,
                        p.unit_rate, f.start_dt, f.end_dt, p.income_gl_account_id
                 FROM   account_usage_charge u
                 JOIN   product   p ON p.id = u.product_id
@@ -62,8 +62,8 @@ class UsageChargeQuery {
 
         List<Baris> out = new ArrayList<>();
         for (Object[] r : rows) {
-            LocalDate mula = tarikh(r[7]);
-            LocalDate tamat = tarikh(r[8]);
+            LocalDate mula = tarikh(r[8]);
+            LocalDate tamat = tarikh(r[9]);
 
             // Liputan = kitaran penuh. Caj penggunaan tidak diprorata:
             // kuantiti SUDAH mewakili apa yang digunakan.
@@ -74,13 +74,18 @@ class UsageChargeQuery {
                     ((Number) r[1]).longValue(),
                     accountId,
                     charge,
+                    // description = nama PRODUK; catatan mempunyai
+                    // lajurnya sendiri (V59). Sebelum ini catatan
+                    // menggantikan nama produk, dan satu lajur yang
+                    // bermakna dua perkara tidak boleh disoal.
                     (String) r[5],
+                    (String) r[6],
                     (BigDecimal) r[3],
-                    (BigDecimal) r[6],
+                    (BigDecimal) r[7],
                     BigDecimal.ONE,
                     (BigDecimal) r[4],
                     BigDecimal.ZERO,
-                    r[9] == null ? null : ((Number) r[9]).longValue(),
+                    r[10] == null ? null : ((Number) r[10]).longValue(),
                     false)));
         }
         return out;

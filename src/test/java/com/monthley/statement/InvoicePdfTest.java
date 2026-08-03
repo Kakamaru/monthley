@@ -120,7 +120,7 @@ class InvoicePdfTest {
             String[] p = it.split(":");
             LocalDate m = LocalDate.of(2026, Integer.parseInt(p[2]), 1);
             lines.add(new NewDocumentLine(produk(p[0]), acc, period(Integer.parseInt(p[2])),
-                    p[0], BigDecimal.ONE, new BigDecimal(p[1]), BigDecimal.ONE,
+                    p[0], null, BigDecimal.ONE, new BigDecimal(p[1]), BigDecimal.ONE,
                     new BigDecimal(p[1]), BigDecimal.ZERO,
                     m, m.withDayOfMonth(m.lengthOfMonth()), false));
         }

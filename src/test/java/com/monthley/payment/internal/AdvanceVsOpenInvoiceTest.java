@@ -90,7 +90,7 @@ class AdvanceVsOpenInvoiceTest {
         long pid = periodBulan(bulan);
         LocalDate mula = LocalDate.of(2026, bulan, 1);
         LocalDate tamat = mula.withDayOfMonth(mula.lengthOfMonth());
-        var line = new NewDocumentLine(null, acc, pid, "Yuran", BigDecimal.ONE,
+        var line = new NewDocumentLine(null, acc, pid, "Yuran", null, BigDecimal.ONE,
                 new BigDecimal(amaun), BigDecimal.ONE, new BigDecimal(amaun),
                 BigDecimal.ZERO, mula, tamat, false);
         return documents.createInvoice(new NewInvoice(SP, acc, pid,

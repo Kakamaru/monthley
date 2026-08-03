@@ -80,7 +80,14 @@ class StatementXlsxWriter {
             x.createCell(2).setCellValue(row.docType());
             x.createCell(3).setCellValue(row.docNo());
             x.createCell(4).setCellValue(row.description());
-            x.createCell(5).setCellValue(row.remark() == null ? "" : row.remark());
+            // Catatan pembatalan DAN catatan baris dalam satu lajur:
+            // XLSX ditapis dan disusun, dan lajur ketujuh yang kosong
+            // untuk sembilan puluh peratus baris menyusahkan lebih
+            // daripada membantu.
+            x.createCell(5).setCellValue(java.util.stream.Stream.of(
+                            row.remark(), row.lineRemarks())
+                    .filter(v -> v != null && !v.isBlank())
+                    .reduce((a, b) -> a + " — " + b).orElse(""));
             x.createCell(6).setCellValue(row.cancelled() ? "Batal" : "Aktif");
             // Tarikh sebenar, bukan teks — prinsip sama seperti lajur
             // Tarikh. Jam digugurkan; masa tepat ada pada PDF.

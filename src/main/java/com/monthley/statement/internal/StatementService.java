@@ -68,6 +68,7 @@ class StatementService implements StatementPort {
                         e.docNo(),
                         keteranganFor(e, byDoc, fmt),
                         e.cancelReason(),
+                        catatanFor(e, byDoc),
                         e.cancelled(),
                         e.cancelledAt(),
                         e.cancelledBy(),
@@ -193,6 +194,23 @@ class StatementService implements StatementPort {
     }
 
     /**
+     * Catatan baris untuk dokumen SATU baris.
+     *
+     * Invois berbilang baris membawa catatan pada sub-barisnya; di sini
+     * ia hanya akan menjadi salah satu daripada beberapa dan
+     * mengelirukan.
+     */
+    private static String catatanFor(
+            StatementQuery.DocumentEntry e,
+            Map<Long, List<StatementQuery.DocumentLine>> byDoc) {
+
+        var lines = byDoc.getOrDefault(e.documentId(), List.of());
+        if (lines.size() != 1) return null;
+        String r = lines.get(0).remarks();
+        return r == null || r.isBlank() ? null : r;
+    }
+
+    /**
      * Sub-baris padanan bagi satu dokumen.
      *
      * Dokumen batal tidak menunjukkan padanan: amaunnya sifar, jadi
@@ -211,8 +229,10 @@ class StatementService implements StatementPort {
         if (kredit) {
             // Resit: invois mana yang aku bayar.
             return byCredit.getOrDefault(e.documentId(), List.of()).stream()
+                    // Alokasi tiada catatan: ia menunjuk kepada invois,
+                    // bukan kepada baris caj.
                     .map(m -> new StatementMatch(
-                            m.debitDocNo(), m.description(),
+                            m.debitDocNo(), m.description(), null,
                             m.periodStart(), m.periodEnd(), m.amount()))
                     .toList();
         }
@@ -225,7 +245,7 @@ class StatementService implements StatementPort {
         }
         return lines.stream()
                 .map(l -> new StatementMatch(
-                        null, l.description(),
+                        null, l.description(), l.remarks(),
                         l.periodStart(), l.periodEnd(), l.amount()))
                 .toList();
     }

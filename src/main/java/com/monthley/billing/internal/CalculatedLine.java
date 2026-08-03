@@ -21,6 +21,8 @@ public record CalculatedLine(
         Long accountId,
         Charge charge,
         String description,
+        /** Catatan baris — caj penggunaan sahaja; null untuk langganan. */
+        String remarks,
         BigDecimal quantity,
         BigDecimal unitRate,
         BigDecimal prorationRatio,

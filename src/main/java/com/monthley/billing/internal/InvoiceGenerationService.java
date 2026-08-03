@@ -293,7 +293,7 @@ public class InvoiceGenerationService {
         for (CalculatedLine l : lines) {
             docLines.add(new NewDocumentLine(
                     l.productId(), l.accountId(), l.charge().periodId(),
-                    l.description(), l.quantity(), l.unitRate(), l.prorationRatio(),
+                    l.description(), l.remarks(), l.quantity(), l.unitRate(), l.prorationRatio(),
                     l.amount(), l.taxAmount(),
                     l.charge().coverageStart(), l.charge().coverageEnd(),
                     l.onceOnly()));

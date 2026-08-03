@@ -100,7 +100,7 @@ class CancelDocumentTest {
 
     private long invois(String docNo, String amaun) {
         long pid = periodJulai();
-        var line = new NewDocumentLine(produk("P-" + docNo, amaun), acc, pid,
+        var line = new NewDocumentLine(produk("P-" + docNo, amaun), acc, pid, null,
                 "Yuran", BigDecimal.ONE, new BigDecimal(amaun), BigDecimal.ONE,
                 new BigDecimal(amaun), BigDecimal.ZERO,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), false);
@@ -396,7 +396,7 @@ class CancelDocumentTest {
     private java.util.Optional<Long> buatInvois(long produkId, long pid,
                                                 String docNo, String amaun) {
         var line = new NewDocumentLine(produkId, acc, pid,
-                "Yuran", BigDecimal.ONE, new BigDecimal(amaun), BigDecimal.ONE,
+                "Yuran", null, BigDecimal.ONE, new BigDecimal(amaun), BigDecimal.ONE,
                 new BigDecimal(amaun), BigDecimal.ZERO,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), false);
         var id = documents.createInvoice(new NewInvoice(SP, acc, pid,

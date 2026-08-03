@@ -191,6 +191,45 @@ class UsageChargeTest {
     }
 
     @Test
+    @DisplayName("Catatan disimpan pada BARIS, bukan menggantikan nama produk")
+    void catatanBerasingan() {
+        // description dan remarks ialah dua perkara: nama produk, dan
+        // penjelasan mengapa amaun itu. Menyimpan catatan sebagai
+        // description bermakna satu lajur yang bermakna dua perkara
+        // bergantung pada jenis baris — dan tiada apa dalam baris itu
+        // memberitahu yang mana.
+        long acc = akaun("UC-CATATAN");
+        long per = tempoh(2026, 7);
+        em.createNativeQuery("""
+                INSERT INTO account_usage_charge
+                  (sp_code, account_id, product_id, period_id,
+                   quantity, amount, remarks, status)
+                VALUES (:sp, :acc, :prod, :per, 2, 50.00,
+                        'bacaan meter 1213', 'PENDING')
+                """).setParameter("sp", SP).setParameter("acc", acc)
+                .setParameter("prod", produk).setParameter("per", per)
+                .executeUpdate();
+        em.flush();
+        em.clear();
+
+        billing.generateForAccountDetailed(SP, acc, YearMonth.of(2026, 8),
+                GenMode.CURRENT, ctx());
+        em.flush();
+        em.clear();
+
+        var r = (Object[]) em.createNativeQuery("""
+                SELECT l.description, l.remarks
+                FROM   financial_document_line l
+                JOIN   financial_document d ON d.id = l.document_id
+                WHERE  d.account_id = :acc
+                """).setParameter("acc", acc).getSingleResult();
+
+        assertThat(r[0]).as("nama produk kekal").isEqualTo("Sukaneka");
+        assertThat(r[1]).as("catatan dalam lajur sendiri")
+                .isEqualTo("bacaan meter 1213");
+    }
+
+    @Test
     @DisplayName("Tempoh baris invois daripada CAJ, bukan daripada mod bil")
     void tempohDaripadaCaj() {
         // POSTPAID pada Ogos membil Julai untuk langganan. Caj

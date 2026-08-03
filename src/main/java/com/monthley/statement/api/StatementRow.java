@@ -18,6 +18,18 @@ public record StatementRow(
         String docNo,
         String description,
         String remark,
+        /**
+         * Catatan baris — caj penggunaan sahaja.
+         *
+         * BERASINGAN daripada remark, yang memegang sebab pembatalan.
+         * Berkongsi bermakna dokumen batal dengan caj penggunaan
+         * menunjukkan salah satu sahaja, dan yang hilang tidak
+         * kelihatan hilang.
+         *
+         * Hanya untuk dokumen SATU baris: invois berbilang baris
+         * membawa catatan pada sub-barisnya.
+         */
+        String lineRemarks,
         boolean cancelled,
         /** Bila dibatalkan; null kalau tidak. */
         java.time.LocalDateTime cancelledAt,

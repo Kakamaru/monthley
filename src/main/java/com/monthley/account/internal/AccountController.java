@@ -727,10 +727,16 @@ class AccountController {
     // Alokasi turun menjadi 'matches' — sub-baris yang TIDAK menggerakkan
     // baki. Dokumen batal DIPAPAR dengan amaun sifar, tidak lagi ditapis
     // keluar: SP perlu melihat bahawa sesuatu telah dibatalkan.
-    record StatementMatchDto(String docNo, String item, String period,
+    record StatementMatchDto(String docNo, String item,
+                             /** Catatan baris — caj penggunaan sahaja. */
+                             String remarks,
+                             String period,
                              java.math.BigDecimal amount) {}
     record StatementLine(String date, String docNo, String docType, String item,
-                         String remark, boolean cancelled,
+                         String remark,
+                         /** Catatan baris — caj penggunaan sahaja. */
+                         String lineRemarks,
+                         boolean cancelled,
                          // Diformat DI SINI, bukan di frontend — alasan sama
                          // seperti tempoh pada StatementMatchDto: peraturan
                          // format tidak boleh wujud di dua tempat (guard 6).
@@ -778,7 +784,7 @@ class AccountController {
                 // memformat sendiri, peraturan itu wujud di dua tempat dan
                 // akan menyimpang (guard 6).
                 m.add(new StatementMatchDto(
-                        x.documentNo(), x.productName(),
+                        x.documentNo(), x.productName(), x.remarks(),
                         fmt.period(x.periodStart(), x.periodEnd()),
                         x.amount()));
             }
@@ -788,7 +794,7 @@ class AccountController {
             // nombor asal dan tanpa siapa membatalkannya.
             asc.add(new StatementLine(
                     r.docDate().toString(), r.docNo(), r.docType(),
-                    r.description(), r.remark(), r.cancelled(),
+                    r.description(), r.remark(), r.lineRemarks(), r.cancelled(),
                     r.cancelledAt() == null ? null : fmt.dateTime(r.cancelledAt()),
                     r.cancelledBy(), r.originalAmount(),
                     r.amount(), r.runningBalance(), m));

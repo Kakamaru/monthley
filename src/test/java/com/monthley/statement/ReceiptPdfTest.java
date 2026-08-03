@@ -92,7 +92,7 @@ class ReceiptPdfTest {
 
     private void invois(String docNo, String amaun) {
         long pid = periodJulai();
-        var line = new NewDocumentLine(null, acc, pid, "Yuran Penyelenggaraan",
+        var line = new NewDocumentLine(null, acc, pid, "Yuran Penyelenggaraan", null,
                 BigDecimal.ONE, new BigDecimal(amaun), BigDecimal.ONE,
                 new BigDecimal(amaun), BigDecimal.ZERO,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), false);
