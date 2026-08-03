@@ -50,6 +50,7 @@ class SpLedgerController {
             @RequestParam(required = false) String docNo,
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) String docType,
+            @RequestParam(required = false) Long periodId,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
@@ -63,6 +64,14 @@ class SpLedgerController {
                   AND (:docType IS NULL OR t.doc_type = :docType)
                   AND (:from IS NULL OR t.doc_date >= :from)
                   AND (:to IS NULL OR t.doc_date <= :to)
+                  -- Tempoh LIPUTAN, bukan tarikh transaksi. Invois
+                  -- dijana pada Ogos boleh meliputi Julai, dan SP yang
+                  -- menyemak 'semua caj Julai' memerlukan yang pertama.
+                  AND (:periodId IS NULL OR EXISTS (
+                        SELECT 1 FROM fi_period f
+                        WHERE f.period_id = :periodId
+                          AND t.period_start >= f.start_dt
+                          AND t.period_start <= f.end_dt))
                 """;
 
         String inner = """
@@ -77,7 +86,7 @@ class SpLedgerController {
 
         var countQ = em.createNativeQuery(
                 "SELECT COUNT(*) FROM (" + inner + ") t " + where);
-        bind(countQ, docNo, productId, docType, from, to);
+        bind(countQ, docNo, productId, docType, periodId, from, to);
         long total = ((Number) countQ.getSingleResult()).longValue();
 
         var dataQ = em.createNativeQuery("""
@@ -88,7 +97,7 @@ class SpLedgerController {
                 ORDER  BY t.txn_at DESC, t.document_id DESC, t.line_id DESC
                 LIMIT  :size OFFSET :offset
                 """.formatted(inner, where));
-        bind(dataQ, docNo, productId, docType, from, to);
+        bind(dataQ, docNo, productId, docType, periodId, from, to);
         dataQ.setParameter("size", size);
         dataQ.setParameter("offset", (long) page * size);
 
@@ -96,7 +105,7 @@ class SpLedgerController {
         List<Row> items = new ArrayList<>();
         for (Object[] r : rows) {
             items.add(new Row(
-                    r[0] == null ? null : r[0].toString(),
+                    masa(r[0]),
                     (String) r[1], (String) r[2], (String) r[3],
                     (String) r[4], (String) r[5],
                     tempoh(r[6], r[7]),
@@ -107,14 +116,32 @@ class SpLedgerController {
     }
 
     private void bind(jakarta.persistence.Query q, String docNo, Long productId,
-                      String docType, LocalDate from, LocalDate to) {
+                      String docType, Long periodId, LocalDate from, LocalDate to) {
         q.setParameter("sp", sp());
         q.setParameter("docNo", docNo == null || docNo.isBlank() ? null : docNo);
         q.setParameter("docNoLike", docNo == null ? "" : "%" + docNo.trim() + "%");
         q.setParameter("productId", productId);
         q.setParameter("docType", docType == null || docType.isBlank() ? null : docType);
+        q.setParameter("periodId", periodId);
         q.setParameter("from", from);
         q.setParameter("to", to);
+    }
+
+    /**
+     * Cap masa untuk paparan — '03/08/2026 04:38 PM'.
+     *
+     * toString() pada LocalDateTime memberi ISO dengan 'T' di tengah,
+     * yang bocor ke skrin DAN ke CSV. Diformat di sini supaya kedua-dua
+     * pembaca melihat perkara yang sama.
+     */
+    private static String masa(Object v) {
+        if (v == null) return null;
+        java.time.LocalDateTime t;
+        if (v instanceof java.time.LocalDateTime d) t = d;
+        else if (v instanceof java.sql.Timestamp ts) t = ts.toLocalDateTime();
+        else return v.toString();
+        return t.format(java.time.format.DateTimeFormatter
+                .ofPattern("dd/MM/yyyy hh:mm a", java.util.Locale.ENGLISH));
     }
 
     /** Tempoh sebagai teks — 'July, 2026' atau julat. */
