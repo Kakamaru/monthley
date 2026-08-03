@@ -300,6 +300,74 @@ class AccountController {
      * Dua kiraan: jumlah langganan dalam tempoh, dan berapa daripadanya
      * akaunnya aktif.
      */
+    record UsageDto(Long id, String productCode, String productName,
+                    java.math.BigDecimal quantity, java.math.BigDecimal amount,
+                    String remarks, String periodName, String createdAt,
+                    boolean pending, String invoiceNo) {}
+
+    /**
+     * Caj penggunaan bagi satu akaun — belum dibil dan sudah dibil.
+     *
+     * Kerani menyemak di sini sebelum menjana bil. Baris yang belum
+     * dibil boleh dipadam; yang sudah dibil kekal sebagai jejak.
+     */
+    @GetMapping("/{id}/usage")
+    @SuppressWarnings("unchecked")
+    List<UsageDto> usage(@PathVariable Long id) {
+        Access.requireAnyRole("melihat caj penggunaan", BACA);
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT u.id, p.code, p.name, u.quantity, u.amount, u.remarks,
+                       f.name_, u.created_at, u.status, d.doc_no
+                FROM   account_usage_charge u
+                JOIN   product   p ON p.id = u.product_id
+                JOIN   fi_period f ON f.period_id = u.period_id
+                LEFT   JOIN financial_document d ON d.id = u.document_id
+                WHERE  u.sp_code = :sp AND u.account_id = :acc
+                ORDER  BY u.status, u.created_at DESC
+                """).setParameter("sp", sp()).setParameter("acc", id)
+                .getResultList();
+
+        List<UsageDto> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new UsageDto(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (java.math.BigDecimal) r[3], (java.math.BigDecimal) r[4],
+                    (String) r[5], (String) r[6],
+                    r[7] == null ? null : r[7].toString(),
+                    "PENDING".equals(r[8]), (String) r[9]));
+        }
+        return out;
+    }
+
+    /**
+     * Padam caj penggunaan yang BELUM dibil.
+     *
+     * Baris yang sudah dibil tidak boleh dipadam: ia menjadi baris
+     * invois, dan memadamnya meninggalkan invois tanpa asal. Untuk
+     * membatalkannya, batalkan dokumen itu.
+     */
+    @DeleteMapping("/{id}/usage/{usageId}")
+    @Transactional
+    ResponseEntity<?> deleteUsage(@PathVariable Long id, @PathVariable Long usageId) {
+        Access.requireAnyRole("memadam caj penggunaan", "SP_ADMIN", "CLERK");
+
+        int n = em.createNativeQuery("""
+                DELETE FROM account_usage_charge
+                WHERE  id = :uid AND account_id = :acc
+                  AND  sp_code = :sp AND status = 'PENDING'
+                """).setParameter("uid", usageId).setParameter("acc", id)
+                .setParameter("sp", sp()).executeUpdate();
+
+        if (n == 0) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "message", "Caj tidak dijumpai atau sudah dibil. "
+                             + "Caj yang sudah dibil hanya boleh dibatalkan "
+                             + "melalui pembatalan invois."));
+        }
+        return ResponseEntity.ok(java.util.Map.of("message", "Caj dipadam."));
+    }
+
     @GetMapping("/by-product/{productId}")
     @SuppressWarnings("unchecked")
     SubscriberPage byProduct(@PathVariable Long productId,

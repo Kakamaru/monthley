@@ -199,6 +199,104 @@ class AccountControllerTest {
                 .isInstanceOf(com.monthley.shared.Access.AccessDeniedException.class);
     }
 
+    // ── Caj penggunaan pada skrin akaun ──────────────────────────────
+
+    private long cajPenggunaan(long akaunId, long produkId, String status, Long docId) {
+        long per = ((Number) em.createNativeQuery(
+                "SELECT period_id FROM fi_period WHERE charge_code='MO' "
+                + "AND YEAR(start_dt)=2026 AND MONTH(start_dt)=7")
+                .getSingleResult()).longValue();
+        em.createNativeQuery("""
+                INSERT INTO account_usage_charge
+                  (sp_code, account_id, product_id, period_id,
+                   quantity, amount, status, document_id)
+                VALUES ('SPX', :acc, :prod, :per, 5, 125.00, :st, :doc)
+                """).setParameter("acc", akaunId).setParameter("prod", produkId)
+                .setParameter("per", per).setParameter("st", status)
+                .setParameter("doc", docId).executeUpdate();
+        em.flush();
+        return ((Number) em.createNativeQuery(
+                "SELECT id FROM account_usage_charge WHERE account_id = :acc "
+                + "ORDER BY id DESC LIMIT 1")
+                .setParameter("acc", akaunId).getSingleResult()).longValue();
+    }
+
+    @Test
+    @DisplayName("Senarai caj: belum dibil DAN sudah dibil, dengan penanda")
+    void senaraiCajPenggunaan() {
+        bolehTulis();
+        long p = produkUji("P-USG-A", "25.00");
+        long acc = akaunUji("USG-1");
+        cajPenggunaan(acc, p, "PENDING", null);
+        em.clear();
+
+        var senarai = controller.usage(acc);
+
+        assertThat(senarai).singleElement().satisfies(u -> {
+            assertThat(u.pending()).isTrue();
+            assertThat(u.amount()).isEqualByComparingTo("125.00");
+            assertThat(u.periodName()).as("nama tempoh, bukan id").contains("July");
+        });
+    }
+
+    @Test
+    @DisplayName("Padam caj BELUM dibil: berjaya")
+    void padamCajBelumDibil() {
+        // Kerani menyemak sebelum menjana bil. Yang tersilap dimuat naik
+        // boleh dibuang tanpa membatalkan apa-apa dokumen.
+        bolehTulis();
+        long p = produkUji("P-USG-B", "25.00");
+        long acc = akaunUji("USG-2");
+        long id = cajPenggunaan(acc, p, "PENDING", null);
+        em.clear();
+
+        var resp = controller.deleteUsage(acc, id);
+
+        assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
+        em.flush();
+        em.clear();
+        assertThat(controller.usage(acc)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Padam caj SUDAH dibil: ditolak, baris kekal")
+    void padamCajSudahDibilDitolak() {
+        // Baris yang sudah dibil menjadi baris invois. Memadamnya
+        // meninggalkan invois tanpa asal — untuk membatalkannya,
+        // batalkan dokumen itu.
+        bolehTulis();
+        long p = produkUji("P-USG-C", "25.00");
+        long acc = akaunUji("USG-3");
+        long id = cajPenggunaan(acc, p, "INVOICED", null);
+        em.clear();
+
+        var resp = controller.deleteUsage(acc, id);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        em.clear();
+        assertThat(controller.usage(acc))
+                .as("baris kekal sebagai jejak")
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Padam caj akaun LAIN: ditolak")
+    void padamCajAkaunLainDitolak() {
+        // Tanpa semakan akaun, kerani boleh memadam caj akaun lain
+        // dengan meneka id.
+        bolehTulis();
+        long p = produkUji("P-USG-D", "25.00");
+        long acc1 = akaunUji("USG-4A");
+        long acc2 = akaunUji("USG-4B");
+        long id = cajPenggunaan(acc1, p, "PENDING", null);
+        em.clear();
+
+        assertThat(controller.deleteUsage(acc2, id).getStatusCode().value())
+                .isEqualTo(400);
+        em.clear();
+        assertThat(controller.usage(acc1)).hasSize(1);
+    }
+
     // ── Songsang: akaun yang BELUM melanggan ─────────────────────────
 
     private List<String> cariBelumLanggan(Long produkId) {
