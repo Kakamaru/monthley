@@ -42,6 +42,10 @@ table.data th    { background: #ddd; border-top: 0.6pt solid #999;
 table.data td    { border-bottom: 0.4pt solid #ddd; padding: 1.4mm 1.5mm;
                    vertical-align: top; }
 .r               { text-align: right; }
+/* Baris batal MERAH: ia kekal dikira dalam jumlah, jadi ia mesti
+   kelihatan. Kerani yang memerlukan nombor yang sepadan dengan bank
+   menapis Status = Aktif. */
+tr.batal td      { color: #c0392b; }
 .c               { text-align: center; }
 .kecil           { font-size: 7.5pt; color: #555; }
 
@@ -125,7 +129,8 @@ table.ringkas th { background: #eee; }
     </tr>
   </thead>
   <tbody>
-    <tr th:each="baris,i : ${r.rows()}">
+    <tr th:each="baris,i : ${r.rows()}"
+        th:classappend="${baris.status() == 'CANCELLED'} ? 'batal'">
       <td class="c" th:text="${i.count}">1</td>
       <td th:text="${fmt.date(baris.date())}"></td>
       <td th:if="${r.byProduct()}" th:text="${baris.productName()}"></td>
