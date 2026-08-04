@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Senarai Kutipan. SATU templat, dua bentuk: lajur Produk muncul hanya
+  apabila laporan dikumpulkan mengikut produk.
+
+  KETAT: openhtmltopdf menghurai XHTML. TIADA entiti bernama; gunakan
+  aksara Unicode terus atau rujukan berangka. Setiap nilai DB melalui
+  th:text, tidak pernah th:utext.
+-->
+<style>
+@page {
+  size: A4 landscape;
+  margin: 12mm 10mm 14mm 10mm;
+  @bottom-left  { content: element(kakiKiri); }
+  @bottom-right { content: element(kakiKanan); }
+}
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 9pt;
+       color: #1a1a1a; }
+
+.hdr       { width: 100%; }
+.hdr td    { vertical-align: top; }
+.sp-name   { font-size: 14pt; font-weight: bold; line-height: 1.15; }
+.sp-detail { font-size: 8pt; color: #444; line-height: 1.35; }
+
+.tajuk     { text-align: center; font-size: 12pt; font-weight: bold;
+             margin-top: 6mm; letter-spacing: 0.5pt; }
+.julat     { text-align: center; font-size: 10pt; margin-top: 2mm;
+             margin-bottom: 5mm; }
+.nota      { text-align: center; font-size: 8pt; color: #666;
+             margin-bottom: 4mm; }
+
+table.data       { border-collapse: collapse; width: 100%; }
+/* Baris jadual utama tidak dipecahkan di tengah — baris dengan
+   keterangan dua baris akan terbelah. */
+table.data tr    { page-break-inside: avoid; }
+table.data th    { background: #ddd; border-top: 0.6pt solid #999;
+                   border-bottom: 0.6pt solid #999; padding: 1.6mm 1.5mm;
+                   font-size: 8.5pt; }
+table.data td    { border-bottom: 0.4pt solid #ddd; padding: 1.4mm 1.5mm;
+                   vertical-align: top; }
+.r               { text-align: right; }
+.c               { text-align: center; }
+.kecil           { font-size: 7.5pt; color: #555; }
+
+.jumlah td       { border-top: 0.8pt solid #555; border-bottom: none;
+                   font-weight: bold; padding-top: 2mm; }
+
+/* Jadual ringkasan tidak boleh dipecahkan merentas muka: kepalanya
+   berakhir di satu muka dan barisnya di muka berikutnya, yang
+   menjadikannya tidak boleh dibaca. */
+table.ringkas    { border-collapse: collapse; margin: 8mm auto 0 auto;
+                   width: 60%; page-break-inside: avoid; }
+table.ringkas th,
+table.ringkas td { border: 0.6pt solid #555; padding: 1.5mm 2.5mm;
+                   font-size: 9pt; }
+table.ringkas th { background: #eee; }
+
+#kakiKiri  { position: running(kakiKiri);  font-size: 8pt; color: #555; }
+#kakiKanan { position: running(kakiKanan); font-size: 8pt; color: #555;
+             text-align: right; }
+.pg:before  { content: counter(page); }
+.tot:before { content: counter(pages); }
+</style>
+</head>
+<body>
+
+<div id="kakiKiri"></div>
+<div id="kakiKanan">
+  Muka <span class="pg"></span> daripada <span class="tot"></span>
+</div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:70%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine2())}" th:text="${h.spAddrLine2()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine3())}" th:text="${h.spAddrLine3()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+        <span th:if="${fmt.has(h.spCountry())}"   th:text="', ' + ${h.spCountry()}"></span>
+      </div>
+    </td>
+    <td class="r sp-detail">
+      <div>Tarikh Cetak: <span th:text="${fmt.date(#temporals.createToday())}"></span></div>
+    </td>
+  </tr>
+</table>
+
+<!-- Tajuk membawa nama produk apabila ditapis, mengikut legacy. -->
+<div class="tajuk"
+     th:text="${r.productLabel() != null}
+              ? 'LAPORAN KUTIPAN MENGIKUT PRODUK ' + ${r.productLabel()}
+              : 'LAPORAN KUTIPAN'">LAPORAN KUTIPAN</div>
+
+<div class="julat"
+     th:text="'DARI ' + ${fmt.date(r.from())} + ' HINGGA ' + ${fmt.date(r.to())}"></div>
+
+<!-- Monthly Basis menapis mengikut tempoh INVOIS, jadi jumlah sengaja
+     tidak sepadan dengan jumlah resit. Tanpa ayat ini, SP yang
+     membandingkannya dengan penyata bank akan menyangka ada yang
+     hilang. -->
+<div class="nota" th:if="${r.monthlyBasis()}">
+  Bahagian kutipan untuk tempoh ini sahaja: bayaran kepada tunggakan lama
+  dikecualikan, jadi jumlah di bawah tidak sama dengan jumlah resit diterima.
+</div>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th style="width:4%">No.</th>
+      <th style="width:9%">Tarikh</th>
+      <th th:if="${r.byProduct()}" style="width:16%">Produk</th>
+      <th style="width:11%">No. Resit</th>
+      <th style="width:9%">Akaun</th>
+      <th>Terima Daripada</th>
+      <th style="width:8%" class="c">Status</th>
+      <th style="width:10%" class="c">Jenis Bayaran</th>
+      <th style="width:11%" class="r">Amaun (MYR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="baris,i : ${r.rows()}">
+      <td class="c" th:text="${i.count}">1</td>
+      <td th:text="${fmt.date(baris.date())}"></td>
+      <td th:if="${r.byProduct()}" th:text="${baris.productName()}"></td>
+      <td th:text="${baris.receiptNo()}"></td>
+      <td th:text="${baris.accountNo()}"></td>
+      <td>
+        <span th:text="${baris.issuedTo()}"></span>
+        <div class="kecil" th:if="${!r.byProduct() and fmt.has(baris.description())}"
+             th:text="${baris.description()}"></div>
+      </td>
+      <td class="c"
+          th:text="${baris.status() == 'CANCELLED'} ? 'Batal' : 'Aktif'"></td>
+      <td class="c" th:text="${baris.paymentType()}"></td>
+      <td class="r" th:text="${fmt.money(baris.amount())}"></td>
+    </tr>
+    <tr class="jumlah">
+      <td th:attr="colspan=${r.byProduct()} ? 8 : 7" class="r">Jumlah</td>
+      <td class="r" th:text="${fmt.money(r.total())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="ringkas" th:if="${!#lists.isEmpty(r.summary())}">
+  <thead>
+    <tr>
+      <th colspan="3" class="c">Ringkasan</th>
+    </tr>
+    <tr>
+      <th th:text="${r.byProduct()} ? 'Produk' : 'Jenis Bayaran'">Jenis</th>
+      <th class="c" style="width:20%">Bilangan</th>
+      <th class="r" style="width:30%">Amaun (MYR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="s : ${r.summary()}">
+      <td th:text="${s.label()}"></td>
+      <td class="c" th:text="${s.count()}"></td>
+      <td class="r" th:text="${fmt.money(s.amount())}"></td>
+    </tr>
+    <tr>
+      <td style="font-weight:bold" class="r">Jumlah</td>
+      <td class="c" style="font-weight:bold" th:text="${#lists.size(r.rows())}"></td>
+      <td class="r" style="font-weight:bold" th:text="${fmt.money(r.total())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

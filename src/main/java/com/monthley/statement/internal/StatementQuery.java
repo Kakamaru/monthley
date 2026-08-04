@@ -29,6 +29,28 @@ class StatementQuery {
     }
 
     /** Kepala daripada VIEW statement_header. */
+    /**
+     * Header untuk laporan peringkat SP — tiada akaun tertentu.
+     *
+     * Medan SP (nama, alamat, telefon, mata wang) sama untuk setiap
+     * baris statement_header dalam SP itu, jadi mana-mana satu memadai.
+     * Medan akaun dibiarkan seperti adanya dan tidak dipaparkan oleh
+     * templat laporan.
+     *
+     * Menulis query SP berasingan bermakna dua takrifan bagi 'apa itu
+     * kepala SP', dan yang kedua akan menyimpang apabila SP menukar
+     * alamatnya.
+     */
+    com.monthley.statement.api.StatementHeader headerSp(String spCode) {
+        Long acc = jdbc.sql("SELECT MIN(account_id) FROM statement_header WHERE sp_code = :sp")
+                .param("sp", spCode).query(Long.class).optional().orElse(null);
+        if (acc == null) {
+            throw new IllegalStateException("Tiada akaun untuk SP " + spCode
+                    + "; kepala laporan tidak dapat dibina.");
+        }
+        return header(spCode, acc);
+    }
+
     com.monthley.statement.api.StatementHeader header(String spCode, long accountId) {
         return jdbc.sql("""
                 SELECT * FROM statement_header

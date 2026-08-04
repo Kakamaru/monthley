@@ -39,6 +39,7 @@ class FinancialReportTest {
 
     @Autowired ChartOfAccountSeeder seeder;
     @Autowired FinancialReportController reports;
+    @Autowired com.monthley.ledger.api.CollectionReportPort kutipanPort;
     @Autowired LedgerPort ledger;
     @PersistenceContext EntityManager em;
 
@@ -240,11 +241,13 @@ class FinancialReportTest {
      * bukan kod yang dijalankan. Controller boleh menyimpang tanpa satu
      * ujian pun berubah warna.
      */
-    private FinancialReportController.Collection kutipan(
+    private com.monthley.ledger.api.CollectionReportPort.Result kutipan(
             LocalDate from, LocalDate to, boolean byProduct, boolean monthly) {
         em.flush();
         em.clear();
-        return reports.collection(from, to, byProduct, monthly, null, null, null);
+        return kutipanPort.collection(
+                new com.monthley.ledger.api.CollectionReportPort.Query(
+                        SP, from, to, byProduct, monthly, null, null, null));
     }
 
     @Test

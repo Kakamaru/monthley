@@ -17,8 +17,16 @@
  * StatementAccessPort juga datang daripada document::api — pautan awam
  * penyata memerlukan penyelesaian token, dan modul ini yang merender
  * penyata itu.
+ *
+ * ledger::api untuk laporan kutipan. Modul ledger memiliki makna
+ * journal_line, status REVERSED dan mengapa DRAFT dikecualikan; ia
+ * memulangkan BARIS, dan modul ini merendernya.
+ *
+ * Menyoal jurnal terus dari sini akan meletakkan peraturan itu di dua
+ * tempat, dan yang kedua akan menyimpang.
  */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Account Statement",
-        allowedDependencies = { "shared", "document::api", "notification::api" })
+        allowedDependencies = { "shared", "document::api", "notification::api",
+                                "ledger::api" })
 package com.monthley.statement;
