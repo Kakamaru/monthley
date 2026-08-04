@@ -86,4 +86,76 @@ class AccountListService implements AccountListPort {
         }
         return new Result(items, jumlah, aktif, tidakAktif);
     }
+
+    // ── Senarai Langganan ────────────────────────────────────────────
+
+    /**
+     * Satu baris per LANGGANAN, dengan nama produk pada setiap baris.
+     *
+     * AKTIF bermakna status ACTIVE DAN end_date belum lepas.
+     *
+     * Lima langganan dalam data pengeluaran mempunyai status ACTIVE
+     * dengan end_date yang sudah berlalu: bil sudah berhenti dijana
+     * untuk mereka, jadi laporan menunjukkannya sebagai Tamat.
+     *
+     * AKAUN mereka mungkin masih aktif — itu soalan berbeza, dijawab
+     * oleh Senarai Akaun.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public SubResult subscriptionList(SubQuery q) {
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT a.account_no, a.account_name,
+                       p.code, p.name,
+                       COALESCE(pc.name, ''),
+                       s.quantity, s.start_date, s.end_date,
+                       (s.status = 'ACTIVE'
+                        AND (s.end_date IS NULL OR s.end_date >= CURDATE())) AS aktif
+                FROM   account_subscription s
+                JOIN   account a ON a.id = s.account_id
+                JOIN   product p ON p.id = s.product_id
+                LEFT   JOIN product_category pc ON pc.id = p.category_id
+                WHERE  s.sp_code = :sp
+                  AND  COALESCE(a.account_type,'') <> 'ADHOC'
+                  AND  (:cat IS NULL OR p.category_id = :cat)
+                  AND  (:prod IS NULL OR s.product_id = :prod)
+                  AND  (:status IS NULL
+                        OR (:status = 1 AND s.status = 'ACTIVE'
+                            AND (s.end_date IS NULL OR s.end_date >= CURDATE()))
+                        OR (:status = 0 AND NOT (s.status = 'ACTIVE'
+                            AND (s.end_date IS NULL OR s.end_date >= CURDATE()))))
+                ORDER  BY p.code, a.account_no
+                """)
+                .setParameter("sp", q.spCode())
+                .setParameter("cat", q.productCategoryId())
+                .setParameter("prod", q.productId())
+                .setParameter("status", q.status() == null ? null : (q.status() ? 1 : 0))
+                .getResultList();
+
+        List<SubRow> items = new ArrayList<>();
+        int aktif = 0, tamat = 0;
+
+        for (Object[] r : rows) {
+            boolean isAktif = benar(r[8]);
+            if (isAktif) aktif++; else tamat++;
+            items.add(new SubRow((String) r[0], (String) r[1],
+                    (String) r[2], (String) r[3], (String) r[4],
+                    (java.math.BigDecimal) r[5],
+                    r[6] == null ? null : r[6].toString(),
+                    r[7] == null ? null : r[7].toString(),
+                    isAktif));
+        }
+        return new SubResult(items, aktif, tamat);
+    }
+
+    /**
+     * tinyint(1) dipulangkan sebagai Boolean oleh Connector/J, bukan
+     * Number — corak ini sudah muncul tiga kali dalam projek.
+     */
+    private static boolean benar(Object v) {
+        if (v instanceof Boolean b) return b;
+        if (v instanceof Number n) return n.intValue() != 0;
+        return false;
+    }
 }

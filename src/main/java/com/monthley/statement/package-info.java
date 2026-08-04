@@ -28,5 +28,5 @@
 @org.springframework.modulith.ApplicationModule(
         displayName = "Account Statement",
         allowedDependencies = { "shared", "document::api", "notification::api",
-                                "ledger::api", "account::api" })
+                                "ledger::api" })
 package com.monthley.statement;

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Senarai Langganan. Satu baris per LANGGANAN dengan nama produk pada
+  setiap baris — akaun yang melanggan tiga produk muncul tiga kali, dan
+  tiada soalan tentang baris mana milik produk mana.
+
+  KETAT: XHTML. Tiada entiti bernama; th:text sentiasa.
+-->
+<style>
+@page { size: A4; margin: 14mm 12mm 16mm 12mm;
+        @bottom-left { content: element(kakiKiri); }
+        @bottom-right { content: element(kakiKanan); } }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 9.5pt;
+       color: #1a1a1a; }
+
+.hdr { width: 100%; } .hdr td { vertical-align: top; }
+.sp-name { font-size: 14pt; font-weight: bold; line-height: 1.15; }
+.sp-detail { font-size: 8pt; color: #444; line-height: 1.35; }
+
+.tajuk { text-align: center; font-size: 12pt; font-weight: bold;
+         margin-top: 6mm; letter-spacing: 0.5pt; }
+.kira  { text-align: center; font-size: 9pt; color: #555;
+         margin: 2mm 0 5mm 0; }
+
+table.data    { border-collapse: collapse; width: 100%; }
+table.data th { background: #ddd; border-top: 0.6pt solid #999;
+                border-bottom: 0.6pt solid #999; padding: 1.6mm 1.5mm;
+                font-size: 8.5pt; text-align: left; }
+table.data td { border-bottom: 0.4pt solid #ddd; padding: 1.5mm; }
+table.data tr { page-break-inside: avoid; }
+
+.r { text-align: right; } .c { text-align: center; }
+.kecil { font-size: 7.5pt; color: #666; }
+.tamat { color: #888; }
+
+#kakiKiri  { position: running(kakiKiri);  font-size: 8pt; color: #555; }
+#kakiKanan { position: running(kakiKanan); font-size: 8pt; color: #555;
+             text-align: right; }
+.pg:before { content: counter(page); } .tot:before { content: counter(pages); }
+</style>
+</head>
+<body>
+
+<div id="kakiKiri"></div>
+<div id="kakiKanan">Muka <span class="pg"></span> daripada <span class="tot"></span></div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:70%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+      </div>
+    </td>
+    <td class="r sp-detail">
+      <div>Tarikh Cetak: <span th:text="${fmt.date(#temporals.createToday())}"></span></div>
+    </td>
+  </tr>
+</table>
+
+<div class="tajuk">SENARAI LANGGANAN</div>
+<div class="kira">
+  <span th:text="${r.activeCount()}">0</span> aktif
+  <span th:if="${r.endedCount() > 0}" th:text="' · ' + ${r.endedCount()} + ' tamat'"></span>
+</div>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th style="width:5%">No.</th>
+      <th style="width:14%">Akaun</th>
+      <th>Produk</th>
+      <th style="width:14%">Kategori</th>
+      <th style="width:7%" class="r">Qty</th>
+      <th style="width:12%">Mula</th>
+      <th style="width:12%">Tamat</th>
+      <th style="width:9%" class="c">Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="s,i : ${r.rows()}" th:classappend="${!s.active()} ? 'tamat'">
+      <td class="c" th:text="${i.count}">1</td>
+      <td>
+        <div style="font-weight:bold" th:text="${s.accountNo()}"></div>
+        <div class="kecil" th:text="${s.accountName()}"></div>
+      </td>
+      <td th:text="${s.productName()}"></td>
+      <td class="kecil" th:text="${s.productCategory()}"></td>
+      <td class="r" th:text="${s.quantity()}"></td>
+      <td th:text="${s.startDate() != null} ? ${s.startDate()} : '—'"></td>
+      <td th:text="${s.endDate() != null} ? ${s.endDate()} : '—'"></td>
+      <td class="c" th:text="${s.active()} ? 'Aktif' : 'Tamat'"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

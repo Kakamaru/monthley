@@ -22,13 +22,18 @@ class StatementRenderService implements StatementRenderPort {
     private final StatementXlsxWriter xlsx;
     private final ReceiptPdfWriter receipt;
     private final InvoicePdfWriter invoice;
+    private final TemplatePdfWriter templatePdf;
+    private final StatementQuery query;
 
     StatementRenderService(StatementPdfWriter pdf, StatementXlsxWriter xlsx,
-                           ReceiptPdfWriter receipt, InvoicePdfWriter invoice) {
+                           ReceiptPdfWriter receipt, InvoicePdfWriter invoice,
+                           TemplatePdfWriter templatePdf, StatementQuery query) {
         this.pdf = pdf;
         this.xlsx = xlsx;
         this.receipt = receipt;
         this.invoice = invoice;
+        this.templatePdf = templatePdf;
+        this.query = query;
     }
 
     @Override
@@ -49,5 +54,21 @@ class StatementRenderService implements StatementRenderPort {
     @Override
     public byte[] renderInvoicePdf(com.monthley.statement.api.InvoiceModel model) {
         return invoice.render(model);
+    }
+
+    @Override
+    public byte[] renderTemplatePdf(String template, java.util.Map<String, Object> vars) {
+        return templatePdf.render(template, vars);
+    }
+
+    @Override
+    public com.monthley.statement.api.StatementHeader headerForSp(String spCode) {
+        return query.headerSp(spCode);
+    }
+
+    @Override
+    public com.monthley.statement.api.StatementTextFormat formatterFor(
+            com.monthley.statement.api.StatementHeader h) {
+        return new StatementFormatter(h.language(), h.dateFormat());
     }
 }

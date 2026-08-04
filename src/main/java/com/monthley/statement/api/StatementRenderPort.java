@@ -23,6 +23,32 @@ public interface StatementRenderPort {
     /** Invois PDF. */
     byte[] renderInvoicePdf(InvoiceModel model);
 
+    /**
+     * Render mana-mana templat Thymeleaf kepada PDF.
+     *
+     * Modul lain mempunyai laporan mereka sendiri — senarai akaun,
+     * tunggakan — dan mereka memerlukan enjin PDF yang SAMA: fon
+     * terbenam, kepala SP, gaya yang konsisten.
+     *
+     * Tanpa ini, satu-satunya cara ialah modul itu memanggil
+     * statement.internal, yang mencipta kitaran apabila statement sudah
+     * bergantung padanya (ADR 0010; berlaku dua kali).
+     *
+     * Templat hidup dalam modul yang memilikinya; enjin dikongsi.
+     */
+    byte[] renderTemplatePdf(String template, java.util.Map<String, Object> vars);
+
+    /** Kepala SP untuk laporan peringkat SP — tiada akaun tertentu. */
+    StatementHeader headerForSp(String spCode);
+
+    /**
+     * Pemformat tarikh dan wang untuk kepala tertentu.
+     *
+     * StatementPort.formatterFor menerima StatementModel; laporan
+     * peringkat SP tiada model, hanya kepala.
+     */
+    StatementTextFormat formatterFor(StatementHeader header);
+
     default StatementFile renderInvoicePdfFile(InvoiceModel m) {
         String name = ("invois-" + m.invoiceNo() + ".pdf")
                 .replaceAll("[^A-Za-z0-9._-]", "_");

@@ -33,4 +33,30 @@ public interface AccountListPort {
                   int activeCount, int inactiveCount) {}
 
     Result accountList(Query q);
+
+    // ── Senarai Langganan ────────────────────────────────────────────
+
+    /**
+     * Satu baris per LANGGANAN, bukan per akaun.
+     *
+     * Akaun yang melanggan tiga produk muncul tiga kali, dengan nama
+     * produk pada setiap baris — tiada soalan tentang baris mana milik
+     * produk mana.
+     */
+    record SubRow(String accountNo, String accountName,
+                  String productCode, String productName, String productCategory,
+                  BigDecimal quantity, String startDate, String endDate,
+                  boolean active) {}
+
+    /**
+     * @param status null = semua; true = aktif; false = tamat.
+     *               'Tamat' menjawab soalan yang sama pentingnya:
+     *               berapa yang BERHENTI mengambil pakej ini.
+     */
+    record SubQuery(String spCode, Long productCategoryId, Long productId,
+                    Boolean status) {}
+
+    record SubResult(List<SubRow> rows, int activeCount, int endedCount) {}
+
+    SubResult subscriptionList(SubQuery q);
 }
