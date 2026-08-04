@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Senarai Tunggakan — POTRET pada satu tarikh.
+
+  Dokumen DAN alokasi ditapis pada tarikh yang sama, jadi laporan yang
+  sama memberi nombor yang sama setiap kali dijana.
+
+  KETAT: XHTML. Tiada entiti bernama; th:text sentiasa.
+-->
+<style>
+@page { size: A4; margin: 14mm 12mm 16mm 12mm;
+        @bottom-left { content: element(kakiKiri); }
+        @bottom-right { content: element(kakiKanan); } }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 9.5pt;
+       color: #1a1a1a; }
+
+.hdr { width: 100%; } .hdr td { vertical-align: top; }
+.sp-name { font-size: 14pt; font-weight: bold; line-height: 1.15; }
+.sp-detail { font-size: 8pt; color: #444; line-height: 1.35; }
+
+.tajuk { text-align: center; font-size: 12pt; font-weight: bold;
+         margin-top: 6mm; margin-bottom: 5mm; letter-spacing: 0.5pt; }
+
+table.data    { border-collapse: collapse; width: 100%; }
+table.data th { background: #ddd; border-top: 0.6pt solid #999;
+                border-bottom: 0.6pt solid #999; padding: 1.8mm 1.5mm;
+                font-size: 8.5pt; text-align: left; }
+table.data td { border-bottom: 0.4pt solid #ddd; padding: 1.8mm 1.5mm;
+                vertical-align: top; }
+table.data tr { page-break-inside: avoid; }
+
+.r { text-align: right; } .c { text-align: center; }
+.kecil { font-size: 7.5pt; color: #666; font-style: italic; }
+.kredit { color: #1a7f37; }
+
+.jumlah td { border-top: 0.8pt solid #555; border-bottom: none;
+             font-weight: bold; padding-top: 3mm; font-size: 10.5pt; }
+
+#kakiKiri  { position: running(kakiKiri);  font-size: 8pt; color: #555; }
+#kakiKanan { position: running(kakiKanan); font-size: 8pt; color: #555;
+             text-align: right; }
+.pg:before { content: counter(page); } .tot:before { content: counter(pages); }
+</style>
+</head>
+<body>
+
+<div id="kakiKiri"></div>
+<div id="kakiKanan">Muka <span class="pg"></span> daripada <span class="tot"></span></div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:60%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+      </div>
+    </td>
+    <td class="r sp-detail">
+      <div>Tarikh Cetak: <span th:text="${fmt.date(#temporals.createToday())}"></span></div>
+    </td>
+  </tr>
+</table>
+
+<div class="tajuk"
+     th:text="'SENARAI TUNGGAKAN SEHINGGA ' + ${fmt.date(r.asAt())}">SENARAI TUNGGAKAN</div>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th style="width:6%">No.</th>
+      <th style="width:18%">No. Akaun</th>
+      <th>Nama</th>
+      <th style="width:26%" class="c">Tempoh</th>
+      <th style="width:15%" class="r">Amaun (MYR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="a,i : ${r.rows()}">
+      <td class="c" th:text="${i.count}">1</td>
+      <td th:text="${a.accountNo()}"></td>
+      <td>
+        <div style="font-weight:bold" th:text="${a.accountName()}"></div>
+        <div class="kecil" th:if="${fmt.has(a.email())}" th:text="${a.email()}"></div>
+      </td>
+      <td class="c" th:text="${a.period()}"></td>
+      <!-- Baki negatif bermakna pelanggan ada KREDIT: dia membayar
+           sesuatu yang belum dibil pada tarikh ini. -->
+      <td class="r" th:classappend="${a.amount().signum() < 0} ? 'kredit'"
+          th:text="${a.amount().signum() < 0}
+                   ? '(' + ${fmt.money(a.amount().negate())} + ')'
+                   : ${fmt.money(a.amount())}"></td>
+    </tr>
+    <tr class="jumlah">
+      <td colspan="4" class="r">Jumlah</td>
+      <td class="r" th:text="${fmt.money(r.total())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

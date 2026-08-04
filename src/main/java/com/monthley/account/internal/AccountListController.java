@@ -115,6 +115,43 @@ class AccountListController {
                 .body(bytes);
     }
 
+    // ── Senarai Tunggakan ────────────────────────────────────────────
+
+    @GetMapping("/arrears")
+    AccountListPort.ArrearResult arrears(
+            @RequestParam java.time.LocalDate asAt,
+            @RequestParam(defaultValue = "true") boolean arrearsOnly) {
+        Access.requireAnyRole("melihat senarai tunggakan", "SP_ADMIN", "CLERK", "VIEWER");
+        return accounts.arrears(
+                new AccountListPort.ArrearQuery(sp(), asAt, arrearsOnly));
+    }
+
+    @GetMapping(value = "/arrears/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> arrearsPdf(
+            @RequestParam java.time.LocalDate asAt,
+            @RequestParam(defaultValue = "true") boolean arrearsOnly) {
+        Access.requireAnyRole("mencetak senarai tunggakan", "SP_ADMIN", "CLERK", "VIEWER");
+
+        var hasil = accounts.arrears(
+                new AccountListPort.ArrearQuery(sp(), asAt, arrearsOnly));
+        var h = render.headerForSp(sp());
+
+        Map<String, Object> vars = new LinkedHashMap<>();
+        vars.put("r", hasil);
+        vars.put("h", h);
+        vars.put("fmt", render.formatterFor(h));
+
+        byte[] bytes = render.renderTemplatePdf("account/arrears-list", vars);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename("tunggakan-" + asAt + ".pdf", StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(bytes);
+    }
+
     private String sp() {
         String sp = TenantContext.get();
         if (sp == null || sp.isBlank()) {

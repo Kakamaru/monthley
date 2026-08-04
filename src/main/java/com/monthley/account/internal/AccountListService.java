@@ -149,6 +149,97 @@ class AccountListService implements AccountListPort {
         return new SubResult(items, aktif, tamat);
     }
 
+    // ── Senarai Tunggakan ────────────────────────────────────────────
+
+    /**
+     * Baki setiap akaun pada satu TARIKH.
+     *
+     * POTRET, bukan tapisan baris. Dokumen DAN alokasi ditapis pada
+     * tarikh yang sama: pelanggan yang berhutang RM500 pada 31 Julai dan
+     * membayar RM200 pada 2 Ogos muncul sebagai RM500.
+     *
+     * Menapis invois sahaja bermakna bayaran kemudian mengurangkan
+     * tunggakan lampau, dan laporan yang sama memberi nombor berbeza
+     * setiap kali dijana.
+     *
+     * Baki dikira daripada signed_amount (V33) — takrifan yang sama
+     * seperti account_balance, tetapi dengan had tarikh yang VIEW itu
+     * tidak boleh terima.
+     *
+     * TEMPOH ialah julat baris invois yang masih menyumbang: invois
+     * tertua yang belum lunas hingga yang terbaharu. Ia menerangkan
+     * MENGAPA jumlah itu wujud.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public ArrearResult arrears(ArrearQuery q) {
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT a.account_no,
+                       COALESCE(NULLIF(a.billto_name,''), a.account_name),
+                       COALESCE(NULLIF(a.billto_email,''), a.member_email, ''),
+                       MIN(t.period_start), MAX(t.period_end),
+                       SUM(t.signed) AS baki
+                FROM   account a
+                JOIN (
+                    -- Dokumen sehingga tarikh, bertanda.
+                    SELECT e.account_id, e.signed_amount AS signed,
+                           (SELECT MIN(l.period_start) FROM financial_document_line l
+                             WHERE l.document_id = e.document_id AND l.active = 1)
+                               AS period_start,
+                           (SELECT MAX(l.period_end) FROM financial_document_line l
+                             WHERE l.document_id = e.document_id AND l.active = 1)
+                               AS period_end
+                    FROM   account_document_entry e
+                    WHERE  e.sp_code = :sp AND e.doc_date <= :asAt
+                ) t ON t.account_id = a.id
+                WHERE  a.sp_code = :sp
+                  AND  COALESCE(a.account_type,'') <> 'ADHOC'
+                GROUP  BY a.id, a.account_no, a.billto_name, a.account_name,
+                          a.billto_email, a.member_email
+                HAVING (:arrearsOnly = 0 AND ABS(SUM(t.signed)) > 0.005)
+                    OR (:arrearsOnly = 1 AND SUM(t.signed) > 0.005)
+                ORDER  BY baki, a.account_no
+                """)
+                .setParameter("sp", q.spCode())
+                .setParameter("asAt", q.asAt())
+                .setParameter("arrearsOnly", q.arrearsOnly() ? 1 : 0)
+                .getResultList();
+
+        List<ArrearRow> items = new ArrayList<>();
+        BigDecimal jumlah = BigDecimal.ZERO;
+
+        for (Object[] r : rows) {
+            BigDecimal baki = (BigDecimal) r[5];
+            jumlah = jumlah.add(baki);
+            items.add(new ArrearRow((String) r[0], (String) r[1], (String) r[2],
+                    tempohJulat(r[3], r[4]), baki));
+        }
+        return new ArrearResult(q.asAt(), items, jumlah);
+    }
+
+    /** 'Julai 2026' atau 'Jun 2022 - Julai 2026'. */
+    private static String tempohJulat(Object mula, Object tamat) {
+        if (mula == null) return "";
+        java.time.LocalDate a = tarikh(mula);
+        java.time.LocalDate b = tamat == null ? a : tarikh(tamat);
+        String namaA = BULAN[a.getMonthValue() - 1] + " " + a.getYear();
+        if (a.getYear() == b.getYear() && a.getMonthValue() == b.getMonthValue()) {
+            return namaA;
+        }
+        return namaA + " - " + BULAN[b.getMonthValue() - 1] + " " + b.getYear();
+    }
+
+    private static final String[] BULAN = {
+            "Januari", "Februari", "Mac", "April", "Mei", "Jun",
+            "Julai", "Ogos", "September", "Oktober", "November", "Disember" };
+
+    private static java.time.LocalDate tarikh(Object v) {
+        if (v instanceof java.time.LocalDate d) return d;
+        if (v instanceof java.sql.Date d) return d.toLocalDate();
+        return java.time.LocalDate.parse(String.valueOf(v));
+    }
+
     /**
      * tinyint(1) dipulangkan sebagai Boolean oleh Connector/J, bukan
      * Number — corak ini sudah muncul tiga kali dalam projek.

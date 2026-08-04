@@ -269,6 +269,92 @@ class AccountListTest {
                 .containsExactly("SL-TMT");
     }
 
+    // ── Senarai Tunggakan ────────────────────────────────────────────
+
+    private void resit(long akaunId, String no, String tarikh, String amaun) {
+        em.createNativeQuery("""
+                INSERT INTO financial_document
+                  (sp_code, doc_no, doc_type, account_id, doc_date, amount,
+                   tax_amount, status, title, version)
+                VALUES (:sp, :no, 'RECEIPT', :acc, :dd, :amt, 0, 'ACTIVE', 'Resit', 0)
+                """).setParameter("sp", SP).setParameter("no", no)
+                .setParameter("acc", akaunId)
+                .setParameter("dd", java.time.LocalDate.parse(tarikh))
+                .setParameter("amt", new BigDecimal(amaun)).executeUpdate();
+        em.flush();
+    }
+
+    private void invoisBertarikh(long akaunId, String no, String tarikh, String amaun) {
+        em.createNativeQuery("""
+                INSERT INTO financial_document
+                  (sp_code, doc_no, doc_type, account_id, doc_date, amount,
+                   tax_amount, status, title, version)
+                VALUES (:sp, :no, 'INVOICE', :acc, :dd, :amt, 0, 'ACTIVE', 'Invois', 0)
+                """).setParameter("sp", SP).setParameter("no", no)
+                .setParameter("acc", akaunId)
+                .setParameter("dd", java.time.LocalDate.parse(tarikh))
+                .setParameter("amt", new BigDecimal(amaun)).executeUpdate();
+        em.flush();
+    }
+
+    private AccountListPort.ArrearResult tunggakan(String asAt, boolean arrearsOnly) {
+        em.flush();
+        em.clear();
+        return port.arrears(new AccountListPort.ArrearQuery(
+                SP, java.time.LocalDate.parse(asAt), arrearsOnly));
+    }
+
+    @Test
+    @DisplayName("POTRET: bayaran SELEPAS tarikh tidak mengurangkan tunggakan")
+    void bayaranSelepasTarikhDiabaikan() {
+        // Pelanggan berhutang RM500 pada 31 Julai dan membayar RM200 pada
+        // 2 Ogos. Laporan bertarikh 31 Julai mesti menunjukkan RM500.
+        //
+        // Menapis invois sahaja bermakna bayaran Ogos mengurangkan
+        // tunggakan Julai, dan laporan yang sama memberi nombor berbeza
+        // setiap kali dijana semula.
+        long acc = akaun("AR-1", "ACTIVE", null, null);
+        invoisBertarikh(acc, "AR-I1", "2026-07-15", "500.00");
+        resit(acc, "AR-R1", "2026-08-02", "200.00");
+
+        assertThat(tunggakan("2026-07-31", true).total())
+                .as("bayaran Ogos diabaikan").isEqualByComparingTo("500.00");
+
+        assertThat(tunggakan("2026-08-31", true).total())
+                .as("bayaran dikira selepas tarikhnya").isEqualByComparingTo("300.00");
+    }
+
+    @Test
+    @DisplayName("Invois SELEPAS tarikh tidak muncul")
+    void invoisSelepasTarikhDiabaikan() {
+        long acc = akaun("AR-2", "ACTIVE", null, null);
+        invoisBertarikh(acc, "AR-I2", "2026-07-15", "100.00");
+        invoisBertarikh(acc, "AR-I3", "2026-09-01", "250.00");
+
+        assertThat(tunggakan("2026-07-31", true).total())
+                .isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    @DisplayName("arrearsOnly: akaun BERKREDIT disembunyikan atau ditunjuk")
+    void tapisKredit() {
+        // Resit boleh mendahului invoisnya — advance, atau tarikh yang
+        // dimasukkan secara manual. Pada tarikh laporan, pelanggan itu
+        // MEMANG berkredit.
+        long acc = akaun("AR-KREDIT", "ACTIVE", null, null);
+        resit(acc, "AR-R2", "2026-07-20", "80.00");
+
+        assertThat(tunggakan("2026-07-31", true).rows())
+                .as("tunggakan sahaja: kredit disembunyikan")
+                .extracting(AccountListPort.ArrearRow::accountNo)
+                .doesNotContain("AR-KREDIT");
+
+        assertThat(tunggakan("2026-07-31", false).rows())
+                .as("semua: kredit ditunjuk")
+                .extracting(AccountListPort.ArrearRow::accountNo)
+                .contains("AR-KREDIT");
+    }
+
     @Test
     @DisplayName("Jumlah baki ialah hasil tambah baris yang dipaparkan")
     void jumlahSepadanDenganBaris() {

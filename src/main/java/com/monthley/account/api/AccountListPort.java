@@ -59,4 +59,34 @@ public interface AccountListPort {
     record SubResult(List<SubRow> rows, int activeCount, int endedCount) {}
 
     SubResult subscriptionList(SubQuery q);
+
+    // ── Senarai Tunggakan ────────────────────────────────────────────
+
+    /**
+     * Baki satu akaun pada satu TARIKH, dengan julat tempoh invois yang
+     * menyumbang kepadanya.
+     */
+    record ArrearRow(String accountNo, String accountName, String email,
+                     String period, BigDecimal amount) {}
+
+    /**
+     * POTRET pada satu masa, bukan tapisan baris.
+     *
+     * Dokumen DAN alokasi ditapis pada tarikh yang sama: pelanggan yang
+     * berhutang RM500 pada 31 Julai dan membayar RM200 pada 2 Ogos
+     * mesti muncul sebagai RM500 dalam laporan bertarikh 31 Julai.
+     *
+     * Menapis invois sahaja bermakna bayaran Ogos mengurangkan
+     * tunggakan Julai — laporan yang berubah setiap kali dijana semula.
+     *
+     * @param arrearsOnly true = baki positif sahaja; false = termasuk
+     *                    akaun berkredit (pelanggan terlebih bayar)
+     */
+    record ArrearQuery(String spCode, java.time.LocalDate asAt,
+                       boolean arrearsOnly) {}
+
+    record ArrearResult(java.time.LocalDate asAt, List<ArrearRow> rows,
+                        BigDecimal total) {}
+
+    ArrearResult arrears(ArrearQuery q);
 }
