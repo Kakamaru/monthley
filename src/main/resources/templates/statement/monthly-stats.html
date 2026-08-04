@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Statistik Bulanan.
+
+  th:utext DIGUNAKAN untuk SVG — satu-satunya tempat dalam projek. SVG
+  ialah markup yang KAMI jana dalam ChartSvg, bukan data pengguna, dan
+  nama produk di dalamnya sudah di-escape di situ.
+
+  KETAT: XHTML. Tiada entiti bernama.
+-->
+<style>
+@page { size: A4; margin: 12mm 12mm 14mm 12mm;
+        @bottom-center { content: element(kaki); } }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
+       color: #111; }
+
+.hdr { width: 100%; } .hdr td { vertical-align: top; }
+.sp-name { font-size: 13pt; font-weight: bold; }
+.sp-detail { font-size: 8pt; color: #444; line-height: 1.35; }
+
+.tajuk { text-align: center; font-size: 14pt; font-weight: bold; margin-top: 6mm; }
+.sub   { text-align: center; font-size: 9.5pt; color: #555; margin: 1.5mm 0 6mm 0; }
+
+.seksyen { font-size: 11pt; font-weight: bold; margin: 7mm 0 3mm 0;
+           border-bottom: 0.8pt solid #ccc; padding-bottom: 1.5mm; }
+
+table.kad { width: 100%; border-collapse: separate; border-spacing: 3mm 0; }
+table.kad td { width: 25%; border: 0.6pt solid #ccc; border-radius: 2mm;
+               padding: 3mm; vertical-align: top; }
+.kad-label { font-size: 8pt; color: #666; text-transform: uppercase; }
+.kad-nilai { font-size: 15pt; font-weight: bold; margin-top: 1.5mm; }
+.kad-nota  { font-size: 7.5pt; color: #777; margin-top: 1.5mm; line-height: 1.35; }
+
+table.data { border-collapse: collapse; width: 100%; }
+table.data th { background: #eee; border: 0.5pt solid #bbb; padding: 1.6mm;
+                font-size: 8.5pt; text-align: left; }
+table.data td { border: 0.4pt solid #ddd; padding: 1.6mm; }
+table.data tr { page-break-inside: avoid; }
+.r { text-align: right; }
+.kecil { font-size: 7.5pt; color: #666; }
+
+.carta { page-break-inside: avoid; margin-top: 2mm; }
+.naik  { color: #c0392b; } .turun { color: #1a7f37; }
+
+#kaki { position: running(kaki); font-size: 8pt; color: #666;
+        text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="kaki">Dokumen ini dijana secara automatik oleh sistem Monthley
+  &#183; Muka <span style="content:counter(page)"></span></div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:65%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+      </div>
+    </td>
+    <td class="r sp-detail">
+      <div th:text="'Tarikh Cetak: ' + ${fmt.date(#temporals.createToday())}"></div>
+    </td>
+  </tr>
+</table>
+
+<div class="tajuk" th:text="'Laporan Statistik ' + ${s.periodName()}">Statistik</div>
+<div class="sub" th:text="'Setakat ' + ${fmt.date(s.asAt())}"></div>
+
+<table class="kad">
+  <tr>
+    <td>
+      <div class="kad-label">Invois Dijana</div>
+      <div class="kad-nilai" th:text="${fmt.money(s.billed())}"></div>
+      <div class="kad-nota" th:text="${s.invoiceCount()} + ' invois'"></div>
+    </td>
+    <td>
+      <div class="kad-label">Kutipan Diterima</div>
+      <div class="kad-nilai" th:text="${fmt.money(s.collected())}"></div>
+      <!-- Pecahan diperlukan: resit bulan ini boleh membayar invois
+           bulan lepas, dan tanpa ayat ini kutipan yang melebihi bil
+           kelihatan seperti ralat. -->
+      <div class="kad-nota">
+        <span th:text="${fmt.money(s.collectedThisPeriod())} + ' untuk tempoh ini'"></span><br/>
+        <span th:text="${fmt.money(s.collectedArrears())} + ' untuk tunggakan lama'"></span>
+      </div>
+    </td>
+    <td>
+      <div class="kad-label">Kadar Kutipan</div>
+      <div class="kad-nilai" th:text="${s.collectionRate()} + '%'"></div>
+      <div class="kad-nota">daripada bil tempoh ini yang sudah dikutip</div>
+    </td>
+    <td>
+      <div class="kad-label">Tunggakan Terkumpul</div>
+      <div class="kad-nilai" th:text="${fmt.money(s.arrears())}"></div>
+      <div class="kad-nota"
+           th:classappend="${s.arrears().compareTo(s.arrearsPrevious()) > 0} ? 'naik' : 'turun'"
+           th:text="${s.arrears().compareTo(s.arrearsPrevious()) > 0}
+                    ? ('naik ' + ${fmt.money(s.arrears().subtract(s.arrearsPrevious()))})
+                    : ('turun ' + ${fmt.money(s.arrearsPrevious().subtract(s.arrears()))})"></div>
+    </td>
+  </tr>
+</table>
+
+<div class="seksyen">Trend Dua Belas Bulan</div>
+<div class="carta" th:utext="${trendSvg}"></div>
+
+<div class="seksyen">Kutipan Mengikut Jenis Bayaran</div>
+<div class="carta" th:utext="${paymentSvg}"></div>
+
+<div style="page-break-before: always"></div>
+
+<div class="seksyen">Kutipan Mengikut Produk</div>
+<div class="carta" th:utext="${productSvg}"></div>
+
+<div class="seksyen">Lima Tunggakan Tertinggi</div>
+<table class="data">
+  <thead>
+    <tr><th style="width:16%">No. Akaun</th><th>Nama</th>
+        <th style="width:18%" class="r">Tunggakan (MYR)</th></tr>
+  </thead>
+  <tbody>
+    <tr th:each="a : ${s.topArrears()}">
+      <td th:text="${a.accountNo()}"></td>
+      <td th:text="${a.accountName()}"></td>
+      <td class="r" th:text="${fmt.money(a.amount())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Menggantikan '5 akaun terawal membuat bayaran' legacy, yang tidak
+     membantu sebarang keputusan. Ini senarai yang JMB hubungi. -->
+<div class="seksyen">Lima Akaun Paling Lama Tidak Membayar</div>
+<table class="data">
+  <thead>
+    <tr><th style="width:16%">No. Akaun</th><th>Nama</th>
+        <th style="width:26%">Bayaran Terakhir</th>
+        <th style="width:18%" class="r">Baki (MYR)</th></tr>
+  </thead>
+  <tbody>
+    <tr th:each="a : ${s.longestSilent()}">
+      <td th:text="${a.accountNo()}"></td>
+      <td th:text="${a.accountName()}"></td>
+      <td class="kecil" th:text="${a.note()}"></td>
+      <td class="r" th:text="${fmt.money(a.amount())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="margin-top:5mm;font-size:8.5pt;color:#666">
+  <span th:text="${s.activeAccounts()} + ' akaun aktif'"></span> &#183;
+  <span th:text="${s.accountsWithBalance()} + ' mempunyai baki tertunggak'"></span>
+</div>
+
+</body>
+</html>
