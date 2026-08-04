@@ -355,6 +355,128 @@ class AccountListTest {
                 .contains("AR-KREDIT");
     }
 
+    // ── Ageing ───────────────────────────────────────────────────────
+
+    /** Invois dengan due_date tertentu, supaya umurnya boleh dikawal. */
+    private void invoisDue(long akaunId, String no, String docDate,
+                           String dueDate, String amaun) {
+        em.createNativeQuery("""
+                INSERT INTO financial_document
+                  (sp_code, doc_no, doc_type, account_id, doc_date, due_date,
+                   amount, tax_amount, status, title, version)
+                VALUES (:sp, :no, 'INVOICE', :acc, :dd, :due, :amt, 0,
+                        'ACTIVE', 'Invois', 0)
+                """).setParameter("sp", SP).setParameter("no", no)
+                .setParameter("acc", akaunId)
+                .setParameter("dd", java.time.LocalDate.parse(docDate))
+                .setParameter("due", java.time.LocalDate.parse(dueDate))
+                .setParameter("amt", new BigDecimal(amaun)).executeUpdate();
+        em.flush();
+    }
+
+    private AccountListPort.AgeResult umur(String asAt) {
+        em.flush();
+        em.clear();
+        return port.ageing(new AccountListPort.AgeQuery(
+                SP, java.time.LocalDate.parse(asAt), null, null, true));
+    }
+
+    @Test
+    @DisplayName("Jumlah bucket SAMA dengan total — sifat yang legacy langgar")
+    void bucketSepadanDenganTotal() {
+        // Laporan legacy mengulang nombor merentas lajur: baris '004 ali'
+        // menunjukkan Amount 6.00 tetapi bucket 60-hari 5,971.00, dan
+        // jumlah keseluruhan bucket MELEBIHI jumlah Amount.
+        //
+        // Bucket sebenar tidak boleh melakukan itu.
+        long acc = akaun("AG-1", "ACTIVE", null, null);
+        invoisDue(acc, "AG-I1", "2026-01-01", "2026-01-15", "100.00");   // 200 hari
+        invoisDue(acc, "AG-I2", "2026-05-01", "2026-05-15", "200.00");   // 81 hari
+        invoisDue(acc, "AG-I3", "2026-07-15", "2026-07-25", "300.00");   // 10 hari
+        invoisDue(acc, "AG-I4", "2026-08-01", "2026-08-20", "400.00");   // belum matang
+
+        var r = umur("2026-08-04");
+        var baris = r.rows().stream()
+                .filter(x -> x.accountNo().equals("AG-1")).findFirst().orElseThrow();
+
+        BigDecimal hasilTambah = baris.notDue().add(baris.d30()).add(baris.d60())
+                .add(baris.d90()).add(baris.d180()).add(baris.over180());
+
+        assertThat(hasilTambah).isEqualByComparingTo(baris.total());
+        assertThat(baris.total()).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    @DisplayName("Invois BELUM MATANG masuk lajur sendiri, bukan 0-30")
+    void belumMatangBerasingan() {
+        // Memasukkannya dalam 0-30 bermakna laporan mengatakan pelanggan
+        // sudah lewat sedangkan dia masih ada beberapa hari, dan JMB
+        // menghantar peringatan kepada orang yang tidak bersalah.
+        long acc = akaun("AG-2", "ACTIVE", null, null);
+        invoisDue(acc, "AG-I5", "2026-08-01", "2026-08-20", "500.00");
+
+        var baris = umur("2026-08-04").rows().stream()
+                .filter(x -> x.accountNo().equals("AG-2")).findFirst().orElseThrow();
+
+        assertThat(baris.notDue()).isEqualByComparingTo("500.00");
+        assertThat(baris.d30()).isZero();
+    }
+
+    @Test
+    @DisplayName("Umur dikira daripada due_date, dan setiap bucket menerima yang betul")
+    void setiapBucketBetul() {
+        long acc = akaun("AG-3", "ACTIVE", null, null);
+        invoisDue(acc, "AG-B1", "2026-07-01", "2026-08-01", "10.00");   // 3 hari
+        invoisDue(acc, "AG-B2", "2026-06-01", "2026-06-20", "20.00");   // 45 hari
+        invoisDue(acc, "AG-B3", "2026-05-01", "2026-05-20", "30.00");   // 76 hari
+        invoisDue(acc, "AG-B4", "2026-03-01", "2026-03-20", "40.00");   // 137 hari
+        invoisDue(acc, "AG-B5", "2025-01-01", "2025-01-20", "50.00");   // 561 hari
+
+        var b = umur("2026-08-04").rows().stream()
+                .filter(x -> x.accountNo().equals("AG-3")).findFirst().orElseThrow();
+
+        assertThat(b.d30()).as("0-30").isEqualByComparingTo("10.00");
+        assertThat(b.d60()).as("31-60").isEqualByComparingTo("20.00");
+        assertThat(b.d90()).as("61-90").isEqualByComparingTo("30.00");
+        assertThat(b.d180()).as("91-180").isEqualByComparingTo("40.00");
+        assertThat(b.over180()).as("180+").isEqualByComparingTo("50.00");
+        assertThat(b.total()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    @DisplayName("POTRET: bayaran selepas tarikh tidak mengurangkan bucket")
+    void ageingPotret() {
+        long acc = akaun("AG-4", "ACTIVE", null, null);
+        invoisDue(acc, "AG-I6", "2026-06-01", "2026-06-15", "200.00");
+
+        // Resit selepas tarikh laporan
+        resit(acc, "AG-R1", "2026-09-01", "200.00");
+        long inv = ((Number) em.createNativeQuery(
+                "SELECT id FROM financial_document WHERE sp_code=:sp AND doc_no='AG-I6'")
+                .setParameter("sp", SP).getSingleResult()).longValue();
+        long rcp = ((Number) em.createNativeQuery(
+                "SELECT id FROM financial_document WHERE sp_code=:sp AND doc_no='AG-R1'")
+                .setParameter("sp", SP).getSingleResult()).longValue();
+        em.createNativeQuery("""
+                INSERT INTO fi_allocation
+                  (sp_code, account_id, credit_document_id, debit_document_id,
+                   amount, status, version)
+                VALUES (:sp, :acc, :cr, :dr, 200.00, 'ACTIVE', 0)
+                """).setParameter("sp", SP).setParameter("acc", acc)
+                .setParameter("cr", rcp).setParameter("dr", inv).executeUpdate();
+        em.flush();
+
+        var pada4Ogos = umur("2026-08-04").rows().stream()
+                .filter(x -> x.accountNo().equals("AG-4")).findFirst().orElseThrow();
+        assertThat(pada4Ogos.total())
+                .as("bayaran September diabaikan").isEqualByComparingTo("200.00");
+
+        assertThat(umur("2026-09-30").rows())
+                .as("selepas bayaran, akaun hilang dari senarai")
+                .extracting(AccountListPort.AgeRow::accountNo)
+                .doesNotContain("AG-4");
+    }
+
     @Test
     @DisplayName("Jumlah baki ialah hasil tambah baris yang dipaparkan")
     void jumlahSepadanDenganBaris() {

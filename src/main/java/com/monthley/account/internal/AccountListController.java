@@ -152,6 +152,45 @@ class AccountListController {
                 .body(bytes);
     }
 
+    // ── Ageing ───────────────────────────────────────────────────────
+
+    @GetMapping("/ageing")
+    AccountListPort.AgeResult ageing(@RequestParam java.time.LocalDate asAt,
+                                     @RequestParam(required = false) Long categoryId,
+                                     @RequestParam(required = false) String sortBy,
+                                     @RequestParam(defaultValue = "true") boolean asc) {
+        Access.requireAnyRole("melihat laporan ageing", "SP_ADMIN", "CLERK", "VIEWER");
+        return accounts.ageing(
+                new AccountListPort.AgeQuery(sp(), asAt, categoryId, sortBy, asc));
+    }
+
+    @GetMapping(value = "/ageing/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> ageingPdf(@RequestParam java.time.LocalDate asAt,
+                                     @RequestParam(required = false) Long categoryId,
+                                     @RequestParam(required = false) String sortBy,
+                                     @RequestParam(defaultValue = "true") boolean asc) {
+        Access.requireAnyRole("mencetak laporan ageing", "SP_ADMIN", "CLERK", "VIEWER");
+
+        var hasil = accounts.ageing(
+                new AccountListPort.AgeQuery(sp(), asAt, categoryId, sortBy, asc));
+        var h = render.headerForSp(sp());
+
+        Map<String, Object> vars = new LinkedHashMap<>();
+        vars.put("r", hasil);
+        vars.put("h", h);
+        vars.put("fmt", render.formatterFor(h));
+
+        byte[] bytes = render.renderTemplatePdf("account/ageing", vars);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename("ageing-" + asAt + ".pdf", StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(bytes);
+    }
+
     private String sp() {
         String sp = TenantContext.get();
         if (sp == null || sp.isBlank()) {

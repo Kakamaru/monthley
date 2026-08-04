@@ -89,4 +89,45 @@ public interface AccountListPort {
                         BigDecimal total) {}
 
     ArrearResult arrears(ArrearQuery q);
+
+    // ── Ageing ───────────────────────────────────────────────────────
+
+    /**
+     * Baki satu akaun dipecahkan mengikut umur.
+     *
+     * BUCKET SEBENAR, bukan kumulatif: jumlah keenam-enam lajur mesti
+     * sama dengan total. Laporan legacy mengulang nombor yang sama
+     * merentas lajur dan menghasilkan bucket yang MELEBIHI jumlah
+     * keseluruhan — 199,349.59 untuk 60 hari terhadap jumlah
+     * 197,143.79.
+     *
+     * notDue ialah invois yang belum sampai tarikh akhir bayaran.
+     * Memasukkannya dalam 0-30 bermakna laporan mengatakan pelanggan
+     * sudah lewat sedangkan dia masih ada beberapa hari, dan JMB
+     * menghantar peringatan kepada orang yang tidak bersalah.
+     *
+     * Umur dikira daripada due_date, bukan doc_date.
+     */
+    record AgeRow(String accountNo, String accountName,
+                  BigDecimal total, BigDecimal notDue,
+                  BigDecimal d30, BigDecimal d60, BigDecimal d90,
+                  BigDecimal d180, BigDecimal over180) {}
+
+    /**
+     * @param sortBy 'akaun', 'nama' atau 'jumlah'
+     * @param asc    menaik
+     *
+     * Susunan dihantar ke sini supaya PDF sepadan dengan skrin. Tanpa
+     * ia, kerani menyusun ikut jumlah, menekan cetak, dan mendapat
+     * kertas dalam susunan berbeza daripada yang dilihatnya.
+     */
+    record AgeQuery(String spCode, java.time.LocalDate asAt, Long categoryId,
+                    String sortBy, boolean asc) {}
+
+    record AgeResult(java.time.LocalDate asAt, List<AgeRow> rows,
+                     BigDecimal total, BigDecimal notDue,
+                     BigDecimal d30, BigDecimal d60, BigDecimal d90,
+                     BigDecimal d180, BigDecimal over180) {}
+
+    AgeResult ageing(AgeQuery q);
 }
