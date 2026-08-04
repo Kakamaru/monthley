@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Senarai Akaun.
+  
+  Legacy mempunyai LIMA BELAS lajur dalam A4 landskap: Id no, Mobile,
+  Email, Address, Postcode, District, State, Remarks, Category, Branch.
+  Teks bertindih, baris pecah tiga tingkat, dan tiga per empat lajur
+  kosong untuk kebanyakan akaun.
+  
+  Di sini: TUJUH lajur. Butiran hubungan dikumpulkan di bawah nama, dan
+  alamat menjadi satu baris. Excel mendapat medan mentah — di situ
+  tempatnya data yang perlu ditapis dan disusun.
+
+  KETAT: XHTML. Tiada entiti bernama; th:text sentiasa.
+-->
+<style>
+@page {
+  size: A4 landscape;
+  margin: 12mm 10mm 14mm 10mm;
+  @bottom-left  { content: element(kakiKiri); }
+  @bottom-right { content: element(kakiKanan); }
+}
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 9pt;
+       color: #1a1a1a; }
+
+.hdr       { width: 100%; }
+.hdr td    { vertical-align: top; }
+.sp-name   { font-size: 14pt; font-weight: bold; line-height: 1.15; }
+.sp-detail { font-size: 8pt; color: #444; line-height: 1.35; }
+
+.tajuk  { text-align: center; font-size: 12pt; font-weight: bold;
+          margin-top: 6mm; letter-spacing: 0.5pt; }
+.kira   { text-align: center; font-size: 9pt; color: #555;
+          margin: 2mm 0 5mm 0; }
+
+table.data    { border-collapse: collapse; width: 100%; }
+table.data th { background: #ddd; border-top: 0.6pt solid #999;
+                border-bottom: 0.6pt solid #999; padding: 1.6mm 1.5mm;
+                font-size: 8.5pt; text-align: left; }
+table.data td { border-bottom: 0.4pt solid #ddd; padding: 1.6mm 1.5mm;
+                vertical-align: top; }
+table.data tr { page-break-inside: avoid; }
+
+.r      { text-align: right; }
+.c      { text-align: center; }
+.kecil  { font-size: 7.5pt; color: #666; line-height: 1.3; }
+.tebal  { font-weight: bold; }
+.kredit { color: #1a7f37; }
+.mati   { color: #888; }
+
+.jumlah td { border-top: 0.8pt solid #555; border-bottom: none;
+             font-weight: bold; padding-top: 2.5mm; }
+
+#kakiKiri  { position: running(kakiKiri);  font-size: 8pt; color: #555; }
+#kakiKanan { position: running(kakiKanan); font-size: 8pt; color: #555;
+             text-align: right; }
+.pg:before  { content: counter(page); }
+.tot:before { content: counter(pages); }
+</style>
+</head>
+<body>
+
+<div id="kakiKiri"></div>
+<div id="kakiKanan">
+  Muka <span class="pg"></span> daripada <span class="tot"></span>
+</div>
+
+<table class="hdr">
+  <tr>
+    <td style="width:70%">
+      <div class="sp-name" th:text="${h.spName()}">SP</div>
+      <div class="sp-detail">
+        <span th:if="${fmt.has(h.spAddrLine1())}" th:text="${h.spAddrLine1()} + ', '"></span>
+        <span th:if="${fmt.has(h.spAddrLine2())}" th:text="${h.spAddrLine2()} + ', '"></span>
+        <span th:if="${fmt.has(h.spPostcode())}"  th:text="${h.spPostcode()} + ' '"></span>
+        <span th:if="${fmt.has(h.spCity())}"      th:text="${h.spCity()} + ', '"></span>
+        <span th:if="${fmt.has(h.spState())}"     th:text="${h.spState()}"></span>
+      </div>
+    </td>
+    <td class="r sp-detail">
+      <div>Tarikh Cetak: <span th:text="${fmt.date(#temporals.createToday())}"></span></div>
+    </td>
+  </tr>
+</table>
+
+<div class="tajuk">SENARAI AKAUN</div>
+<div class="kira">
+  <span th:text="${r.activeCount()}">0</span> aktif
+  <span th:if="${r.inactiveCount() > 0}"
+        th:text="' · ' + ${r.inactiveCount()} + ' tidak aktif'"></span>
+</div>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th style="width:4%">No.</th>
+      <th style="width:14%">Akaun</th>
+      <th style="width:20%">Terima Bil</th>
+      <th>Alamat</th>
+      <th style="width:12%">Kategori</th>
+      <th style="width:8%" class="c">Status</th>
+      <th style="width:11%" class="r">Baki (MYR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="a,i : ${r.rows()}">
+      <td class="c" th:text="${i.count}">1</td>
+      <td>
+        <div class="tebal" th:text="${a.accountNo()}"></div>
+        <div class="kecil" th:if="${a.accountName() != a.issueTo()}"
+             th:text="${a.accountName()}"></div>
+      </td>
+      <!-- Nama, telefon dan e-mel dikumpulkan: tiga lajur berasingan
+           menghasilkan tiga lajur kosong untuk kebanyakan akaun. -->
+      <td>
+        <div th:text="${a.issueTo()}"></div>
+        <div class="kecil">
+          <span th:if="${fmt.has(a.phone())}" th:text="${a.phone()}"></span>
+          <span th:if="${fmt.has(a.phone()) and fmt.has(a.email())}"> · </span>
+          <span th:if="${fmt.has(a.email())}" th:text="${a.email()}"></span>
+        </div>
+      </td>
+      <td class="kecil">
+        <span th:text="${a.address()}"></span>
+        <span th:if="${fmt.has(a.postcode())}" th:text="' ' + ${a.postcode()}"></span>
+        <span th:if="${fmt.has(a.state())}" th:text="' ' + ${a.state()}"></span>
+      </td>
+      <td class="kecil" th:text="${a.categoryName()}"></td>
+      <td class="c" th:text="${a.status() == 'ACTIVE'} ? 'Aktif' : 'Tidak Aktif'"
+          th:classappend="${a.status() != 'ACTIVE'} ? 'mati'"></td>
+      <!-- Baki negatif bermakna pelanggan ada KREDIT. Kurungan ialah
+           konvensyen perakaunan; hijau menjadikannya kelihatan sekali
+           imbas. -->
+      <td class="r"
+          th:classappend="${a.balance().signum() < 0} ? 'kredit'"
+          th:text="${a.balance().signum() < 0}
+                   ? '(' + ${fmt.money(a.balance().negate())} + ')'
+                   : ${fmt.money(a.balance())}"></td>
+    </tr>
+    <tr class="jumlah">
+      <td colspan="6" class="r">Jumlah Baki</td>
+      <td class="r" th:text="${fmt.money(r.totalBalance())}"></td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>
