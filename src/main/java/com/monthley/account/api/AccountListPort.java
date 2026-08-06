@@ -19,7 +19,9 @@ public interface AccountListPort {
      * teksnya bertindih sehingga tidak boleh dibaca. Excel mendapat
      * medan mentah; PDF mendapat sesuatu yang muat.
      */
-    record Row(String accountNo, String accountName,
+    record Row(/** Diperlukan untuk memaut ke penyata dan skrin lain. */
+               long accountId,
+               String accountNo, String accountName,
                /** No. KP/pendaftaran — Excel sahaja; PDF tiada ruang. */
                String idNo,
                String issueTo, String phone, String email,

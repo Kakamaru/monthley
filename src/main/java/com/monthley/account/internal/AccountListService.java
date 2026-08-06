@@ -32,7 +32,8 @@ class AccountListService implements AccountListPort {
     @SuppressWarnings("unchecked")
     public Result accountList(Query q) {
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT a.account_no,
+                SELECT a.id,
+                       a.account_no,
                        a.account_name,
                        COALESCE(a.member_id_no, ''),
                        COALESCE(NULLIF(a.billto_name,''), a.member_name, a.account_name),
@@ -75,14 +76,15 @@ class AccountListService implements AccountListPort {
         int aktif = 0, tidakAktif = 0;
 
         for (Object[] r : rows) {
-            BigDecimal baki = (BigDecimal) r[11];
+            BigDecimal baki = (BigDecimal) r[12];
             jumlah = jumlah.add(baki);
-            if ("ACTIVE".equals(r[10])) aktif++; else tidakAktif++;
+            if ("ACTIVE".equals(r[11])) aktif++; else tidakAktif++;
 
-            items.add(new Row((String) r[0], (String) r[1], (String) r[2],
-                    (String) r[3], (String) r[4], (String) r[5],
-                    (String) r[6], (String) r[7], (String) r[8],
-                    (String) r[9], (String) r[10], baki));
+            items.add(new Row(((Number) r[0]).longValue(),
+                    (String) r[1], (String) r[2], (String) r[3],
+                    (String) r[4], (String) r[5], (String) r[6],
+                    (String) r[7], (String) r[8], (String) r[9],
+                    (String) r[10], (String) r[11], baki));
         }
         return new Result(items, jumlah, aktif, tidakAktif);
     }

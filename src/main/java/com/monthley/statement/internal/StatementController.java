@@ -31,6 +31,9 @@ import java.time.Year;
 @RequestMapping("/api/v1/statements")
 class StatementController {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager em;
+
     private final StatementPort statements;
     private final StatementRenderPort renderer;
     private final com.monthley.document.api.DocumentAccessPort access;
@@ -55,6 +58,37 @@ class StatementController {
             throw new IllegalStateException("Header X-SP-Id diperlukan");
         }
         return sp;
+    }
+
+    /**
+     * Tahun yang MEMPUNYAI transaksi bagi satu akaun.
+     *
+     * Dropdown yang menyenaraikan sepuluh tahun ke belakang memaksa SP
+     * mencuba satu-satu untuk mencari yang ada data. Ini menyenaraikan
+     * hanya yang wujud.
+     *
+     * firstYear membolehkan pilihan 'Semua sejak mula': penyata bermula
+     * pada transaksi PERTAMA, bukan tarikh sewenang-wenangnya.
+     */
+    record TahunTersedia(java.util.List<Integer> years, Integer firstYear) {}
+
+    @GetMapping("/accounts/{accountId}/years")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    TahunTersedia years(@PathVariable long accountId) {
+        java.util.List<Object> rows = em.createNativeQuery("""
+                SELECT DISTINCT YEAR(e.doc_date) AS thn
+                FROM   account_document_entry e
+                WHERE  e.sp_code = :sp AND e.account_id = :acc
+                ORDER  BY thn DESC
+                """).setParameter("sp", sp()).setParameter("acc", accountId)
+                .getResultList();
+
+        java.util.List<Integer> tahun = new java.util.ArrayList<>();
+        for (Object r : rows) tahun.add(((Number) r).intValue());
+
+        return new TahunTersedia(tahun,
+                tahun.isEmpty() ? null : tahun.get(tahun.size() - 1));
     }
 
     /**
