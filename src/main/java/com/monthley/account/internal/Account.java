@@ -5,7 +5,6 @@ import com.monthley.shared.ChargeFrequency;
 import jakarta.persistence.*;
 import org.hibernate.envers.Audited;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -54,10 +53,6 @@ public class Account extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private Status status = Status.ACTIVE;
-
-    /** Cache sahaja — baki sebenar diderive dari ledger. */
-    @Column(name = "cached_balance", nullable = false, precision = 15, scale = 2)
-    private BigDecimal cachedBalance = BigDecimal.ZERO;
 
     @Column(name = "uuid", length = 36)
     private String uuid;

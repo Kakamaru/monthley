@@ -40,8 +40,8 @@ class AdjustmentServiceTest {
 
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, created_at, updated_at, version)
-            VALUES ('SPA', 'AACC', 'Adj Acc', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, NOW(), NOW(), 0)
+                                 start_date, status, created_at, updated_at, version)
+            VALUES ('SPA', 'AACC', 'Adj Acc', 'MONTHLY', '2026-01-01', 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         accId = ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code='SPA' AND account_no='AACC'").getSingleResult()).longValue();

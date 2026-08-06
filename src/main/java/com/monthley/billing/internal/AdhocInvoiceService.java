@@ -214,9 +214,9 @@ public class AdhocInvoiceService {
         }
         em.createNativeQuery("""
                 INSERT INTO account (sp_code, account_no, account_name, account_type,
-                                     status, cached_balance, created_at, updated_at, version)
+                                     status, created_at, updated_at, version)
                 VALUES (:sp, 'ADHOC-SALES', 'Jualan Adhoc', 'ADHOC',
-                        'ACTIVE', 0, NOW(), NOW(), 0)
+                        'ACTIVE', NOW(), NOW(), 0)
                 """).setParameter("sp", spCode).executeUpdate();
         return ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code = :sp AND account_type = 'ADHOC'")

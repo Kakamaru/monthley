@@ -26,7 +26,7 @@ import java.util.List;
  * REST untuk skrin Accounts (rujuk handoff §5).
  *   GET /api/v1/accounts?status=&category=&linked=&q=&page=&size=
  *
- * BAKI DIDERIVE dari dokumen (invois − peruntukan aktif), bukan cached_balance.
+ * BAKI DIDERIVE dari VIEW account_balance (ADR 0009), tidak pernah disimpan pada akaun.
  * Ini prinsip teras revamp: cache bukan sumber kebenaran.
  */
 @RestController

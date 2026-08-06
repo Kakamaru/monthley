@@ -825,8 +825,8 @@ class AccountControllerTest {
 
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, created_at, updated_at, version)
-            VALUES ('SPS', 'SACC', 'Statement Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, NOW(), NOW(), 0)
+                                 start_date, status, created_at, updated_at, version)
+            VALUES ('SPS', 'SACC', 'Statement Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         Long accId = ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code='SPS' AND account_no='SACC'").getSingleResult()).longValue();
@@ -920,10 +920,10 @@ class AccountControllerTest {
         // Dua akaun: satu milik uMine, satu milik uOther.
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, payer_user_id,
+                                 start_date, status, payer_user_id,
                                  created_at, updated_at, version)
-            VALUES ('SPX', 'MINE', 'Akaun Saya', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :um, NOW(), NOW(), 0),
-                   ('SPX', 'OTHER', 'Akaun Orang', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :uo, NOW(), NOW(), 0)
+            VALUES ('SPX', 'MINE', 'Akaun Saya', 'MONTHLY', '2026-01-01', 'ACTIVE', :um, NOW(), NOW(), 0),
+                   ('SPX', 'OTHER', 'Akaun Orang', 'MONTHLY', '2026-01-01', 'ACTIVE', :uo, NOW(), NOW(), 0)
             """).setParameter("um", uMine).setParameter("uo", uOther).executeUpdate();
 
         // Invois RM100 + DEBIT_NOTE RM20 pada akaun MINE -> baki patut 120.
@@ -989,9 +989,9 @@ class AccountControllerTest {
 
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, payer_user_id,
+                                 start_date, status, payer_user_id,
                                  created_at, updated_at, version)
-            VALUES ('SPX', 'HACC', 'Hist Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, :u, NOW(), NOW(), 0)
+            VALUES ('SPX', 'HACC', 'Hist Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', :u, NOW(), NOW(), 0)
             """).setParameter("u", uHist).executeUpdate();
         Long accId = ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code='SPX' AND account_no='HACC'").getSingleResult()).longValue();

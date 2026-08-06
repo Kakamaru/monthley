@@ -54,8 +54,8 @@ class PaymentIdempotencyTest {
 
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, created_at, updated_at, version)
-            VALUES ('SPI', 'IACC', 'Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', 0, NOW(), NOW(), 0)
+                                 start_date, status, created_at, updated_at, version)
+            VALUES ('SPI', 'IACC', 'Payer', 'MONTHLY', '2026-01-01', 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         accountId = ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code='SPI' AND account_no='IACC'").getSingleResult()).longValue();

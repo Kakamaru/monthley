@@ -81,8 +81,8 @@ class SplitByPeriodTest {
         // dicaj.
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
-                                 start_date, status, cached_balance, created_at, updated_at, version)
-            VALUES (:sp, 'PACC', 'Payer Tempoh', 'YEAR', NULL, 'ACTIVE', 0, NOW(), NOW(), 0)
+                                 start_date, status, created_at, updated_at, version)
+            VALUES (:sp, 'PACC', 'Payer Tempoh', 'YEAR', NULL, 'ACTIVE', NOW(), NOW(), 0)
             """).setParameter("sp", SP).executeUpdate();
         accountId = ((Number) em.createNativeQuery(
                 "SELECT id FROM account WHERE sp_code=:sp AND account_no='PACC'")
