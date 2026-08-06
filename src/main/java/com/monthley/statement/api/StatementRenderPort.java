@@ -24,6 +24,15 @@ public interface StatementRenderPort {
     byte[] renderInvoicePdf(InvoiceModel model);
 
     /**
+     * Banyak invois dalam SATU PDF.
+     *
+     * Satu render, bukan satu render setiap invois: setiap pembina
+     * memuatkan tujuh fon dan memulakan enjin semula, dan melakukannya
+     * 1,400 kali jauh lebih mahal daripada satu dokumen 1,400 muka.
+     */
+    byte[] renderInvoiceBulkPdf(java.util.List<InvoiceModel> models);
+
+    /**
      * Render mana-mana templat Thymeleaf kepada PDF.
      *
      * Modul lain mempunyai laporan mereka sendiri — senarai akaun,

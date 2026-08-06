@@ -63,6 +63,13 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
 </head>
 <body>
 
+<!-- KANDUNGAN sebagai fragmen: templat pukal memasukkannya sekali bagi
+     setiap invois, dan susun atur hidup di SATU tempat.
+
+     Menyalinnya ke templat kedua bermakna dua susun atur yang mesti
+     dipadankan — dan yang kedua akan menyimpang. -->
+<div th:fragment="kandungan(m, h, fmt)">
+
 <table class="hdr">
   <tr>
     <td style="width:62%">
@@ -220,6 +227,8 @@ table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
     </tr>
   </tbody>
 </table>
+
+</div>
 
 <div id="kaki">
   Dokumen ini dijana oleh Monthley.com. Sebarang pertanyaan, sila hubungi

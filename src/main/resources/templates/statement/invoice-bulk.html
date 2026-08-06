@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8"/>
+<!--
+  Invois PUKAL — banyak invois dalam SATU PDF.
+
+  SATU render, bukan satu render setiap invois. Setiap PdfRendererBuilder
+  memuatkan tujuh fon dan memulakan enjin semula; melakukannya 1,400 kali
+  jauh lebih mahal daripada satu dokumen dengan 1,400 muka.
+
+  Susun atur datang daripada FRAGMEN dalam invoice.html. Menyalinnya ke
+  sini bermakna dua susun atur yang mesti dipadankan setiap kali invois
+  berubah.
+-->
+<style>
+@page { size: A4; margin: 14mm 12mm 18mm 12mm;
+        @bottom-center { content: element(kaki); vertical-align: top; } }
+body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
+       color: #1a1a1a; }
+
+.hdr        { width: 100%; }
+.hdr td     { vertical-align: top; }
+.sp-name    { font-size: 15pt; font-weight: bold; line-height: 1.15; }
+.sp-detail  { font-size: 8.5pt; color: #444; line-height: 1.35; }
+.title      { font-size: 18pt; font-weight: bold; text-align: right; }
+
+.box        { border-collapse: collapse; width: 100%; }
+.box td     { border: 0.6pt solid #555; padding: 1.4mm 2mm; }
+.box .lbl   { background: #16324a; color: #fff; width: 44%;
+              font-size: 9pt; text-align: right; border-color: #16324a; }
+.box .val   { font-family: 'DejaVu Sans Mono', monospace; font-size: 9.5pt; }
+
+.bar        { background: #16324a; color: #fff; padding: 1.2mm 2mm;
+              font-size: 10pt; }
+.sect       { font-weight: bold; font-size: 10.5pt; margin-top: 6mm; }
+.note       { font-size: 8pt; color: #555; margin-top: 1mm; }
+
+table.ring      { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+table.ring th   { border: 0.6pt solid #ccc; padding: 2mm; font-size: 9.5pt;
+                  font-weight: normal; text-align: center; }
+table.ring td   { border: 0.6pt solid #ccc; padding: 2.2mm;
+                  font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt;
+                  text-align: center; }
+
+table.item      { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+table.item thead { display: table-header-group; }
+table.item th   { background: #16324a; color: #fff; font-size: 9.5pt;
+                  padding: 1.8mm 2mm; text-align: left; font-weight: normal; }
+table.item td   { padding: 1.8mm 2mm; border-bottom: 0.4pt solid #ccc;
+                  vertical-align: top; }
+.r          { text-align: right; }
+.mono       { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt;
+              white-space: nowrap; }
+.grand td   { background: #16324a; color: #fff; padding: 2mm;
+              font-weight: bold; }
+.batal      { color: #c0392b; font-weight: bold; font-size: 12pt;
+              margin-top: 4mm; }
+#kaki       { position: running(kaki); font-size: 7.5pt; color: #555;
+              text-align: center; width: 100%; }
+</style>
+<style>
+/* Setiap invois bermula pada muka baharu. Yang TERAKHIR tidak, kalau
+   tidak PDF berakhir dengan muka kosong. */
+.invois + .invois { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="invois" th:each="m : ${senarai}">
+  <div th:replace="~{statement/invoice :: kandungan(${m}, ${m.header()}, ${fmt})}"></div>
+</div>
+
+<div id="kaki">
+  Dokumen ini dijana oleh Monthley.com.
+</div>
+
+</body>
+</html>
