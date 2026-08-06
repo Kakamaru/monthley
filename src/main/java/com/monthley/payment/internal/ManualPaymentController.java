@@ -524,6 +524,41 @@ class ManualPaymentController {
         return new PageResponse<>(items, total, page, size);
     }
 
+    // ---------- Tahun yang BENAR-BENAR ada invois untuk akaun ini ----------
+    // Bukan julat tetap (cth tahun semasa -10) — caj tahunan prepaid dibil awal,
+    // jadi invois period 2027 wujud pada Ogos 2026. Julat tetap menyembunyikannya
+    // sepenuhnya: tiada cara nak pilih tahun yang tiada dalam senarai.
+    // Satu takrifan: "tahun boleh dipilih" == "tahun yang ada invois".
+    @GetMapping("/payment-report/years")
+    @SuppressWarnings("unchecked")
+    List<String> paymentReportYears(@RequestParam Long accountId) {
+
+        Access.requireRole("CLERK", "melihat laporan bayaran");
+
+        var q = em.createNativeQuery("""
+                SELECT DISTINCT LEFT(d.period_id, 4) AS yr
+                FROM   financial_document d
+                WHERE  d.sp_code = :sp
+                  AND  d.account_id = :acc
+                  AND  d.doc_type = 'INVOICE'
+                  AND  d.status <> 'CANCELLED'
+                  AND  d.period_id IS NOT NULL
+                ORDER  BY yr DESC
+                """);
+        q.setParameter("sp", sp());
+        q.setParameter("acc", accountId);
+
+        List<String> years = new ArrayList<>();
+        for (Object o : (List<Object>) q.getResultList()) {
+            years.add(String.valueOf(o));
+        }
+        // Akaun baharu tanpa invois: bagi tahun semasa supaya dropdown tak kosong.
+        if (years.isEmpty()) {
+            years.add(String.valueOf(java.time.Year.now().getValue()));
+        }
+        return years;
+    }
+
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }

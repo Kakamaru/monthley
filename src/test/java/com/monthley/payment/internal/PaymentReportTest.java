@@ -123,4 +123,61 @@ class PaymentReportTest {
                 controller.paymentReport(accountId, "2027", 0, 50);
         assertThat(rep2027.total()).isEqualTo(0);
     }
+
+    /**
+     * Caj tahunan prepaid dibil awal: invois period TAHUN HADAPAN wujud pada tahun
+     * semasa. Dropdown lama dijana sebagai julat tetap (tahun semasa ke belakang),
+     * jadi tahun hadapan tiada dalam senarai — invois DAN resitnya tidak boleh
+     * dilihat langsung dari laporan, walaupun datanya betul.
+     *
+     * Ujian guna tahun semasa +1 (bukan literal) supaya ia kekal bermakna bila
+     * jam berputar, dan tetap merah kalau sesiapa kembali kepada julat tetap.
+     */
+    @Test
+    @DisplayName("paymentReportYears — tahun hadapan (caj prepaid) mesti tersenarai")
+    void tahunTermasukPeriodHadapan() {
+        int thnDepan = java.time.Year.now().getValue() + 1;
+
+        billing.generateForSp("SPR", YearMonth.of(2026, 1), GenMode.CURRENT, ctx());
+        em.flush();
+
+        // Invois caj tahunan untuk tahun hadapan — period YR, bukan MO.
+        long periodId = thnDepan * 1_000_000L;
+        em.createNativeQuery("""
+            INSERT IGNORE INTO fi_period (period_id, name_, charge_code, start_dt, end_dt)
+            VALUES (:pid, :nm, 'YR', :sd, :ed)
+            """)
+                .setParameter("pid", periodId)
+                .setParameter("nm", String.valueOf(thnDepan))
+                .setParameter("sd", thnDepan + "-01-01")
+                .setParameter("ed", thnDepan + "-12-31")
+                .executeUpdate();
+
+        em.createNativeQuery("""
+            INSERT INTO financial_document (sp_code, doc_no, doc_type, doc_date, account_id,
+                                            period_id, currency, amount, tax_amount, status,
+                                            created_at, updated_at, version)
+            VALUES ('SPR', 'INV-YR-NEXT', 'INVOICE', CURDATE(), :acc, :pid,
+                    'MYR', 231.50, 0.00, 'ACTIVE', NOW(), NOW(), 0)
+            """)
+                .setParameter("acc", accountId)
+                .setParameter("pid", periodId)
+                .executeUpdate();
+        em.flush();
+
+        TenantContext.set("SPR");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("clerk", "n/a",
+                        List.of(new SimpleGrantedAuthority("SP_SPR_CLERK"))));
+
+        List<String> years = controller.paymentReportYears(accountId);
+
+        assertThat(years).contains(String.valueOf(thnDepan), "2026");
+        assertThat(years).doesNotHaveDuplicates();
+        assertThat(years).isSortedAccordingTo(java.util.Comparator.reverseOrder());
+
+        // Dan invois tu memang boleh dicapai bila tahun itu dipilih.
+        assertThat(controller.paymentReport(accountId, String.valueOf(thnDepan), 0, 50).total())
+                .isEqualTo(1);
+    }
 }
