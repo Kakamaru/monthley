@@ -174,7 +174,7 @@ itu sendiri:
 |---|---|
 | **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
-| `cached_balance` lajur mati | Diisytihar dalam entity, tidak dibaca/ditulis. Perlu digugurkan. |
+| `cached_balance` lajur mati | Tidak pernah DIBACA, tetapi masih DITULIS: `AdhocInvoiceService` menyertakannya dalam INSERT akaun ADHOC-SALES, dan entity mesti mengisytiharkannya selagi lajur wujud (`ddl-auto=validate`). Semua nilai sifar. Perlu digugurkan — lajur bernama 'cached_balance' yang sentiasa sifar ialah perangkap untuk sesiapa yang menjumpainya kemudian. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
 | Laporan: Expenses | Menunggu modul Perbelanjaan |
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
