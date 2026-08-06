@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V51 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V60 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -74,6 +74,11 @@ Terkini:
 | V50 | Akaun `ADHOC-SALES` per SP, dikecualikan daripada kuota |
 | V51 | Butiran penerima pada `invoice_header` — invois adhoc |
 | V52 | `doc_cancelled` pada baris — batal membebaskan `idem_key` |
+| V53–V56 | Peranan pengguna SP, jemputan, tetapan dokumen |
+| V57 | `statement_access_token` — penyata awam tanpa log masuk (ADR 0014 P3) |
+| V58 | `account_usage_charge` — caj berasaskan penggunaan |
+| V59 | `document_line_remarks` — catatan berasingan daripada nama produk |
+| V60 | VIEW `sp_ledger_line` — setiap transaksi merentas semua akaun |
 
 ### Siap
 
@@ -122,6 +127,23 @@ Terkini:
   ditolak kerana invois di dalamnya milik orang yang tiada kaitan.
 - E-mel resit dengan pautan awam tanpa log masuk (CASE-006)
 
+**Laporan (SEPULUH siap)**
+
+Semuanya dengan PDF berkepala SP; kebanyakannya dengan eksport Excel.
+
+| Laporan | Nota |
+|---|---|
+| Imbangan Duga | UJIAN, bukan laporan: kalau debit tidak sama kredit, setiap laporan lain dibina atas nombor yang salah. Disahkan pada data sebenar — AR sepadan dengan sub-lejar dan lejar SP. |
+| Untung Rugi | Hasil daripada bil; perbelanjaan menunggu modul Expenses, dan laporan menyatakannya supaya kosong tidak dibaca sebagai 'tiada perbelanjaan'. |
+| Senarai Kutipan | Dua bentuk (ikut resit / ikut alokasi produk). 'Monthly Basis' menapis mengikut tempoh INVOIS — menjawab berapa daripada kutipan untuk bil bulan ini berbanding tunggakan lama. |
+| Senarai Akaun | Tujuh lajur, bukan lima belas seperti legacy. Excel mendapat semua medan. |
+| Senarai Langganan | Satu baris per langganan. Aktif bermakna status ACTIVE DAN `end_date` belum lepas. |
+| Senarai Tunggakan | POTRET pada satu tarikh: dokumen DAN bayaran ditapis sama, jadi laporan yang sama memberi nombor yang sama setiap kali. |
+| Ageing | Bucket SEBENAR — jumlah lajur sama dengan total. Legacy menghasilkan bucket yang MELEBIHI jumlah keseluruhan. Susunan boleh diklik. |
+| Statistik Bulanan | Kutipan DIPECAH kepada 'tempoh ini' dan 'tunggakan lama'; legacy meletakkannya bersebelahan invois tanpa penjelasan. Carta SVG dikongsi antara skrin dan PDF. |
+| Cetak Invois | Pukal, dirender 25 setiap kelompok dan digabung dengan cache cakera. Diukur: 1,441 invois dalam 12 saat. |
+| Penyata Pelanggan | Carian akaun melalui modal, tahun yang ADA transaksi sahaja, plus 'Semua sejak mula'. |
+
 **Aplikasi**
 - Auth: register, verify, login, forgot/reset password (Resend)
 - Settings: Profile, Sales Tax, Localization, Invoice, Receipt, Penalty, Roles
@@ -129,7 +151,7 @@ Terkini:
 - Panel Utama (dashboard SP) — statistik agregat, carta kutipan
 - Responsive mobile: portal shell (drawer) + 6 skrin utama
 
-Ujian: **282**, regresi penuh hijau.
+Ujian: **404**, regresi penuh hijau dari `monthley_test` kosong.
 
 ### Sedang berjalan
 
@@ -143,7 +165,7 @@ itu sendiri:
 | Portal pelanggan | Muat turun resit dan invois belum berfungsi |
 | Portal pelanggan | Butang "Clear" pada carian sejarah |
 | Panel Utama SP | "Lihat semua" pada Transaksi Terkini — pautan mati |
-| Panel Utama SP | "Laporan" pada Tunggakan — modul Laporan belum dibina |
+| Panel Utama SP | "Laporan" pada Tunggakan — modul Laporan kini wujud; pautan perlu dihalakan ke tab Senarai Tunggakan |
 | Panel Utama SP | Data belum disahkan lawan pengeluaran (UI/UX sudah muktamad) |
 
 ### Belum hidup
@@ -154,8 +176,10 @@ itu sendiri:
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | `cached_balance` lajur mati | Diisytihar dalam entity, tidak dibaca/ditulis. Perlu digugurkan. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
-| PER_USE, kumpul ralat per akaun | Belum |
-| Tapisan produk pada skrin Akaun | Diminta 30 Julai; modal Adhoc akan guna semula |
+| Laporan: Expenses | Menunggu modul Perbelanjaan |
+| Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
+| Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
+| Payment gateway | ADR 0015 dirangka; enam soalan terbuka |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
 | Sekatan modul ikut pakej | Corak diputuskan: benarkan masuk, sekat transaksi (soalan 28) |
@@ -302,7 +326,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] Gate price override aras SP
 - [x] Proration exclude ikut bulan
 - [x] Alokasi peringkat line (ADR 0006 P1–P6)
-- [ ] `PER_USE`: sapu usage PENDING, tanda DONE
+- [x] `PER_USE`: caj berasaskan penggunaan (V58/V59, skrin Alat) — muat
+      naik Excel, pratonton, ditanda INVOICED semasa jana bil
 - [x] Auto-knock advance semasa jana invois (ADR 0009 P3)
 - [x] P1 spike: `counter(pages)` openhtmltopdf disahkan (ADR 0010)
 - [x] P2 `StatementService` + `StatementModel` + invarian (ADR 0010)
@@ -311,7 +336,8 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 - [x] P4b tiga endpoint penyata + ujian pemilikan & penyewa (ADR 0010)
 - [x] Penyata akaun: penulis XLSX (`StatementXlsxWriter`, 4c50684)
 - [ ] Penyata akaun: ambang baris (ADR 0010 P6 — DITANGGUH selepas diukur)
-- [ ] Aliran e-mel + pautan awam + butang Pay (ADR 0011, CASE-006)
+- [x] Aliran e-mel + pautan awam resit/invois/penyata (ADR 0011, 0014 P3-P4)
+- [ ] Butang Pay pada halaman awam — bergantung pada gerbang bayaran (ADR 0015)
 - [ ] Notifikasi adjustment kepada admin SP lain — legacy menghantarnya
       ("adjustments have been made to account D0716 by FARA AZWA due to
       WATER 12 AUG 2022 - 12 NOV 2022"). Adjustment ialah kerani menukar
