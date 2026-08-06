@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V60 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V61 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -79,6 +79,7 @@ Terkini:
 | V58 | `account_usage_charge` — caj berasaskan penggunaan |
 | V59 | `document_line_remarks` — catatan berasingan daripada nama produk |
 | V60 | VIEW `sp_ledger_line` — setiap transaksi merentas semua akaun |
+| V61 | Gugurkan `account.cached_balance` + `cached_balance_at` — tidak pernah dibaca, semua nilai sifar |
 
 ### Siap
 
@@ -174,7 +175,6 @@ itu sendiri:
 |---|---|
 | **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
-| `cached_balance` lajur mati | Tidak pernah DIBACA, tetapi masih DITULIS: `AdhocInvoiceService` menyertakannya dalam INSERT akaun ADHOC-SALES, dan entity mesti mengisytiharkannya selagi lajur wujud (`ddl-auto=validate`). Semua nilai sifar. Perlu digugurkan — lajur bernama 'cached_balance' yang sentiasa sifar ialah perangkap untuk sesiapa yang menjumpainya kemudian. |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
 | Laporan: Expenses | Menunggu modul Perbelanjaan |
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
@@ -315,7 +315,7 @@ Dari [`domain/legacy-generator-analysis.md`](domain/legacy-generator-analysis.md
 **Skema**
 - [ ] `currency.smallest_denomination` + `sp_billing_setting.effective_smallest_denomination`
 - [ ] `transaction_code` jadual rujukan
-- [ ] Gugurkan `account.cached_balance` (lajur mati)
+- [x] Gugurkan `account.cached_balance` + `cached_balance_at` (V61)
 - [x] `once_only` (V18)
 - [x] `sp_billing_setting` lajur (V22)
 
