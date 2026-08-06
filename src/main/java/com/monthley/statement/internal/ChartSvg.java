@@ -65,17 +65,12 @@ final class ChartSvg {
             double hB = plotH * d.billed().doubleValue() / maks;
             double hC = plotH * d.collected().doubleValue() / maks;
 
-            s.append("<rect x=\"").append(fmt(xTengah - lebarBar - 1))
-             .append("\" y=\"").append(fmt(atas + plotH - hB))
-             .append("\" width=\"").append(fmt(lebarBar))
-             .append("\" height=\"").append(fmt(Math.max(hB, 0)))
-             .append("\" fill=\"#93a5b1\"/>");
-
-            s.append("<rect x=\"").append(fmt(xTengah + 1))
-             .append("\" y=\"").append(fmt(atas + plotH - hC))
-             .append("\" width=\"").append(fmt(lebarBar))
-             .append("\" height=\"").append(fmt(Math.max(hC, 0)))
-             .append("\" fill=\"#2f7d32\"/>");
+            // Bar dibil DAHULU: bar dikutip berada di hadapannya, dan
+            // kedalaman yang bertindih mesti menutup yang di belakang.
+            s.append(bar3d(xTengah - lebarBar - 1, atas + plotH - hB,
+                           lebarBar, Math.max(hB, 0), "#93a5b1", 4));
+            s.append(bar3d(xTengah + 1, atas + plotH - hC,
+                           lebarBar, Math.max(hC, 0), "#2f7d32", 4));
 
             s.append("<text x=\"").append(fmt(xTengah)).append("\" y=\"")
              .append(h - bawah + 14)
@@ -92,6 +87,116 @@ final class ChartSvg {
          .append("\" width=\"9\" height=\"9\" fill=\"#2f7d32\"/>")
          .append("<text x=\"").append(kiri + 71).append("\" y=\"").append(h - 4)
          .append("\" font-size=\"11\" fill=\"#444\">Dikutip</text>");
+
+        return s.append("</svg>").toString();
+    }
+
+    /**
+     * Kutipan harian TERKUMPUL sebagai garis berlorek.
+     *
+     * Terkumpul kerana garis yang sentiasa menaik menunjukkan RENTAK
+     * kutipan: bila ia mendatar, kutipan berhenti. Bar harian sahaja
+     * terlalu bergerigi untuk membaca corak itu.
+     *
+     * Kecerunan diberi id UNIK setiap panggilan — dua SVG dalam satu
+     * halaman dengan id sama menyebabkan yang kedua mengambil kecerunan
+     * yang pertama.
+     */
+    static String dailyArea(List<MonthlyStatsPort.DayPoint> data, String id) {
+        if (data.isEmpty()) return "";
+
+        double maks = 0;
+        for (var d : data) maks = Math.max(maks, d.cumulative().doubleValue());
+        if (maks <= 0) maks = 1;
+
+        int w = 640, h = 200, kiri = 8, kanan = 8, atas = 12, bawah = 8;
+        double plotW = w - kiri - kanan, plotH = h - atas - bawah;
+
+        StringBuilder garis = new StringBuilder();
+        StringBuilder kawasan = new StringBuilder();
+
+        for (int i = 0; i < data.size(); i++) {
+            double x = kiri + (data.size() == 1 ? plotW / 2
+                    : plotW * i / (data.size() - 1.0));
+            double y = atas + plotH
+                    - plotH * data.get(i).cumulative().doubleValue() / maks;
+            garis.append(i == 0 ? "M " : " L ").append(fmt(x)).append(' ').append(fmt(y));
+        }
+
+        kawasan.append(garis).append(" L ").append(fmt(w - kanan)).append(' ')
+               .append(fmt(atas + plotH)).append(" L ").append(fmt(kiri)).append(' ')
+               .append(fmt(atas + plotH)).append(" Z");
+
+        // Titik hujung: di mana kutipan berdiri hari ini.
+        var akhir = data.get(data.size() - 1);
+        double xA = kiri + plotW;
+        double yA = atas + plotH - plotH * akhir.cumulative().doubleValue() / maks;
+
+        return "<svg viewBox=\"0 0 " + w + " " + h + "\" "
+             + "xmlns=\"http://www.w3.org/2000/svg\" "
+             + "style=\"width:100%;height:auto;display:block\">"
+             + "<defs><linearGradient id=\"" + id + "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
+             + "<stop offset=\"0%\" stop-color=\"#2f7d32\" stop-opacity=\"0.34\"/>"
+             + "<stop offset=\"100%\" stop-color=\"#2f7d32\" stop-opacity=\"0\"/>"
+             + "</linearGradient></defs>"
+             + "<path d=\"" + kawasan + "\" fill=\"url(#" + id + ")\"/>"
+             + "<path d=\"" + garis + "\" fill=\"none\" stroke=\"#2f7d32\" "
+             + "stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+             + "<circle cx=\"" + fmt(xA) + "\" cy=\"" + fmt(yA)
+             + "\" r=\"9\" fill=\"#2f7d32\" opacity=\"0.24\"/>"
+             + "<circle cx=\"" + fmt(xA) + "\" cy=\"" + fmt(yA)
+             + "\" r=\"4.5\" fill=\"#2f7d32\"/>"
+             + "</svg>";
+    }
+
+    /**
+     * Tiga bar menegak: dibil, dikutip untuk tempoh ini, dikutip untuk
+     * tunggakan lama.
+     *
+     * Menjawab soalan yang laporan legacy tinggalkan terbuka — mengapa
+     * kutipan boleh melebihi bil.
+     */
+    static String splitBars(BigDecimal billed, BigDecimal thisPeriod,
+                            BigDecimal arrears) {
+        double[] nilai = { billed.doubleValue(), thisPeriod.doubleValue(),
+                           arrears.doubleValue() };
+        String[] nama = { "Invois Dijana", "Kutipan Tempoh Ini", "Kutipan Tunggakan" };
+        String[] warna = { "#7f8c8d", "#2f7d32", "#e67e22" };
+
+        double maks = 0;
+        for (double v : nilai) maks = Math.max(maks, v);
+        if (maks <= 0) return "";
+
+        int w = 460, h = 250, atas = 30, bawah = 52;
+        double plotH = h - atas - bawah, dalam = 7;
+        double lebar = 74, jarak = w / 3.0;
+
+        StringBuilder s = new StringBuilder();
+        s.append("<svg viewBox=\"0 0 ").append(w).append(' ').append(h)
+         .append("\" xmlns=\"http://www.w3.org/2000/svg\" ")
+         .append("style=\"width:100%;height:auto;display:block\">");
+
+        for (int i = 0; i < 3; i++) {
+            double tinggi = plotH * nilai[i] / maks;
+            double x = jarak * i + (jarak - lebar) / 2;
+            double y = atas + plotH - tinggi;
+
+            s.append(bar3d(x, y, lebar, tinggi, warna[i], dalam));
+
+            s.append("<text x=\"").append(fmt(x + lebar / 2)).append("\" y=\"")
+             .append(fmt(y - dalam - 8))
+             .append("\" font-size=\"13\" font-weight=\"bold\" fill=\"#333\" ")
+             .append("text-anchor=\"middle\">").append(wang(nilai[i])).append("</text>");
+
+            s.append("<text x=\"").append(fmt(x + lebar / 2)).append("\" y=\"")
+             .append(atas + plotH + 20)
+             .append("\" font-size=\"11\" fill=\"#555\" text-anchor=\"middle\">")
+             .append(nama[i]).append("</text>");
+        }
+
+        s.append("<line x1=\"0\" y1=\"").append(fmt(atas + plotH))
+         .append("\" x2=\"").append(w).append("\" y2=\"").append(fmt(atas + plotH))
+         .append("\" stroke=\"#ddd\" stroke-width=\"1\"/>");
 
         return s.append("</svg>").toString();
     }
@@ -193,6 +298,32 @@ final class ChartSvg {
         }
 
         return s.append("</svg>").toString();
+    }
+
+    /** Bar menegak dengan muka atas dan sisi kanan. */
+    private static String bar3d(double x, double y, double w, double h,
+                                String warna, double dalam) {
+        if (h <= 0.5) return "";
+        String gelap = gelapkan(warna);
+        StringBuilder s = new StringBuilder();
+
+        s.append("<path d=\"M ").append(fmt(x)).append(' ').append(fmt(y))
+         .append(" L ").append(fmt(x + dalam)).append(' ').append(fmt(y - dalam))
+         .append(" L ").append(fmt(x + w + dalam)).append(' ').append(fmt(y - dalam))
+         .append(" L ").append(fmt(x + w)).append(' ').append(fmt(y))
+         .append(" Z\" fill=\"").append(gelap).append("\"/>");
+
+        s.append("<path d=\"M ").append(fmt(x + w)).append(' ').append(fmt(y))
+         .append(" L ").append(fmt(x + w + dalam)).append(' ').append(fmt(y - dalam))
+         .append(" L ").append(fmt(x + w + dalam)).append(' ').append(fmt(y + h - dalam))
+         .append(" L ").append(fmt(x + w)).append(' ').append(fmt(y + h))
+         .append(" Z\" fill=\"").append(gelap).append("\"/>");
+
+        s.append("<rect x=\"").append(fmt(x)).append("\" y=\"").append(fmt(y))
+         .append("\" width=\"").append(fmt(w)).append("\" height=\"").append(fmt(h))
+         .append("\" fill=\"").append(warna).append("\"/>");
+
+        return s.toString();
     }
 
     /** Sisi bar lebih gelap daripada mukanya. */
@@ -297,8 +428,15 @@ final class ChartSvg {
         return new BigDecimal(v).setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * Amaun dengan awalan RM.
+     *
+     * Dikongsi oleh ketiga-tiga carta: label tanpa mata wang memaksa
+     * pembaca mengandaikan, dan laporan yang sama boleh mengandungi
+     * kiraan (25 resit) di sebelah amaun (2,955.34).
+     */
     private static String wang(double v) {
-        return String.format("%,.2f", v);
+        return String.format("RM %,.2f", v);
     }
 
     /** Nama produk ialah data pengguna: satu & mentah mematikan render. */

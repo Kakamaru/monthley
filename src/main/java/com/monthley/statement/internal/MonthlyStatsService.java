@@ -96,6 +96,22 @@ class MonthlyStatsService implements MonthlyStatsPort {
                 : thisPeriod.multiply(BigDecimal.valueOf(100))
                             .divide(billed, 1, RoundingMode.HALF_UP);
 
+        // ── Bulan sebelumnya, untuk badge delta ────────────────────
+        LocalDate prevFrom = from.minusMonths(1);
+        LocalDate prevTo = prevFrom.withDayOfMonth(prevFrom.lengthOfMonth());
+
+        Object[] prev = (Object[]) em.createNativeQuery("""
+                SELECT COALESCE(SUM(CASE WHEN d.doc_type IN ('INVOICE','DEBIT_NOTE')
+                                         THEN d.amount + d.tax_amount ELSE 0 END), 0),
+                       COALESCE(SUM(CASE WHEN d.doc_type = 'RECEIPT'
+                                         THEN d.amount + d.tax_amount ELSE 0 END), 0)
+                FROM   financial_document d
+                WHERE  d.sp_code = :sp AND d.status <> 'CANCELLED'
+                  AND  d.doc_date BETWEEN :from AND :to
+                """).setParameter("sp", sp)
+                .setParameter("from", prevFrom).setParameter("to", prevTo)
+                .getSingleResult();
+
         // ── Tunggakan pada hujung tempoh dan tempoh sebelumnya ─────
         BigDecimal arrears = tunggakan(sp, asAt);
         BigDecimal arrearsPrev = tunggakan(sp, from.minusDays(1));
@@ -118,6 +134,9 @@ class MonthlyStatsService implements MonthlyStatsPort {
                 ((Number) akaun[0]).intValue(),
                 akaun[1] == null ? 0 : ((Number) akaun[1]).intValue(),
                 trend(sp, from),
+                harian(sp, from, to),
+                ringkasanHarian(sp, from, to),
+                (BigDecimal) prev[0], (BigDecimal) prev[1],
                 slice(sp, from, to, true),
                 slice(sp, from, to, false),
                 topArrears(sp, asAt),
@@ -174,6 +193,83 @@ class MonthlyStatsService implements MonthlyStatsPort {
         return hasil;
     }
 
+    /**
+     * Kutipan setiap hari dalam bulan, dengan jumlah terkumpul.
+     *
+     * Terkumpul kerana garis yang sentiasa menaik menunjukkan RENTAK
+     * kutipan — bila ia mendatar, kutipan berhenti. Bar harian sahaja
+     * terlalu bergerigi untuk membaca corak itu.
+     *
+     * Hari tanpa kutipan mesti muncul sebagai sifar, bukan hilang:
+     * jurang dalam garis kelihatan seperti data yang rosak.
+     */
+    @SuppressWarnings("unchecked")
+    private List<DayPoint> harian(String sp, LocalDate from, LocalDate to) {
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT DAY(d.doc_date), COALESCE(SUM(d.amount + d.tax_amount), 0)
+                FROM   financial_document d
+                WHERE  d.sp_code = :sp AND d.doc_type = 'RECEIPT'
+                  AND  d.status <> 'CANCELLED'
+                  AND  d.doc_date BETWEEN :from AND :to
+                GROUP  BY DAY(d.doc_date) ORDER BY 1
+                """).setParameter("sp", sp)
+                .setParameter("from", from).setParameter("to", to)
+                .getResultList();
+
+        java.util.Map<Integer, BigDecimal> ikutHari = new java.util.HashMap<>();
+        for (Object[] r : rows) {
+            ikutHari.put(((Number) r[0]).intValue(), (BigDecimal) r[1]);
+        }
+
+        List<DayPoint> hasil = new ArrayList<>();
+        BigDecimal terkumpul = BigDecimal.ZERO;
+        for (int d = 1; d <= to.getDayOfMonth(); d++) {
+            BigDecimal amt = ikutHari.getOrDefault(d, BigDecimal.ZERO);
+            terkumpul = terkumpul.add(amt);
+            hasil.add(new DayPoint(d, amt, terkumpul));
+        }
+        return hasil;
+    }
+
+    /** Purata harian, hari tersibuk, bilangan transaksi. */
+    private DailySummary ringkasanHarian(String sp, LocalDate from, LocalDate to) {
+        Object[] r = (Object[]) em.createNativeQuery("""
+                SELECT COALESCE(SUM(d.amount + d.tax_amount), 0), COUNT(*)
+                FROM   financial_document d
+                WHERE  d.sp_code = :sp AND d.doc_type = 'RECEIPT'
+                  AND  d.status <> 'CANCELLED'
+                  AND  d.doc_date BETWEEN :from AND :to
+                """).setParameter("sp", sp)
+                .setParameter("from", from).setParameter("to", to)
+                .getSingleResult();
+
+        BigDecimal jumlah = (BigDecimal) r[0];
+        int txn = ((Number) r[1]).intValue();
+
+        // Purata dibahagi HARI BERLALU, bukan hari dalam bulan: pada 4
+        // Ogos, membahagi dengan 31 memberi purata yang mengarut rendah.
+        int hariBerlalu = to.getDayOfMonth();
+        BigDecimal purata = hariBerlalu == 0 ? BigDecimal.ZERO
+                : jumlah.divide(BigDecimal.valueOf(hariBerlalu), 2, RoundingMode.HALF_UP);
+
+        List<Object[]> sibuk = em.createNativeQuery("""
+                SELECT DAY(d.doc_date), SUM(d.amount + d.tax_amount) AS jum
+                FROM   financial_document d
+                WHERE  d.sp_code = :sp AND d.doc_type = 'RECEIPT'
+                  AND  d.status <> 'CANCELLED'
+                  AND  d.doc_date BETWEEN :from AND :to
+                GROUP  BY DAY(d.doc_date) ORDER BY jum DESC LIMIT 1
+                """).setParameter("sp", sp)
+                .setParameter("from", from).setParameter("to", to)
+                .getResultList();
+
+        int hariSibuk = sibuk.isEmpty() ? 0 : ((Number) sibuk.get(0)[0]).intValue();
+        BigDecimal amtSibuk = sibuk.isEmpty() ? BigDecimal.ZERO
+                : (BigDecimal) sibuk.get(0)[1];
+
+        return new DailySummary(jumlah, purata, hariSibuk, amtSibuk, txn);
+    }
+
     /** Pecahan kutipan ikut jenis bayaran atau ikut produk. */
     @SuppressWarnings("unchecked")
     private List<Slice> slice(String sp, LocalDate from, LocalDate to, boolean ikutBayaran) {
@@ -212,7 +308,19 @@ class MonthlyStatsService implements MonthlyStatsPort {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT a.account_no,
                        COALESCE(NULLIF(a.billto_name,''), a.account_name),
-                       SUM(e.signed_amount) AS baki
+                       SUM(e.signed_amount) AS baki,
+                       -- Bilangan invois yang belum lunas: RM5,000
+                       -- daripada satu bil besar berbeza sama sekali
+                       -- daripada dua belas bil kecil yang diabaikan.
+                       (SELECT COUNT(*) FROM financial_document d
+                         WHERE d.account_id = a.id
+                           AND d.doc_type IN ('INVOICE','DEBIT_NOTE')
+                           AND d.status <> 'CANCELLED'
+                           AND d.doc_date <= :asAt
+                           AND (d.amount + d.tax_amount)
+                               > COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
+                                            WHERE al.debit_document_id = d.id
+                                              AND al.status = 'ACTIVE'), 0) + 0.005)
                 FROM   account_document_entry e
                 JOIN   account a ON a.id = e.account_id
                 WHERE  e.sp_code = :sp AND e.doc_date <= :asAt
@@ -226,7 +334,8 @@ class MonthlyStatsService implements MonthlyStatsPort {
         List<TopAccount> hasil = new ArrayList<>();
         for (Object[] r : rows) {
             hasil.add(new TopAccount((String) r[0], (String) r[1],
-                    (BigDecimal) r[2], null));
+                    (BigDecimal) r[2], null,
+                    r[3] == null ? 0 : ((Number) r[3]).intValue()));
         }
         return hasil;
     }
@@ -265,7 +374,7 @@ class MonthlyStatsService implements MonthlyStatsPort {
             String nota = r[3] == null ? "Tiada bayaran direkod"
                     : "Bayaran terakhir " + r[3];
             hasil.add(new TopAccount((String) r[0], (String) r[1],
-                    (BigDecimal) r[2], nota));
+                    (BigDecimal) r[2], nota, 0));
         }
         return hasil;
     }

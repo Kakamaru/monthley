@@ -162,6 +162,17 @@
             <artifactId>openhtmltopdf-pdfbox</artifactId>
             <version>${openhtmltopdf.version}</version>
         </dependency>
+
+        <!-- SVG dalam PDF (carta statistik).
+
+             Tanpa ini, openhtmltopdf memaparkan TEKS di dalam SVG dan
+             mengabaikan lukisannya — carta keluar sebagai senarai nombor
+             tanpa sebarang ralat. -->
+        <dependency>
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-svg-support</artifactId>
+            <version>${openhtmltopdf.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

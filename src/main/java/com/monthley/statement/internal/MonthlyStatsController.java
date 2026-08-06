@@ -36,6 +36,7 @@ class MonthlyStatsController {
     }
 
     record Response(MonthlyStatsPort.Stats stats,
+                    String dailySvg, String splitSvg,
                     String trendSvg, String paymentSvg, String productSvg) {}
 
     @GetMapping
@@ -43,6 +44,9 @@ class MonthlyStatsController {
         Access.requireAnyRole("melihat statistik bulanan", "SP_ADMIN", "CLERK", "VIEWER");
         var s = stats.monthly(sp(), year, month);
         return new Response(s,
+                ChartSvg.dailyArea(s.daily(), "mst-daily"),
+                ChartSvg.splitBars(s.billed(), s.collectedThisPeriod(),
+                                   s.collectedArrears()),
                 ChartSvg.trendBars(s.trend()),
                 ChartSvg.bars3d(s.byPaymentType()),
                 ChartSvg.donut(s.byProduct()));
@@ -59,6 +63,18 @@ class MonthlyStatsController {
         vars.put("s", s);
         vars.put("h", h);
         vars.put("fmt", new StatementFormatter(h.language(), h.dateFormat()));
+        // Delta dikira DI SINI, bukan dalam templat.
+        //
+        // Percubaan pertama meletakkan subtract/multiply/divide dalam
+        // SpEL: BigDecimal.valueOf(100) samar di sana, dan seluruh PDF
+        // gagal dengan 500. Aritmetik dalam templat juga tidak boleh
+        // diuji.
+        vars.put("deltaBil", delta(s.billed(), s.billedPrevious()));
+        vars.put("deltaKutipan", delta(s.collected(), s.collectedPrevious()));
+
+        vars.put("dailySvg", ChartSvg.dailyArea(s.daily(), "pdf-daily"));
+        vars.put("splitSvg", ChartSvg.splitBars(s.billed(),
+                s.collectedThisPeriod(), s.collectedArrears()));
         vars.put("trendSvg", ChartSvg.trendBars(s.trend()));
         vars.put("paymentSvg", ChartSvg.bars3d(s.byPaymentType()));
         vars.put("productSvg", ChartSvg.donut(s.byProduct()));
@@ -73,6 +89,17 @@ class MonthlyStatsController {
                                           StandardCharsets.UTF_8)
                                 .build().toString())
                 .body(bytes);
+    }
+
+    /** '+12% dari bulan lepas', atau kosong jika tiada asas banding. */
+    private static String delta(java.math.BigDecimal kini,
+                                java.math.BigDecimal lepas) {
+        if (lepas == null || lepas.signum() == 0) return "";
+        java.math.BigDecimal beza = kini.subtract(lepas);
+        java.math.BigDecimal pct = beza.abs()
+                .multiply(new java.math.BigDecimal("100"))
+                .divide(lepas.abs(), 0, java.math.RoundingMode.HALF_UP);
+        return (beza.signum() >= 0 ? "+" : "-") + pct + "% dari bulan lepas";
     }
 
     private String sp() {

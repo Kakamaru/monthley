@@ -22,10 +22,29 @@ public interface MonthlyStatsPort {
     /** Satu bulan dalam trend. */
     record MonthPoint(String label, BigDecimal billed, BigDecimal collected) {}
 
+    /**
+     * Satu hari dalam bulan.
+     *
+     * @param cumulative kutipan TERKUMPUL sehingga hari itu — garis yang
+     *                   sentiasa menaik menunjukkan rentak kutipan, dan
+     *                   bar harian sahaja terlalu bergerigi untuk dibaca
+     */
+    record DayPoint(int day, BigDecimal amount, BigDecimal cumulative) {}
+
+    /** Ringkasan trend harian. */
+    record DailySummary(BigDecimal total, BigDecimal average,
+                        int busiestDay, BigDecimal busiestAmount,
+                        int transactions) {}
+
     record Slice(String label, BigDecimal amount) {}
 
+    /**
+     * @param invoiceCount bilangan invois yang belum lunas — nombor
+     *                     sahaja tidak memberitahu sama ada RM5,000 itu
+     *                     satu bil besar atau dua belas bil kecil
+     */
     record TopAccount(String accountNo, String accountName,
-                      BigDecimal amount, String note) {}
+                      BigDecimal amount, String note, int invoiceCount) {}
 
     record Stats(
             String periodName,
@@ -52,6 +71,11 @@ public interface MonthlyStatsPort {
             int accountsWithBalance,
 
             List<MonthPoint> trend,
+            List<DayPoint> daily,
+            DailySummary dailySummary,
+            /** Bil bulan sebelumnya, untuk badge delta. */
+            BigDecimal billedPrevious,
+            BigDecimal collectedPrevious,
             List<Slice> byPaymentType,
             List<Slice> byProduct,
             List<TopAccount> topArrears,

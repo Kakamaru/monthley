@@ -39,6 +39,9 @@ class TemplatePdfWriter {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             PdfRendererBuilder b = new PdfRendererBuilder();
             b.useFastMode();
+            // Tanpa pelukis SVG, openhtmltopdf memaparkan teks di dalam
+            // <svg> dan mengabaikan lukisannya — TANPA ralat.
+            b.useSVGDrawer(new com.openhtmltopdf.svgsupport.BatikSVGDrawer());
             fonPembekal.daftarFon(b);
             b.withHtmlContent(html, null);
             b.toStream(os);

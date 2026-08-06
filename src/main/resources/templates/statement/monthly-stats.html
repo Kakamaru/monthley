@@ -27,12 +27,27 @@ body { font-family: 'Monthley', 'DejaVu Sans', sans-serif; font-size: 10pt;
 .seksyen { font-size: 11pt; font-weight: bold; margin: 7mm 0 3mm 0;
            border-bottom: 0.8pt solid #ccc; padding-bottom: 1.5mm; }
 
-table.kad { width: 100%; border-collapse: separate; border-spacing: 3mm 0; }
-table.kad td { width: 25%; border: 0.6pt solid #ccc; border-radius: 2mm;
-               padding: 3mm; vertical-align: top; }
-.kad-label { font-size: 8pt; color: #666; text-transform: uppercase; }
-.kad-nilai { font-size: 15pt; font-weight: bold; margin-top: 1.5mm; }
-.kad-nota  { font-size: 7.5pt; color: #777; margin-top: 1.5mm; line-height: 1.35; }
+/* DUA baris dua kad, bukan empat dalam satu baris.
+   Empat kad selebar 25% memaksa nombor mengecil sehingga kerani perlu
+   mendekatkan kertas. */
+/* Kad berwarna: setiap satu menjawab soalan berbeza, dan warna
+   membezakannya sekali imbas — hasil hijau, tunggakan merah.
+
+   Legacy menggunakan kotak besar berwarna atas sebab yang sama; ini
+   mengekalkan idea itu tanpa imej yang perlu diselenggara. */
+table.kad { width: 100%; border-collapse: separate; border-spacing: 3mm 3mm; }
+table.kad td { width: 50%; border-radius: 2.5mm; padding: 5mm 6mm;
+               vertical-align: top; }
+.k-bil  { background: #eef1f4; border-left: 2.4mm solid #7f8c8d; }
+.k-kut  { background: #e9f5ea; border-left: 2.4mm solid #2f7d32; }
+.k-kdr  { background: #eaf1f8; border-left: 2.4mm solid #2980b9; }
+.k-tgk  { background: #fdeeea; border-left: 2.4mm solid #c0392b; }
+
+.kad-label { font-size: 12pt; font-weight: bold; color: #333;
+             letter-spacing: 0.02em; }
+.kad-nilai { font-size: 24pt; font-weight: bold; margin-top: 3mm;
+             letter-spacing: -0.02em; }
+.kad-nota  { font-size: 9.5pt; color: #555; margin-top: 3mm; line-height: 1.5; }
 
 table.data { border-collapse: collapse; width: 100%; }
 table.data th { background: #eee; border: 0.5pt solid #bbb; padding: 1.6mm;
@@ -43,7 +58,14 @@ table.data tr { page-break-inside: avoid; }
 .kecil { font-size: 7.5pt; color: #666; }
 
 .carta { page-break-inside: avoid; margin-top: 2mm; }
-.naik  { color: #c0392b; } .turun { color: #1a7f37; }
+
+/* Tajuk MESTI melekat pada cartanya.
+   page-break-inside pada carta sahaja membenarkan pemecahan antara
+   tajuk dan lukisan — tajuk tinggal di muka satu, carta di muka dua. */
+.blok  { page-break-inside: avoid; }
+.naik  { color: #c0392b; font-weight: bold; }
+.turun { color: #1a7f37; font-weight: bold; }
+.c     { text-align: center; }
 
 #kaki { position: running(kaki); font-size: 8pt; color: #666;
         text-align: center; }
@@ -76,30 +98,40 @@ table.data tr { page-break-inside: avoid; }
 
 <table class="kad">
   <tr>
-    <td>
+    <td class="k-bil">
       <div class="kad-label">Invois Dijana</div>
-      <div class="kad-nilai" th:text="${fmt.money(s.billed())}"></div>
-      <div class="kad-nota" th:text="${s.invoiceCount()} + ' invois'"></div>
+      <div class="kad-nilai" style="color:#4a5560" th:text="'RM ' + ${fmt.money(s.billed())}"></div>
+      <div class="kad-nota">
+        <span th:text="${s.invoiceCount()} + ' invois'"></span>
+        <span th:if="${!#strings.isEmpty(deltaBil)}"
+              th:classappend="${s.billed().compareTo(s.billedPrevious()) >= 0} ? 'turun' : 'naik'"
+              th:text="' · ' + ${deltaBil}"></span>
+      </div>
     </td>
-    <td>
+    <td class="k-kut">
       <div class="kad-label">Kutipan Diterima</div>
-      <div class="kad-nilai" th:text="${fmt.money(s.collected())}"></div>
+      <div class="kad-nilai" style="color:#1a7f37" th:text="'RM ' + ${fmt.money(s.collected())}"></div>
       <!-- Pecahan diperlukan: resit bulan ini boleh membayar invois
            bulan lepas, dan tanpa ayat ini kutipan yang melebihi bil
            kelihatan seperti ralat. -->
       <div class="kad-nota">
-        <span th:text="${fmt.money(s.collectedThisPeriod())} + ' untuk tempoh ini'"></span><br/>
-        <span th:text="${fmt.money(s.collectedArrears())} + ' untuk tunggakan lama'"></span>
+        <span th:text="'RM ' + ${fmt.money(s.collectedThisPeriod())} + ' untuk tempoh ini'"></span><br/>
+        <span th:text="'RM ' + ${fmt.money(s.collectedArrears())} + ' untuk tunggakan lama'"></span>
+        <span th:if="${!#strings.isEmpty(deltaKutipan)}"
+              th:classappend="${s.collected().compareTo(s.collectedPrevious()) >= 0} ? 'turun' : 'naik'"
+              th:text="' · ' + ${deltaKutipan}"></span>
       </div>
     </td>
-    <td>
+  </tr>
+  <tr>
+    <td class="k-kdr">
       <div class="kad-label">Kadar Kutipan</div>
-      <div class="kad-nilai" th:text="${s.collectionRate()} + '%'"></div>
+      <div class="kad-nilai" style="color:#1f6ea8" th:text="${s.collectionRate()} + '%'"></div>
       <div class="kad-nota">daripada bil tempoh ini yang sudah dikutip</div>
     </td>
-    <td>
+    <td class="k-tgk">
       <div class="kad-label">Tunggakan Terkumpul</div>
-      <div class="kad-nilai" th:text="${fmt.money(s.arrears())}"></div>
+      <div class="kad-nilai" style="color:#a5342a" th:text="'RM ' + ${fmt.money(s.arrears())}"></div>
       <div class="kad-nota"
            th:classappend="${s.arrears().compareTo(s.arrearsPrevious()) > 0} ? 'naik' : 'turun'"
            th:text="${s.arrears().compareTo(s.arrearsPrevious()) > 0}
@@ -109,34 +141,89 @@ table.data tr { page-break-inside: avoid; }
   </tr>
 </table>
 
-<div class="seksyen">Trend Dua Belas Bulan</div>
-<div class="carta" th:utext="${trendSvg}"></div>
+<div class="blok">
+<div class="seksyen">Trend Kutipan Harian</div>
+<div class="carta" th:utext="${dailySvg}"></div>
+<table style="width:100%;margin-top:3mm;border-collapse:collapse">
+  <tr>
+    <td style="width:33%">
+      <div style="font-size:10.5pt;color:#555;font-weight:bold">Purata harian</div>
+      <div style="font-weight:bold;font-size:14pt;margin-top:1.5mm" th:text="'RM ' + ${fmt.money(s.dailySummary().average())}"></div>
+    </td>
+    <td style="width:34%">
+      <div style="font-size:10.5pt;color:#555;font-weight:bold">Hari tertinggi</div>
+      <div style="font-weight:bold;font-size:14pt;margin-top:1.5mm;color:#1a7f37"
+           th:text="${s.dailySummary().busiestDay() > 0}
+                    ? (${s.dailySummary().busiestDay()} + ' hb · '
+                       + 'RM ' + ${fmt.money(s.dailySummary().busiestAmount())})
+                    : '—'"></div>
+    </td>
+    <td style="width:33%">
+      <div style="font-size:10.5pt;color:#555;font-weight:bold">Transaksi</div>
+      <div style="font-weight:bold;font-size:14pt;margin-top:1.5mm" th:text="${s.dailySummary().transactions()}"></div>
+    </td>
+  </tr>
+</table>
 
+</div>
+
+<!-- Menjawab soalan yang laporan legacy tinggalkan terbuka: mengapa
+     kutipan boleh melebihi bil. -->
+<div class="blok">
+<div class="seksyen">Invois vs Kutipan Tempoh Ini vs Tunggakan</div>
+<div style="font-size:10.5pt;color:#555;margin-bottom:3mm">
+  Kutipan bulan ini boleh melangsaikan invois bulan lepas.
+</div>
+<div class="carta" th:utext="${splitSvg}"></div>
+</div>
+
+<!-- TIADA page-break paksa di sini.
+     Ia memulakan muka baharu tanpa mengira ruang yang tinggal, dan
+     separuh muka sebelumnya dibiarkan kosong. Setiap bahagian sudah
+     dibungkus dalam .blok, jadi tajuk tidak akan terpisah daripada
+     cartanya walaupun aliran memecahkannya.
+
+     Jenis bayaran dan produk menjawab soalan yang sama daripada dua
+     sudut, dan membacanya berdekatan lebih mudah daripada menyelak.
+
+     Trend dua belas bulan dibuang — skrin tidak memaparkannya, dan PDF
+     yang mengandungi bahagian yang tiada di skrin mengelirukan kerani
+     yang mencetak apa yang dilihatnya. -->
+<div class="blok">
 <div class="seksyen">Kutipan Mengikut Jenis Bayaran</div>
 <div class="carta" th:utext="${paymentSvg}"></div>
+</div>
 
-<div style="page-break-before: always"></div>
-
+<div class="blok">
 <div class="seksyen">Kutipan Mengikut Produk</div>
 <div class="carta" th:utext="${productSvg}"></div>
+</div>
 
+<div class="blok">
 <div class="seksyen">Lima Tunggakan Tertinggi</div>
 <table class="data">
   <thead>
     <tr><th style="width:16%">No. Akaun</th><th>Nama</th>
+        <th style="width:20%" class="c">Invois Tertunggak</th>
         <th style="width:18%" class="r">Tunggakan (MYR)</th></tr>
   </thead>
   <tbody>
     <tr th:each="a : ${s.topArrears()}">
       <td th:text="${a.accountNo()}"></td>
       <td th:text="${a.accountName()}"></td>
+      <!-- RM5,000 daripada satu bil besar berbeza sama sekali daripada
+           dua belas bil kecil yang diabaikan. -->
+      <td class="c" th:text="${a.invoiceCount()}"></td>
       <td class="r" th:text="${fmt.money(a.amount())}"></td>
     </tr>
   </tbody>
 </table>
 
+</div>
+
 <!-- Menggantikan '5 akaun terawal membuat bayaran' legacy, yang tidak
      membantu sebarang keputusan. Ini senarai yang JMB hubungi. -->
+<div class="blok">
 <div class="seksyen">Lima Akaun Paling Lama Tidak Membayar</div>
 <table class="data">
   <thead>
@@ -153,6 +240,8 @@ table.data tr { page-break-inside: avoid; }
     </tr>
   </tbody>
 </table>
+
+</div>
 
 <div style="margin-top:5mm;font-size:8.5pt;color:#666">
   <span th:text="${s.activeAccounts()} + ' akaun aktif'"></span> &#183;
