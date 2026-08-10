@@ -5,4 +5,6 @@ import java.util.List;
 
 interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findBySpCodeAndStatus(String spCode, Account.Status status);
+
+    boolean existsBySpCodeAndAccountNo(String spCode, String accountNo);
 }

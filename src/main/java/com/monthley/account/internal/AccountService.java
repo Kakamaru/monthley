@@ -31,6 +31,38 @@ class AccountService implements AccountPort {
                 .stream().map(this::toView).toList();
     }
 
+    @Override
+    @Transactional
+    public Long createSpBillingAccount(String platformSpCode, String accountNo,
+                                       String accountName, java.time.LocalDate startDate,
+                                       List<Long> productIds) {
+        String no = accountNo == null ? null : accountNo.trim();
+        if (no == null || no.isBlank()) {
+            throw new IllegalStateException("No. akaun diperlukan untuk akaun bil SP.");
+        }
+        if (accounts.existsBySpCodeAndAccountNo(platformSpCode, no)) {
+            throw new IllegalStateException("No. akaun " + no + " sudah wujud.");
+        }
+
+        Account a = new Account(platformSpCode, no, accountName.trim());
+        a.setChargeFrequency(com.monthley.shared.ChargeFrequency.MONTHLY);
+        a.setStartDate(startDate);
+        Account saved = accounts.save(a);
+
+        if (productIds != null) {
+            // Permintaan boleh membawa produk yang sama dua kali; guard DB
+            // belum membantu kerana tiada baris lagi.
+            var dilihat = new java.util.HashSet<Long>();
+            for (Long pid : productIds) {
+                if (pid == null || !dilihat.add(pid)) continue;
+                subscriptions.save(new AccountSubscription(
+                        platformSpCode, saved.getId(), pid,
+                        java.math.BigDecimal.ONE, startDate));
+            }
+        }
+        return saved.getId();
+    }
+
     private AccountView toView(Account a) {
         return new AccountView(a.getId(), a.getSpCode(), a.getAccountNo(),
                 a.getAccountName(), a.getChargeFrequency(), a.getStartDate(),
