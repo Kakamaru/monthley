@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V62 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V63 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -80,7 +80,8 @@ Terkini:
 | V59 | `document_line_remarks` — catatan berasingan daripada nama produk |
 | V60 | VIEW `sp_ledger_line` — setiap transaksi merentas semua akaun |
 | V61 | Gugurkan `account.cached_balance` + `cached_balance_at` — tidak pernah dibaca, semua nilai sifar |
-| V62 | `is_platform_owner` + `billing_account_id` pada SP, `product_id` pada pelan (ADR 0016 peringkat A) |
+| V62 | `is_platform_owner` + `billing_account_id` pada SP (ADR 0016 peringkat A) |
+| V63 | `product.account_limit` + `service_provider.plan_product_id` — kuota berpindah dari `service_plan` ke produk (ADR 0016 peringkat B1) |
 
 ### Siap
 
@@ -181,6 +182,7 @@ itu sendiri:
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
 | Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
 | Payment gateway | ADR 0015 dirangka; enam soalan terbuka |
+| `account_limit` paparan sahaja | Kuota akaun dipaparkan pada tiga skrin (Settings, senarai SP, onboarding) tetapi TIDAK dikuatkuasakan di mana-mana — tiada apa yang menghalang akaun ke-301 pada Pakej 300. Ditemui semasa ADR 0016 peringkat B1 |
 | `merchant_id` kosong pada semua SP | `/generate-key` menjana nilai, tetapi UI onboarding menghantar borang tanpa menekannya dan backend menerima kosong. Tiada kesan sehingga gerbang bayaran wujud (ADR 0015) — dan pada hari itu puncanya akan kelihatan seperti masalah gerbang, bukan masalah onboarding. Corak CASE-008 |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
