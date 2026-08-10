@@ -180,6 +180,7 @@ itu sendiri:
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
 | Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
 | Payment gateway | ADR 0015 dirangka; enam soalan terbuka |
+| `merchant_id` kosong pada semua SP | `/generate-key` menjana nilai, tetapi UI onboarding menghantar borang tanpa menekannya dan backend menerima kosong. Tiada kesan sehingga gerbang bayaran wujud (ADR 0015) — dan pada hari itu puncanya akan kelihatan seperti masalah gerbang, bukan masalah onboarding. Corak CASE-008 |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
 | Sekatan modul ikut pakej | Reka bentuk penuh: [ADR 0016](decisions/0016-modul-tambahan-dan-langganan-sp.md). Corak kekal: benarkan masuk, sekat transaksi (soalan 28). Skema belum dibina |

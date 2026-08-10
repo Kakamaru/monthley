@@ -219,9 +219,22 @@ class OnboardingController {
 
     // ---------- helper ----------
 
+    /**
+     * Kod SP seterusnya = MAX + 1, BUKAN COUNT + 1.
+     *
+     * COUNT hanya betul selagi tiada SP pernah dipadam dan penomboran
+     * bermula dari 1 tanpa lompang. SP0000 (pemilik platform) sudah
+     * melanggar andaian kedua: ia dikira dalam COUNT tetapi tidak
+     * menduduki slot dalam jujukan.
+     *
+     * Gelung exists() dikekalkan sebagai jaring keselamatan, bukan
+     * mekanisme utama.
+     */
     private String nextSpCode() {
         Number n = (Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM service_provider").getSingleResult();
+                "SELECT COALESCE(MAX(CAST(SUBSTRING(sp_code, 3) AS UNSIGNED)), 0) "
+                + "FROM service_provider WHERE sp_code REGEXP '^SP[0-9]+$'")
+                .getSingleResult();
         String code;
         long i = n.longValue() + 1;
         do {
@@ -237,9 +250,18 @@ class OnboardingController {
         return n.intValue() > 0;
     }
 
+    /**
+     * Sama seperti nextSpCode: MAX + 1, bukan COUNT + 1.
+     *
+     * Yang ini lebih bahaya kerana tiada gelung semakan — satu baris
+     * sp_payment_setting dipadam dan merchant ID seterusnya berlanggar
+     * terus dengan yang sedia ada.
+     */
     private String nextMerchantId() {
         Number n = (Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM sp_payment_setting").getSingleResult();
+                "SELECT COALESCE(MAX(CAST(SUBSTRING(merchant_id, 3) AS UNSIGNED)), 0) "
+                + "FROM sp_payment_setting WHERE merchant_id REGEXP '^MY[0-9]+$'")
+                .getSingleResult();
         return String.format("MY%08d", n.longValue() + 1);
     }
 
