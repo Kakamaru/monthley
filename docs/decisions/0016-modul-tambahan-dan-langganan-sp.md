@@ -273,5 +273,17 @@ service_provider   + billing_account_id
   mengubah mekanisme hak
 - **Prorata** — sengaja tiada; caj bermula 1hb
 - **Deaktivasi automatik bila tertunggak**
+- **Pelan tahunan untuk SP** — tiada. Semua pelan ialah produk BULANAN.
+  SP yang mahu dibil setahun sekali diuruskan pada peringkat langganan
+  (frekuensi caj akaun), bukan dengan produk berasingan. Satu pelan, satu
+  harga.
+
+  Akibatnya `service_plan.price_yearly` dan `service_provider.billing_plan`
+  menjadi konsep mati. Kedua-duanya masih DIBACA di tiga tempat
+  (`SettingsController`, `ServiceProviderController`, `OnboardingController`
+  — corak `CASE WHEN billing_plan='YEARLY'`), jadi ia tidak boleh sekadar
+  digugurkan. Pembacaan dialihkan dalam peringkat C, lajur digugurkan dalam
+  peringkat D.
+
 - **Percubaan percuma** — mekanisme hak menyokongnya (hak tanpa langganan),
   tetapi tiada aliran dibina
