@@ -119,6 +119,42 @@ class OnboardingController {
         return out;
     }
 
+    /**
+     * Katalog penuh produk platform — pelan, item sekali sahaja, dan modul.
+     *
+     * Berbeza daripada /service-plans yang hanya memulangkan pelan (produk
+     * dengan account_limit). Skrin onboarding perlu melihat semuanya supaya
+     * superadmin boleh tick apa yang SP beli.
+     *
+     * accountLimit null bermakna ia BUKAN pelan. Kategori membezakan modul
+     * tambahan daripada item asas.
+     */
+    record CatalogItem(Long id, String code, String name, String category,
+                       String chargeFrequency, BigDecimal price, Integer accountLimit) {}
+
+    @GetMapping("/catalog")
+    @SuppressWarnings("unchecked")
+    List<CatalogItem> catalog() {
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT p.id, p.code, p.name, COALESCE(c.name, ''), p.charge_frequency,
+                       p.unit_rate, p.account_limit
+                FROM   product p
+                JOIN   service_provider owner ON owner.sp_code = p.sp_code
+                                             AND owner.is_platform_owner = 1
+                LEFT   JOIN product_category c ON c.id = p.category_id
+                WHERE  p.status = 'ACTIVE'
+                ORDER  BY c.name, p.account_limit, p.code
+                """).getResultList();
+        List<CatalogItem> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new CatalogItem(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (String) r[3], (String) r[4], (BigDecimal) r[5],
+                    r[6] == null ? null : ((Number) r[6]).intValue()));
+        }
+        return out;
+    }
+
     @GetMapping("/business-types")
     @SuppressWarnings("unchecked")
     List<BusinessTypeDto> businessTypes() {
