@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V65 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V66 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -84,6 +84,7 @@ Terkini:
 | V63 | `product.account_limit` + `service_provider.plan_product_id` — kuota berpindah dari `service_plan` ke produk (ADR 0016 peringkat B1) |
 | V64 | Gugurkan `service_plan`, `service_plan_id`, `billing_plan` — pelan kini produk sepenuhnya (ADR 0016 peringkat B5) |
 | V65 | Akaun GL perbelanjaan: 2000 AP, 5100 Utiliti, 5200 Penyelenggaraan, 5300 Pentadbiran, 5900 Am (ADR 0017) |
+| V66 | `ref_module`, `sp_module`, `sp_change_request` — katalog, hak akses, aliran permohonan (ADR 0016) |
 
 ### Siap
 
