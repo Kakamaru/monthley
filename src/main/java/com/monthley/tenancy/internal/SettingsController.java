@@ -387,15 +387,15 @@ class SettingsController {
     @GetMapping("/plan")
     PlanDto plan() {
         Object[] r = (Object[]) em.createNativeQuery("""
-                SELECT pl.name, pl.account_limit,
+                SELECT pp.name, pp.account_limit,
                        COALESCE((SELECT COUNT(*) FROM account a
                                  WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
                                    AND COALESCE(a.account_type,'') <> 'ADHOC'), 0),
                        sp.billing_plan,
-                       CASE WHEN sp.billing_plan = 'YEARLY' THEN pl.price_yearly ELSE pl.price_monthly END,
+                       pp.unit_rate,
                        sp.est_invoices_month
                 FROM service_provider sp
-                LEFT JOIN service_plan pl ON pl.id = sp.service_plan_id
+                LEFT JOIN product pp ON pp.id = sp.plan_product_id
                 WHERE sp.sp_code = :sp
                 """).setParameter("sp", sp()).getSingleResult();
 

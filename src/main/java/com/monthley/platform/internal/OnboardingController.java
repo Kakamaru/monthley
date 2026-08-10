@@ -94,15 +94,24 @@ class OnboardingController {
     @GetMapping("/service-plans")
     @SuppressWarnings("unchecked")
     List<ServicePlanDto> plans() {
+        // Pelan = produk platform berkategori dengan account_limit terisi.
+        // Produk tanpa account_limit ialah item lain (onboarding, migrasi, modul).
+        // Dicari melalui bendera pemilik platform, bukan kod SP (ADR 0016).
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT id, code, name, account_limit, price_monthly, price_yearly
-                FROM service_plan WHERE status = 'ACTIVE' ORDER BY account_limit
+                SELECT p.id, p.code, p.name, p.account_limit, p.unit_rate
+                FROM   product p
+                JOIN   service_provider owner ON owner.sp_code = p.sp_code
+                                             AND owner.is_platform_owner = 1
+                WHERE  p.status = 'ACTIVE' AND p.account_limit IS NOT NULL
+                ORDER  BY p.account_limit
                 """).getResultList();
         List<ServicePlanDto> out = new ArrayList<>();
         for (Object[] r : rows) {
+            // priceYearly kekal dalam DTO tetapi sentiasa null: tiada pelan tahunan
+            // untuk SP (ADR 0016). Medan digugurkan bersama billing_plan dalam B5.
             out.add(new ServicePlanDto(
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    ((Number) r[3]).intValue(), (BigDecimal) r[4], (BigDecimal) r[5]));
+                    ((Number) r[3]).intValue(), (BigDecimal) r[4], null));
         }
         return out;
     }

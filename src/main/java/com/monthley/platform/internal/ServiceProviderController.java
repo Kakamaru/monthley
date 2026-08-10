@@ -48,7 +48,8 @@ class ServiceProviderController {
                    OR LOWER(COALESCE(sp.registration_no,'')) LIKE :q)
               AND (:bizType IS NULL OR sp.business_type = :bizType)
               AND (:status  IS NULL OR sp.status = :status)
-              AND (:plan    IS NULL OR sp.service_plan_id = :plan)
+              AND (:plan    IS NULL OR sp.plan_product_id = :plan
+                                     OR sp.service_plan_id = :plan)
               AND (:state   IS NULL OR sp.state = :state)
             """;
 
@@ -59,16 +60,16 @@ class ServiceProviderController {
         String sql = """
             SELECT sp.sp_code, sp.name, sp.business_type, bt.name AS biz_name,
                    sp.state, sp.city, sp.status,
-                   pl.name AS plan_name, pl.account_limit,
+                   pp.name AS plan_name, pp.account_limit,
                    COALESCE((SELECT COUNT(*) FROM account a
                              WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
                                AND COALESCE(a.account_type,'') <> 'ADHOC'), 0) AS acc_count,
                    sp.billing_plan,
-                   CASE WHEN sp.billing_plan = 'YEARLY' THEN pl.price_yearly ELSE pl.price_monthly END AS price,
+                   pp.unit_rate AS price,
                    sp.contact_email, sp.approved_at
             FROM service_provider sp
             LEFT JOIN ref_business_type bt ON bt.code = sp.business_type
-            LEFT JOIN service_plan pl      ON pl.id   = sp.service_plan_id
+            LEFT JOIN product pp           ON pp.id   = sp.plan_product_id
             """ + where + " ORDER BY sp.sp_code LIMIT :lim OFFSET :off";
 
         var dataQ = em.createNativeQuery(sql);
