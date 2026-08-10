@@ -37,7 +37,17 @@ public class ChartOfAccountSeeder {
             acc(spCode, GlAccounts.OPENING_EQUITY,     "Opening Balance Equity",  AccountType.EQUITY,    NormalSide.CREDIT, false, null),
             acc(spCode, GlAccounts.SERVICE_INCOME,     "Service Income",          AccountType.INCOME,    NormalSide.CREDIT, false, null),
             acc(spCode, GlAccounts.PENALTY_INCOME,     "Late Penalty Income",     AccountType.INCOME,    NormalSide.CREDIT, false, null),
-            acc(spCode, GlAccounts.BAD_DEBT_EXPENSE,   "Bad Debt Expense",        AccountType.EXPENSE,   NormalSide.DEBIT,  false, null)
+            acc(spCode, GlAccounts.BAD_DEBT_EXPENSE,   "Bad Debt Expense",        AccountType.EXPENSE,   NormalSide.DEBIT,  false, null),
+
+            // Perbelanjaan (modul Expenses, ADR 0017). GL diletak pada kategori
+            // INDUK, bukan jenis: Untung Rugi menunjukkan tiga baris
+            // perbelanjaan, bukan berpuluh. Pecahan sehingga 'Elektrik (TNB)'
+            // datang dari laporan perbelanjaan, bukan dari lejar.
+            acc(spCode, GlAccounts.ACCOUNTS_PAYABLE,   "Akaun Belum Bayar",       AccountType.LIABILITY, NormalSide.CREDIT, false, null),
+            acc(spCode, GlAccounts.EXPENSE_UTILITY,    "Utiliti",                 AccountType.EXPENSE,   NormalSide.DEBIT,  false, null),
+            acc(spCode, GlAccounts.EXPENSE_MAINT,      "Penyelenggaraan & Pembaikan", AccountType.EXPENSE, NormalSide.DEBIT, false, null),
+            acc(spCode, GlAccounts.EXPENSE_ADMIN,      "Pentadbiran",             AccountType.EXPENSE,   NormalSide.DEBIT,  false, null),
+            acc(spCode, GlAccounts.EXPENSE_GENERAL,    "Perbelanjaan Am",         AccountType.EXPENSE,   NormalSide.DEBIT,  false, null)
         );
 
         repo.saveAll(coa);
