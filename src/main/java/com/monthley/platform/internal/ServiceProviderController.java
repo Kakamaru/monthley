@@ -27,7 +27,7 @@ class ServiceProviderController {
             String spCode, String name, String bizType, String bizTypeName,
             String state, String city, String status,
             String planName, Integer accountLimit, long accountCount,
-            String billingPlan, BigDecimal price,
+            BigDecimal price,
             String adminEmail, LocalDate approvedAt) {}
 
     @GetMapping
@@ -48,8 +48,7 @@ class ServiceProviderController {
                    OR LOWER(COALESCE(sp.registration_no,'')) LIKE :q)
               AND (:bizType IS NULL OR sp.business_type = :bizType)
               AND (:status  IS NULL OR sp.status = :status)
-              AND (:plan    IS NULL OR sp.plan_product_id = :plan
-                                     OR sp.service_plan_id = :plan)
+              AND (:plan    IS NULL OR sp.plan_product_id = :plan)
               AND (:state   IS NULL OR sp.state = :state)
             """;
 
@@ -64,7 +63,6 @@ class ServiceProviderController {
                    COALESCE((SELECT COUNT(*) FROM account a
                              WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
                                AND COALESCE(a.account_type,'') <> 'ADHOC'), 0) AS acc_count,
-                   sp.billing_plan,
                    pp.unit_rate AS price,
                    sp.contact_email, sp.approved_at
             FROM service_provider sp
@@ -86,10 +84,9 @@ class ServiceProviderController {
                     (String) r[7],
                     r[8] == null ? null : ((Number) r[8]).intValue(),
                     ((Number) r[9]).longValue(),
-                    (String) r[10],
-                    (BigDecimal) r[11],
-                    (String) r[12],
-                    toLocalDate(r[13])));
+                    (BigDecimal) r[10],
+                    (String) r[11],
+                    toLocalDate(r[12])));
         }
         return new PageResponse<>(items, total, page, size);
     }

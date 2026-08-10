@@ -382,7 +382,7 @@ class SettingsController {
     // =====================================================================
 
     record PlanDto(String planName, Integer accountLimit, long accountUsed,
-                   String billingPlan, BigDecimal price, Integer estInvoicesMonth) {}
+                   BigDecimal price, Integer estInvoicesMonth) {}
 
     @GetMapping("/plan")
     PlanDto plan() {
@@ -391,7 +391,6 @@ class SettingsController {
                        COALESCE((SELECT COUNT(*) FROM account a
                                  WHERE a.sp_code = sp.sp_code AND a.status = 'ACTIVE'
                                    AND COALESCE(a.account_type,'') <> 'ADHOC'), 0),
-                       sp.billing_plan,
                        pp.unit_rate,
                        sp.est_invoices_month
                 FROM service_provider sp
@@ -401,8 +400,8 @@ class SettingsController {
 
         return new PlanDto(
                 (String) r[0], r[1] == null ? null : ((Number) r[1]).intValue(),
-                ((Number) r[2]).longValue(), (String) r[3], (BigDecimal) r[4],
-                r[5] == null ? null : ((Number) r[5]).intValue());
+                ((Number) r[2]).longValue(), (BigDecimal) r[3],
+                r[4] == null ? null : ((Number) r[4]).intValue());
     }
 
     // =====================================================================

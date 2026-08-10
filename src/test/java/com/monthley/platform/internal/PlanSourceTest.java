@@ -60,26 +60,13 @@ class PlanSourceTest {
                 "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
                 .getSingleResult()).longValue();
 
-        // Pelan lama (service_plan) — sumber semasa
-        em.createNativeQuery("""
-            INSERT INTO service_plan (code, name, account_limit, price_monthly,
-                                      price_yearly, status, created_at, updated_at, version)
-            VALUES ('PQ300', 'Pakej Ujian 300', 300, 300.00, 3000.00,
-                    'ACTIVE', NOW(), NOW(), 0)
-            """).executeUpdate();
-        Long planId = ((Number) em.createNativeQuery(
-                "SELECT id FROM service_plan WHERE code='PQ300'")
-                .getSingleResult()).longValue();
-
         // SP pelanggan yang menggunakan pelan itu, dipaut kepada KEDUA-DUA sumber
         em.createNativeQuery("""
-            INSERT IGNORE INTO service_provider (sp_code, name, status, service_plan_id,
-                                                 plan_product_id, billing_plan,
+            INSERT IGNORE INTO service_provider (sp_code, name, status,
+                                                 plan_product_id,
                                                  created_at, updated_at, version)
-            VALUES ('SPQ1', 'Pelanggan Ujian', 'ACTIVE', :plan, :prod, 'MONTHLY',
-                    NOW(), NOW(), 0)
-            """).setParameter("plan", planId).setParameter("prod", planProductId)
-                .executeUpdate();
+            VALUES ('SPQ1', 'Pelanggan Ujian', 'ACTIVE', :prod, NOW(), NOW(), 0)
+            """).setParameter("prod", planProductId).executeUpdate();
         em.flush();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -93,7 +80,7 @@ class PlanSourceTest {
     @Test
     @DisplayName("service-plans — pelan aktif disenaraikan dengan kuota")
     void senaraiPelan() {
-        List<OnboardingController.ServicePlanDto> plans = onboarding.plans();
+        List<OnboardingController.PlanDto> plans = onboarding.plans();
 
         var pq = plans.stream().filter(p -> "PQ300".equals(p.code())).findFirst().orElseThrow();
         assertThat(pq.name()).isEqualTo("Pakej Ujian 300");
@@ -145,8 +132,7 @@ class PlanSourceTest {
                 null, null, null, null, null,// addr1, addr2, city, postcode, state
                 "Malaysia",                  // country
                 null,                        // orgRegisteredDate
-                planProductId,               // servicePlanId — kini id PRODUK
-                "MONTHLY",                   // billingPlan (diabaikan, digugurkan B5)
+                planProductId,               // planProductId
                 100,                         // estInvoicesMonth
                 "Admin Ujian",               // contactName
                 "onboard-ujian@test.com",    // adminEmail

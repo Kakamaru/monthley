@@ -45,8 +45,9 @@ class OnboardingController {
 
     // ---------- DTO ----------
 
-    record ServicePlanDto(Long id, String code, String name, int accountLimit,
-                          BigDecimal priceMonthly, BigDecimal priceYearly) {}
+    /** Pelan = produk platform dengan account_limit terisi (ADR 0016). */
+    record PlanDto(Long id, String code, String name, int accountLimit,
+                   BigDecimal price) {}
 
     record BusinessTypeDto(String code, String name, String description) {}
 
@@ -66,8 +67,7 @@ class OnboardingController {
             String state,
             String country,
             String orgRegisteredDate,     // 'YYYY-MM-DD'
-            Long   servicePlanId,
-            String billingPlan,           // MONTHLY | YEARLY
+            Long   planProductId,         // id PRODUK pelan, bukan service_plan
             Integer estInvoicesMonth,
 
             // orang perhubungan
@@ -93,7 +93,7 @@ class OnboardingController {
 
     @GetMapping("/service-plans")
     @SuppressWarnings("unchecked")
-    List<ServicePlanDto> plans() {
+    List<PlanDto> plans() {
         // Pelan = produk platform berkategori dengan account_limit terisi.
         // Produk tanpa account_limit ialah item lain (onboarding, migrasi, modul).
         // Dicari melalui bendera pemilik platform, bukan kod SP (ADR 0016).
@@ -105,13 +105,11 @@ class OnboardingController {
                 WHERE  p.status = 'ACTIVE' AND p.account_limit IS NOT NULL
                 ORDER  BY p.account_limit
                 """).getResultList();
-        List<ServicePlanDto> out = new ArrayList<>();
+        List<PlanDto> out = new ArrayList<>();
         for (Object[] r : rows) {
-            // priceYearly kekal dalam DTO tetapi sentiasa null: tiada pelan tahunan
-            // untuk SP (ADR 0016). Medan digugurkan bersama billing_plan dalam B5.
-            out.add(new ServicePlanDto(
+            out.add(new PlanDto(
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    ((Number) r[3]).intValue(), (BigDecimal) r[4], null));
+                    ((Number) r[3]).intValue(), (BigDecimal) r[4]));
         }
         return out;
     }
@@ -186,7 +184,7 @@ class OnboardingController {
                 .setParameter("country", r.country() == null ? "Malaysia" : r.country())
                 .setParameter("orgDate", r.orgRegisteredDate() == null || r.orgRegisteredDate().isBlank()
                         ? null : LocalDate.parse(r.orgRegisteredDate()))
-                .setParameter("plan", r.servicePlanId())
+                .setParameter("plan", r.planProductId())
                 .setParameter("est", r.estInvoicesMonth())
                 .setParameter("email", email)
                 .setParameter("phone", r.contactPhone())
