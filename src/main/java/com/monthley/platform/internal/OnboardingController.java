@@ -162,13 +162,13 @@ class OnboardingController {
                 INSERT INTO service_provider
                   (sp_code, name, business_type, registration_no, business_desc, website,
                    addr_line1, addr_line2, city, postcode, state, country,
-                   org_registered_date, service_plan_id, billing_plan, est_invoices_month,
+                   org_registered_date, plan_product_id, est_invoices_month,
                    contact_email, phone, bank_code, bank_account_no, bank_account_name,
                    status, applied_at, approved_at, onboarded_by, created_at, updated_at, version)
                 VALUES
                   (:sp, :name, :bizType, :reg, :desc, :web,
                    :a1, :a2, :city, :post, :state, :country,
-                   :orgDate, :plan, :billPlan, :est,
+                   :orgDate, :plan, :est,
                    :email, :phone, :bank, :accNo, :accName,
                    'ACTIVE', NOW(), NOW(), :by, NOW(), NOW(), 0)
                 """)
@@ -187,14 +187,13 @@ class OnboardingController {
                 .setParameter("orgDate", r.orgRegisteredDate() == null || r.orgRegisteredDate().isBlank()
                         ? null : LocalDate.parse(r.orgRegisteredDate()))
                 .setParameter("plan", r.servicePlanId())
-                .setParameter("billPlan", r.billingPlan() == null ? "MONTHLY" : r.billingPlan())
                 .setParameter("est", r.estInvoicesMonth())
                 .setParameter("email", email)
                 .setParameter("phone", r.contactPhone())
                 .setParameter("bank", r.bankName())
                 .setParameter("accNo", r.bankAccountNo())
                 .setParameter("accName", r.bankAccountName())
-                .setParameter("by", adminUserId)
+                .setParameter("by", superadminId())
                 .executeUpdate();
 
         // ---- Tetapan bayaran ----
@@ -239,6 +238,33 @@ class OnboardingController {
      * Gelung exists() dikekalkan sebagai jaring keselamatan, bukan
      * mekanisme utama.
      */
+    /**
+     * Siapa yang MELAKUKAN onboarding — bukan siapa yang di-onboard.
+     *
+     * Lajur onboarded_by mempunyai FK ke platform_admin, tetapi ia sebelum
+     * ini diisi dengan adminUserId (id app_user admin SP yang baru dicipta).
+     * Ia berfungsi hanya kerana app_user id 1 dan platform_admin id 1
+     * kebetulan kedua-duanya wujud. Sebaik ada app_user tanpa
+     * platform_admin beridentiti sama, onboarding gagal dengan pelanggaran
+     * FK — dan sebelum itu, nilainya sekadar salah secara senyap.
+     *
+     * Principal superadmin ialah "admin:<id>" (lihat AuthController.login).
+     */
+    private Long superadminId() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        String name = (auth == null) ? null : auth.getName();
+        if (name != null && name.startsWith("admin:")) {
+            try {
+                return Long.valueOf(name.substring(6));
+            } catch (NumberFormatException ignored) {
+                // jatuh ke bawah
+            }
+        }
+        // Konteks tanpa principal berformat (cth ujian): rekod tiada.
+        return null;
+    }
+
     private String nextSpCode() {
         Number n = (Number) em.createNativeQuery(
                 "SELECT COALESCE(MAX(CAST(SUBSTRING(sp_code, 3) AS UNSIGNED)), 0) "

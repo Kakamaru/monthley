@@ -113,6 +113,64 @@ class PlanSourceTest {
         assertThat(row.accountLimit()).isEqualTo(300);
     }
 
+    /**
+     * Laluan TULIS, bukan bacaan.
+     *
+     * B3 mengalihkan tiga BACAAN ke produk tetapi terlepas laluan tulis:
+     * /onboard masih menyimpan id ke service_plan_id, sedangkan borang kini
+     * menghantar id PRODUK. FK ditolak dan onboarding gagal dengan 500 —
+     * dan tiada ujian menangkapnya kerana semua ujian sedia ada membaca
+     * sahaja.
+     */
+    @Test
+    @DisplayName("onboard — id produk pelan disimpan ke plan_product_id, bukan service_plan_id")
+    void onboardSimpanProdukPelan() {
+        Long planProductId = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
+                .getSingleResult()).longValue();
+
+        // Admin mesti wujud dahulu — syarat onboarding.
+        em.createNativeQuery("""
+            INSERT IGNORE INTO app_user (email, password_hash, full_name, status,
+                                         created_at, updated_at, version)
+            VALUES ('onboard-ujian@test.com', 'x', 'Admin Ujian', 'ACTIVE',
+                    NOW(), NOW(), 0)
+            """).executeUpdate();
+        em.flush();
+
+        var req = new OnboardingController.OnboardRequest(
+                "SP Ujian Onboard",          // name
+                "JMB",                       // businessType
+                null, null, null,            // registrationNo, businessDesc, website
+                null, null, null, null, null,// addr1, addr2, city, postcode, state
+                "Malaysia",                  // country
+                null,                        // orgRegisteredDate
+                planProductId,               // servicePlanId — kini id PRODUK
+                "MONTHLY",                   // billingPlan (diabaikan, digugurkan B5)
+                100,                         // estInvoicesMonth
+                "Admin Ujian",               // contactName
+                "onboard-ujian@test.com",    // adminEmail
+                null,                        // contactPhone
+                false,                       // absorb
+                null, null,                  // merchantId, gatewayKey
+                null, null, null);           // bankName, bankAccountNo, bankAccountName
+
+        onboarding.onboard(req);
+        em.flush();
+        em.clear();
+
+        Object[] row = (Object[]) em.createNativeQuery("""
+                SELECT sp.plan_product_id, p.code, p.account_limit
+                FROM   service_provider sp
+                JOIN   product p ON p.id = sp.plan_product_id
+                WHERE  sp.name = 'SP Ujian Onboard'
+                """).getSingleResult();
+
+        assertThat(((Number) row[0]).longValue()).isEqualTo(planProductId);
+        assertThat((String) row[1]).isEqualTo("PQ300");
+        assertThat(((Number) row[2]).intValue()).isEqualTo(300);
+    }
+
     @Test
     @DisplayName("SP tanpa pelan tidak memecahkan senarai")
     void spTanpaPelan() {
