@@ -183,6 +183,7 @@ itu sendiri:
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
 | Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
 | Payment gateway | ADR 0015 dirangka; enam soalan terbuka |
+| Modul Perbelanjaan | Kod rujukan wujud sebagai aplikasi standalone (`monthley-expenses`). Reka bentuk domain diguna semula; kod DIBINA SEMULA mengikut konvensyen Monthley — `sp_code` bukan `oid`, `document_number_sequence` bukan `exp_running_no`, `DECIMAL(15,2)` bukan sen. Satu database ([ADR 0017](decisions/0017-satu-database-untuk-semua-modul.md)) |
 | Edit SP di portal superadmin | Butang ✎ wujud tetapi tiada `(click)`, tiada handler, tiada endpoint — hiasan semata. Hanya tukar status yang berfungsi. Perlu dipecahkan kepada DUA: profil (skrin biasa) dan pelan/modul (melalui `sp_change_request`, ADR 0016) — satu skrin untuk kedua-duanya bermakna dua laluan menukar pelan |
 | `account_limit` paparan sahaja | Kuota akaun dipaparkan pada tiga skrin (Settings, senarai SP, onboarding) tetapi TIDAK dikuatkuasakan di mana-mana — tiada apa yang menghalang akaun ke-301 pada Pakej 300. Ditemui semasa ADR 0016 peringkat B1 |
 | `merchant_id` kosong pada semua SP | `/generate-key` menjana nilai, tetapi UI onboarding menghantar borang tanpa menekannya dan backend menerima kosong. Tiada kesan sehingga gerbang bayaran wujud (ADR 0015) — dan pada hari itu puncanya akan kelihatan seperti masalah gerbang, bukan masalah onboarding. Corak CASE-008 |
