@@ -35,12 +35,15 @@ class OnboardingController {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     private final LedgerPort ledger;
+    private final com.monthley.account.api.AccountPort accountPort;
 
     @PersistenceContext
     private EntityManager em;
 
-    OnboardingController(LedgerPort ledger) {
+    OnboardingController(LedgerPort ledger,
+                         com.monthley.account.api.AccountPort accountPort) {
         this.ledger = ledger;
+        this.accountPort = accountPort;
     }
 
     // ---------- DTO ----------
@@ -68,6 +71,8 @@ class OnboardingController {
             String country,
             String orgRegisteredDate,     // 'YYYY-MM-DD'
             Long   planProductId,         // id PRODUK pelan, bukan service_plan
+            @NotBlank String accountNo,   // no akaun SP di bawah SP platform
+            List<Long> extraProductIds,   // item sekali sahaja: onboarding, migrasi
             Integer estInvoicesMonth,
 
             // orang perhubungan
@@ -220,22 +225,51 @@ class OnboardingController {
         em.flush();
         ledger.seedChartOfAccounts(spCode);
 
+        // ---- Akaun bil di bawah SP platform ----
+        // SP baharu ialah PELANGGAN kepada Rapidevelop: satu akaun, satu
+        // langganan bagi setiap produk yang dipilih. Enjin bil sedia ada
+        // kemudian membil SP ini seperti mana-mana pelanggan lain (ADR 0016).
+        //
+        // Dalam transaksi yang sama: SP yang tercipta tanpa akaun tidak boleh
+        // dibil, dan tiada siapa perasan sehingga hujung bulan.
+        String platformSp = platformSpCode();
+        List<Long> produk = new ArrayList<>();
+        if (r.planProductId() != null) produk.add(r.planProductId());
+        if (r.extraProductIds() != null) produk.addAll(r.extraProductIds());
+
+        Long billingAccountId = accountPort.createSpBillingAccount(
+                platformSp, r.accountNo(), r.name(), LocalDate.now(), produk);
+
+        em.createNativeQuery(
+                "UPDATE service_provider SET billing_account_id = :acc WHERE sp_code = :sp")
+                .setParameter("acc", billingAccountId)
+                .setParameter("sp", spCode)
+                .executeUpdate();
+
         return ResponseEntity.ok(new OnboardResult(spCode, r.name(), adminUserId, email));
     }
 
     // ---------- helper ----------
 
     /**
-     * Kod SP seterusnya = MAX + 1, BUKAN COUNT + 1.
+     * SP mana yang membilkan SP lain.
      *
-     * COUNT hanya betul selagi tiada SP pernah dipadam dan penomboran
-     * bermula dari 1 tanpa lompang. SP0000 (pemilik platform) sudah
-     * melanggar andaian kedua: ia dikira dalam COUNT tetapi tidak
-     * menduduki slot dalam jujukan.
-     *
-     * Gelung exists() dikekalkan sebagai jaring keselamatan, bukan
-     * mekanisme utama.
+     * Dicari melalui bendera, bukan kod 'SP0000' — itulah sebab bendera itu
+     * wujud (ADR 0016). Gagal dengan mesej jelas kalau tiada: melangkau
+     * penciptaan akaun secara senyap menghasilkan SP yang tidak boleh dibil.
      */
+    private String platformSpCode() {
+        try {
+            return (String) em.createNativeQuery(
+                    "SELECT sp_code FROM service_provider WHERE is_platform_owner = 1")
+                    .getSingleResult();
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    "Tiada SP pemilik platform ditetapkan. Onboarding tidak boleh "
+                    + "mencipta akaun bil. Tetapkan is_platform_owner pada SP platform.");
+        }
+    }
+
     /**
      * Siapa yang MELAKUKAN onboarding — bukan siapa yang di-onboard.
      *
@@ -263,6 +297,17 @@ class OnboardingController {
         return null;
     }
 
+    /**
+     * Kod SP seterusnya = MAX + 1, BUKAN COUNT + 1.
+     *
+     * COUNT hanya betul selagi tiada SP pernah dipadam dan penomboran
+     * bermula dari 1 tanpa lompang. SP0000 (pemilik platform) sudah
+     * melanggar andaian kedua: ia dikira dalam COUNT tetapi tidak
+     * menduduki slot dalam jujukan.
+     *
+     * Gelung exists() dikekalkan sebagai jaring keselamatan, bukan
+     * mekanisme utama.
+     */
     private String nextSpCode() {
         Number n = (Number) em.createNativeQuery(
                 "SELECT COALESCE(MAX(CAST(SUBSTRING(sp_code, 3) AS UNSIGNED)), 0) "

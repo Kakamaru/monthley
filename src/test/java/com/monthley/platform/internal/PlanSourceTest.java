@@ -133,6 +133,8 @@ class PlanSourceTest {
                 "Malaysia",                  // country
                 null,                        // orgRegisteredDate
                 planProductId,               // planProductId
+                "ACC-UJIAN-1",               // accountNo
+                null,                        // extraProductIds
                 100,                         // estInvoicesMonth
                 "Admin Ujian",               // contactName
                 "onboard-ujian@test.com",    // adminEmail
@@ -155,6 +157,75 @@ class PlanSourceTest {
         assertThat(((Number) row[0]).longValue()).isEqualTo(planProductId);
         assertThat((String) row[1]).isEqualTo("PQ300");
         assertThat(((Number) row[2]).intValue()).isEqualTo(300);
+    }
+
+    /**
+     * Onboarding mesti menghasilkan TIGA rekod, bukan satu: SP, akaun bil di
+     * bawah SP platform, dan langganan untuk setiap produk dipilih.
+     *
+     * Kama menguji ini secara manual dan mengesahkan masalahnya: SP yang
+     * didaftar melalui superadmin tidak muncul dalam senarai akaun
+     * Rapidevelop, dan akaun yang dicipta di Rapidevelop tidak muncul
+     * sebagai SP. Dua rekod tanpa pautan bermakna setiap SP perlu didaftar
+     * dua kali secara manual — dan sekali terlupa, ada SP yang tidak pernah
+     * dibil.
+     */
+    @Test
+    @DisplayName("onboard — SP, akaun bil, dan langganan tercipta serentak dan terpaut")
+    void onboardCiptaAkaunBilTerpaut() {
+        Long planProductId = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
+                .getSingleResult()).longValue();
+
+        // Item sekali sahaja, macam Onboarding/Migrasi
+        em.createNativeQuery("""
+            INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
+                                 main_product, mandatory, prorated, late_penalty,
+                                 status, created_at, updated_at, version)
+            VALUES ('SPQ0', 'PQOB', 'Onboarding Ujian', 'ONE_TIME', 300.00,
+                    0,0,0,0, 'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        Long obId = ((Number) em.createNativeQuery(
+                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQOB'")
+                .getSingleResult()).longValue();
+
+        em.createNativeQuery("""
+            INSERT IGNORE INTO app_user (email, password_hash, full_name, status,
+                                         created_at, updated_at, version)
+            VALUES ('onboard-tiga@test.com', 'x', 'Admin Tiga', 'ACTIVE', NOW(), NOW(), 0)
+            """).executeUpdate();
+        em.flush();
+
+        var req = new OnboardingController.OnboardRequest(
+                "SP Tiga Rekod", "JMB", null, null, null,
+                null, null, null, null, null, "Malaysia", null,
+                planProductId, "ACC-TIGA", List.of(obId), 50,
+                "Admin Tiga", "onboard-tiga@test.com", null,
+                false, null, null, null, null, null);
+
+        onboarding.onboard(req);
+        em.flush();
+        em.clear();
+
+        // 1. SP wujud dan terpaut kepada akaun
+        Object[] sp = (Object[]) em.createNativeQuery("""
+                SELECT sp.sp_code, sp.billing_account_id, a.account_no, a.sp_code
+                FROM   service_provider sp
+                JOIN   account a ON a.id = sp.billing_account_id
+                WHERE  sp.name = 'SP Tiga Rekod'
+                """).getSingleResult();
+
+        assertThat((String) sp[2]).isEqualTo("ACC-TIGA");
+        // Akaun duduk di bawah SP PLATFORM, bukan SP baharu itu sendiri.
+        assertThat((String) sp[3]).isEqualTo("SPQ0");
+        assertThat((String) sp[0]).isNotEqualTo((String) sp[3]);
+
+        // 2. Dua langganan: pelan + item sekali sahaja
+        Long accId = ((Number) sp[1]).longValue();
+        Number bil = (Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM account_subscription WHERE account_id = :a")
+                .setParameter("a", accId).getSingleResult();
+        assertThat(bil.intValue()).isEqualTo(2);
     }
 
     @Test
