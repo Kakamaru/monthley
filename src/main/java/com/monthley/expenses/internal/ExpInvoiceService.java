@@ -21,15 +21,22 @@ import java.util.Map;
 /**
  * Invois pembekal — cipta, batal, dan posting ledger.
  *
- * SST dikira PER BARIS, bukan diagihkan dari jumlah invois. Itu
- * mengelakkan baki pembundaran yang menjadikan jurnal tidak seimbang,
- * dan ia sepadan dengan cara pembekal sebenar mengira: TNB mengenakan SST
- * atas amaun TNB, bukan atas nisbah invois gabungan.
+ * AMAUN DIMASUKKAN APA ADANYA — tiada SST dikira di sini.
  *
- * SST masuk ke akaun BELANJA yang sama, bukan akaun cukai berasingan.
- * SST Malaysia tiada tuntutan input (tidak seperti GST), jadi RM1,080
- * yang keluar dari bank ialah RM1,080 kos sebenar. 2100 SST Payable ialah
- * SST yang SP KUTIP daripada pelanggan — perkara yang bertentangan.
+ * Percubaan pertama mengira SST menggunakan kadar dalam tetapan SP dan
+ * menambahnya pada apa yang pengguna taip. Itu salah dua kali: kadar SP
+ * ialah untuk JUALAN (apa yang SP kutip daripada pelanggan), dan pengguna
+ * menaip jumlah yang tertera pada invois pembekal — yang sudah termasuk
+ * SST. Invois TNB RM1,080 menjadi RM1,166.40.
+ *
+ * Pembekal berbeza mengenakan kadar berbeza, atau tidak mengenakan
+ * langsung. Satu-satunya sumber yang betul ialah kertas di tangan
+ * pengguna.
+ *
+ * SST belian juga tidak perlu direkod berasingan: SST Malaysia tiada
+ * tuntutan input (tidak seperti GST), jadi RM1,080 yang keluar dari bank
+ * ialah RM1,080 kos. 2100 SST Payable ialah SST yang SP KUTIP daripada
+ * pelanggan — perkara yang bertentangan arah.
  */
 @Service
 class ExpInvoiceService {
@@ -82,14 +89,10 @@ class ExpInvoiceService {
             throw new IllegalStateException("Sekurang-kurangnya satu baris diperlukan.");
         }
 
-        ExpSetting setting = settings.findById(sp).orElseGet(() -> settings.save(new ExpSetting(sp)));
-        BigDecimal kadar = setting.isSstEnabled() ? setting.getSstRate() : BigDecimal.ZERO;
-
         ExpInvoice inv = new ExpInvoice(sp, invNo, req.supplierId(),
                 req.invDate() == null ? LocalDate.now() : req.invDate());
         inv.setDueDate(req.dueDate());
         inv.setNote(req.note());
-        inv.setSstRate(kadar);
         ExpInvoice saved = invoices.save(inv);
 
         // Kumpul belanja per GL semasa memproses baris — satu lintasan,
@@ -98,7 +101,6 @@ class ExpInvoiceService {
         // debit ke akaun yang sama.
         Map<String, BigDecimal> perGl = new LinkedHashMap<>();
         BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal sstJumlah = BigDecimal.ZERO;
 
         for (NewItem l : req.lines()) {
             if (l.categoryId() == null || l.amount() == null || l.amount().signum() <= 0) {
@@ -108,27 +110,27 @@ class ExpInvoiceService {
                     () -> new IllegalStateException("Kategori tidak wujud: " + l.categoryId()));
 
             BigDecimal amaun = l.amount().setScale(2, RoundingMode.HALF_UP);
-            BigDecimal sst = amaun.multiply(kadar)
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
             ExpInvoiceItem item = new ExpInvoiceItem(saved.getId(), catg.getId(), amaun);
             item.setDescription(l.description());
             items.save(item);
 
             subtotal = subtotal.add(amaun);
-            sstJumlah = sstJumlah.add(sst);
 
             String gl = glUntuk(catg, sp);
-            perGl.merge(gl, amaun.add(sst), BigDecimal::add);
+            perGl.merge(gl, amaun, BigDecimal::add);
         }
 
         if (subtotal.signum() <= 0) {
             throw new IllegalStateException("Tiada baris sah — semua amaun sifar atau kosong.");
         }
 
-        BigDecimal total = subtotal.add(sstJumlah);
+        // subtotal == total: amaun yang dimasukkan ialah jumlah sebenar.
+        // Lajur sst_* dikekalkan pada sifar — data sedia ada bergantung
+        // padanya, dan menggugurkan lajur untuk perubahan logik ialah
+        // migrasi yang tidak diperlukan.
+        BigDecimal total = subtotal;
         saved.setSubtotal(subtotal);
-        saved.setSstAmount(sstJumlah);
         saved.setTotal(total);
 
         // Dr Belanja (termasuk SST) / Cr AP

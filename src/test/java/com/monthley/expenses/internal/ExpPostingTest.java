@@ -136,32 +136,46 @@ class ExpPostingTest {
         assertThat(cari(l, GlAccounts.EXPENSE_ADMIN).debit()).isEqualByComparingTo("400.00");
     }
 
+    /**
+     * Amaun yang dimasukkan ialah jumlah SEBENAR — tiada SST ditambah.
+     *
+     * Percubaan pertama mengira SST menggunakan kadar dalam tetapan SP.
+     * Itu salah dua kali: kadar SP ialah untuk JUALAN, dan pengguna menaip
+     * jumlah yang tertera pada invois pembekal — yang sudah termasuk SST.
+     * Invois TNB RM1,080 menjadi RM1,166.40.
+     *
+     * Ujian ini menetapkan sst_rate 8% dalam tetapan dengan SENGAJA, untuk
+     * membuktikan ia diabaikan.
+     */
     @Test
-    @DisplayName("SST masuk akaun BELANJA, bukan 2100 SST Payable")
-    void sstMasukBelanja() {
+    @DisplayName("amaun invois dimasukkan apa adanya — tetapan SST diabaikan")
+    void amaunApaAdanya() {
         em.createNativeQuery("""
-            INSERT INTO exp_setting (sp_code, sst_enabled, sst_rate, updated_at, version)
+            INSERT INTO exp_setting (sp_code, sst_enabled, sst_rate, created_at, version)
             VALUES ('SPX1', 1, 8.00, NOW(), 0)
             """).executeUpdate();
         em.flush();
 
         Long invId = invoiceService.create(new ExpInvoiceService.NewInvoice(
                 supplierId, "TNB-SST", LocalDate.now(), null, null,
-                List.of(new ExpInvoiceService.NewItem(catgUtiliti, "Elektrik", new BigDecimal("1000.00")))));
+                List.of(new ExpInvoiceService.NewItem(catgUtiliti, "Elektrik", new BigDecimal("1080.00")))));
         em.flush();
 
         Object[] inv = (Object[]) em.createNativeQuery(
                 "SELECT subtotal, sst_amount, total, journal_entry_id FROM exp_invoice WHERE id=:i")
                 .setParameter("i", invId).getSingleResult();
 
-        assertThat((BigDecimal) inv[1]).isEqualByComparingTo("80.00");
+        assertThat((BigDecimal) inv[0]).isEqualByComparingTo("1080.00");
+        assertThat((BigDecimal) inv[1]).isEqualByComparingTo("0.00");
         assertThat((BigDecimal) inv[2]).isEqualByComparingTo("1080.00");
 
         List<Leg> l = legs(((Number) inv[3]).longValue());
 
-        // Kos sebenar ialah 1080, bukan 1000 + baris cukai berasingan.
-        // SST Malaysia tiada tuntutan input, jadi ia sebahagian kos.
+        // Belanja didebit dengan jumlah yang dimasukkan, tiada tambahan.
         assertThat(cari(l, GlAccounts.EXPENSE_UTILITY).debit()).isEqualByComparingTo("1080.00");
+        assertThat(cari(l, GlAccounts.ACCOUNTS_PAYABLE).credit()).isEqualByComparingTo("1080.00");
+
+        // 2100 SST Payable ialah SST JUALAN — tidak pernah tersentuh di sini.
         assertThat(l).noneMatch(x -> GlAccounts.TAX_PAYABLE.equals(x.gl()));
     }
 
