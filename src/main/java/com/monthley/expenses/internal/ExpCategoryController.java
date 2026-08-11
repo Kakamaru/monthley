@@ -1,0 +1,120 @@
+package com.monthley.expenses.internal;
+
+import com.monthley.shared.Access;
+import com.monthley.shared.ModuleGuard;
+import com.monthley.shared.TenantContext;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Kategori perbelanjaan — pokok dua aras.
+ *
+ *   GET    /api/v1/expenses/categories
+ *   POST   /api/v1/expenses/categories
+ *   PUT    /api/v1/expenses/categories/{id}
+ *   DELETE /api/v1/expenses/categories/{id}   (nyahaktif, bukan padam)
+ *
+ * BACA dibenarkan tanpa hak modul — skrin boleh dibuka dan menunjukkan apa
+ * yang ditawarkan. TULIS dilindungi ModuleGuard (ADR 0016).
+ */
+@RestController
+@RequestMapping("/api/v1/expenses/categories")
+class ExpCategoryController {
+
+    private final ExpCategoryRepository categories;
+    private final ModuleGuard modules;
+
+    ExpCategoryController(ExpCategoryRepository categories, ModuleGuard modules) {
+        this.categories = categories;
+        this.modules = modules;
+    }
+
+    record CategoryDto(Long id, String name, Long parentId, Long glAccountId,
+                       int sortOrder, boolean active) {
+        static CategoryDto from(ExpCategory c) {
+            return new CategoryDto(c.getId(), c.getName(), c.getParentId(),
+                    c.getGlAccountId(), c.getSortOrder(),
+                    c.getStatus() == ExpCategory.Status.ACTIVE);
+        }
+    }
+
+    record SaveRequest(@NotBlank String name, Long parentId, Long glAccountId,
+                       Integer sortOrder, Boolean active) {}
+
+    @GetMapping
+    List<CategoryDto> list() {
+        Access.requireAnyRole("melihat kategori perbelanjaan", "SP_ADMIN", "CLERK");
+        return categories.findBySpCodeOrderBySortOrderAscNameAsc(sp())
+                .stream().map(CategoryDto::from).toList();
+    }
+
+    @PostMapping
+    @Transactional
+    ResponseEntity<?> create(@Valid @RequestBody SaveRequest r) {
+        Access.requireRole("SP_ADMIN", "menambah kategori perbelanjaan");
+        modules.require(ModuleGuard.PERBELANJAAN, "menambah kategori");
+
+        ExpCategory c = new ExpCategory(sp(), r.name().trim(), r.parentId());
+        apply(c, r);
+        return ResponseEntity.ok(CategoryDto.from(categories.save(c)));
+    }
+
+    @PutMapping("/{id}")
+    @Transactional
+    ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody SaveRequest r) {
+        Access.requireRole("SP_ADMIN", "mengubah kategori perbelanjaan");
+        modules.require(ModuleGuard.PERBELANJAAN, "mengubah kategori");
+
+        ExpCategory c = categories.findByIdAndSpCode(id, sp()).orElseThrow(
+                () -> new IllegalStateException("Kategori tidak wujud: " + id));
+        c.setName(r.name().trim());
+        c.setParentId(r.parentId());
+        apply(c, r);
+        return ResponseEntity.ok(CategoryDto.from(c));
+    }
+
+    /**
+     * Nyahaktif, BUKAN padam.
+     *
+     * Kategori dirujuk oleh invois dan bayaran yang sudah dipos ke ledger.
+     * Memadamnya meninggalkan baris yang tidak boleh menerangkan dirinya —
+     * dan FK akan menolaknya, jadi 'padam' hanya berfungsi untuk kategori
+     * yang belum pernah diguna. Nyahaktif berkelakuan sama bagi pengguna
+     * tanpa lubang itu.
+     */
+    @DeleteMapping("/{id}")
+    @Transactional
+    ResponseEntity<?> deactivate(@PathVariable Long id) {
+        Access.requireRole("SP_ADMIN", "menyahaktifkan kategori perbelanjaan");
+        modules.require(ModuleGuard.PERBELANJAAN, "menyahaktifkan kategori");
+
+        ExpCategory c = categories.findByIdAndSpCode(id, sp()).orElseThrow(
+                () -> new IllegalStateException("Kategori tidak wujud: " + id));
+        c.setStatus(ExpCategory.Status.INACTIVE);
+        return ResponseEntity.ok(Map.of("message", "Kategori " + c.getName() + " dinyahaktifkan."));
+    }
+
+    private void apply(ExpCategory c, SaveRequest r) {
+        // GL hanya pada kategori INDUK; anak mewarisi. Menetapkan GL pada
+        // anak mencipta dua sumber kebenaran untuk baris yang sama.
+        c.setGlAccountId(r.parentId() == null ? r.glAccountId() : null);
+        if (r.sortOrder() != null) c.setSortOrder(r.sortOrder());
+        if (r.active() != null) {
+            c.setStatus(r.active() ? ExpCategory.Status.ACTIVE : ExpCategory.Status.INACTIVE);
+        }
+    }
+
+    private String sp() {
+        String sp = TenantContext.get();
+        if (sp == null || sp.isBlank()) {
+            throw new IllegalStateException("Header X-SP-Id diperlukan");
+        }
+        return sp;
+    }
+}
