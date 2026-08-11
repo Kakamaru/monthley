@@ -271,7 +271,149 @@ class ExpReportController {
         return new PaymentReport(out, total);
     }
 
+    // ---------- Dashboard ----------
+
+    record TrendPoint(String label, BigDecimal billed, BigDecimal paid) {}
+    record CategorySlice(String name, BigDecimal amount) {}
+    record UnsettledRow(Long id, String invNo, String supplierName,
+                        LocalDate dueDate, BigDecimal total, BigDecimal balance,
+                        String status, boolean overdue) {}
+    record Dashboard(BigDecimal totalSpend, BigDecimal directCash, BigDecimal paid,
+                     int pvCount, BigDecimal outstanding, int outstandingCount,
+                     int overdueCount, List<TrendPoint> trend,
+                     List<CategorySlice> byCategory, List<UnsettledRow> unsettled) {}
+
+    /**
+     * Ringkasan untuk skrin Dashboard.
+     *
+     * 'Jumlah Perbelanjaan' ialah duit yang benar-benar KELUAR — PV
+     * ditambah bayaran terus. Ia berbeza daripada laporan perbelanjaan,
+     * yang mengira apa yang DITANGGUNG (invois pada tarikh invois, sama
+     * ada dibayar atau belum). Kedua-duanya betul untuk soalan
+     * masing-masing: berapa banyak wang tinggal, berbanding berapa banyak
+     * kos bulan ini.
+     */
+    @GetMapping("/dashboard")
+    @SuppressWarnings("unchecked")
+    Dashboard dashboard() {
+        Access.requireAnyRole("melihat dashboard perbelanjaan", "SP_ADMIN", "CLERK");
+        String sp = sp();
+
+        BigDecimal pvJumlah = num(em.createNativeQuery(
+                "SELECT COALESCE(SUM(amount),0) FROM exp_payment "
+                + "WHERE sp_code = :sp AND status = 'ACTIVE'")
+                .setParameter("sp", sp).getSingleResult());
+
+        int pvCount = ((Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM exp_payment WHERE sp_code = :sp AND status = 'ACTIVE'")
+                .setParameter("sp", sp).getSingleResult()).intValue();
+
+        BigDecimal tunai = num(em.createNativeQuery(
+                "SELECT COALESCE(SUM(amount),0) FROM exp_cash_entry "
+                + "WHERE sp_code = :sp AND status = 'ACTIVE'")
+                .setParameter("sp", sp).getSingleResult());
+
+        Object[] tunggak = (Object[]) em.createNativeQuery("""
+                SELECT COALESCE(SUM(b.balance),0), COUNT(*),
+                       COALESCE(SUM(CASE WHEN i.due_date IS NOT NULL
+                                          AND i.due_date < CURDATE() THEN 1 ELSE 0 END),0)
+                FROM   exp_invoice i
+                JOIN   exp_invoice_balance b ON b.invoice_id = i.id
+                WHERE  i.sp_code = :sp AND i.status = 'ACTIVE' AND b.balance > 0
+                """).setParameter("sp", sp).getSingleResult();
+
+        // Trend tujuh bulan terakhir: diinvois berbanding dibelanjakan.
+        // Bulan tanpa aktiviti tetap muncul sebagai sifar — jurang dalam
+        // carta lebih mengelirukan daripada sifar yang jelas.
+        List<Object[]> trendRows = em.createNativeQuery("""
+                SELECT bulan,
+                       COALESCE(SUM(billed),0) AS billed,
+                       COALESCE(SUM(paid),0)   AS paid
+                FROM (
+                    SELECT DATE_FORMAT(i.inv_date,'%Y-%m') AS bulan, i.total AS billed, 0 AS paid
+                    FROM   exp_invoice i
+                    WHERE  i.sp_code = :sp AND i.status = 'ACTIVE'
+                      AND  i.inv_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+                    UNION ALL
+                    SELECT DATE_FORMAT(p.pay_date,'%Y-%m'), 0, p.amount
+                    FROM   exp_payment p
+                    WHERE  p.sp_code = :sp AND p.status = 'ACTIVE'
+                      AND  p.pay_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+                    UNION ALL
+                    SELECT DATE_FORMAT(e.entry_date,'%Y-%m'), 0, e.amount
+                    FROM   exp_cash_entry e
+                    WHERE  e.sp_code = :sp AND e.status = 'ACTIVE'
+                      AND  e.entry_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+                ) x
+                GROUP BY bulan ORDER BY bulan
+                """).setParameter("sp", sp).getResultList();
+
+        List<TrendPoint> trend = new ArrayList<>();
+        for (Object[] r : trendRows) {
+            trend.add(new TrendPoint((String) r[0], num(r[1]), num(r[2])));
+        }
+
+        // Pecahan kategori: apa yang DIBELANJAKAN, bukan yang diinvois —
+        // sepadan dengan kad Jumlah Perbelanjaan di atasnya.
+        List<Object[]> catRows = em.createNativeQuery("""
+                SELECT COALESCE(induk.name, jenis.name) AS kategori, SUM(x.amount) AS jumlah
+                FROM (
+                    SELECT it.category_id, it.amount * (p.amount / i.total) AS amount
+                    FROM   exp_payment p
+                    JOIN   exp_invoice i ON i.id = p.invoice_id
+                    JOIN   exp_invoice_item it ON it.invoice_id = i.id
+                    WHERE  p.sp_code = :sp AND p.status = 'ACTIVE' AND i.total > 0
+                    UNION ALL
+                    SELECT e.category_id, e.amount
+                    FROM   exp_cash_entry e
+                    WHERE  e.sp_code = :sp AND e.status = 'ACTIVE'
+                ) x
+                JOIN exp_category jenis ON jenis.id = x.category_id
+                LEFT JOIN exp_category induk ON induk.id = jenis.parent_id
+                GROUP BY COALESCE(induk.name, jenis.name)
+                ORDER BY jumlah DESC
+                """).setParameter("sp", sp).getResultList();
+
+        List<CategorySlice> byCategory = new ArrayList<>();
+        for (Object[] r : catRows) {
+            byCategory.add(new CategorySlice((String) r[0],
+                    num(r[1]).setScale(2, java.math.RoundingMode.HALF_UP)));
+        }
+
+        // Invois belum selesai — paling hampir tamat tempoh dahulu.
+        List<Object[]> unsRows = em.createNativeQuery("""
+                SELECT i.id, i.inv_no, s.name, i.due_date, i.total, b.balance, b.status,
+                       (i.due_date IS NOT NULL AND i.due_date < CURDATE()) AS overdue
+                FROM   exp_invoice i
+                JOIN   exp_supplier s ON s.id = i.supplier_id
+                JOIN   exp_invoice_balance b ON b.invoice_id = i.id
+                WHERE  i.sp_code = :sp AND i.status = 'ACTIVE' AND b.balance > 0
+                ORDER  BY i.due_date IS NULL, i.due_date, i.id
+                LIMIT  20
+                """).setParameter("sp", sp).getResultList();
+
+        List<UnsettledRow> unsettled = new ArrayList<>();
+        for (Object[] r : unsRows) {
+            unsettled.add(new UnsettledRow(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    toDate(r[3]), num(r[4]), num(r[5]), (String) r[6], bool(r[7])));
+        }
+
+        return new Dashboard(
+                pvJumlah.add(tunai), tunai, pvJumlah, pvCount,
+                num(tunggak[0]), ((Number) tunggak[1]).intValue(),
+                ((Number) tunggak[2]).intValue(),
+                trend, byCategory, unsettled);
+    }
+
     // ---------- helper ----------
+
+    /** tinyint(1) datang sebagai Boolean dari MySQL Connector/J. */
+    private static boolean bool(Object v) {
+        if (v == null) return false;
+        if (v instanceof Boolean b) return b;
+        return ((Number) v).intValue() != 0;
+    }
 
     private static BigDecimal num(Object v) {
         return v == null ? BigDecimal.ZERO : new BigDecimal(v.toString());
