@@ -194,8 +194,16 @@ class ExpInvoiceController {
                 (String) r[11], toBool(r[12]));
     }
 
+    /**
+     * MySQL Connector/J 9 memulangkan LocalDate untuk lajur DATE, bukan
+     * java.sql.Date. Kedua-duanya dikendalikan supaya penukaran pemacu
+     * tidak memecahkan senarai.
+     */
     private static LocalDate toDate(Object v) {
-        return v == null ? null : ((java.sql.Date) v).toLocalDate();
+        if (v == null) return null;
+        if (v instanceof LocalDate d) return d;
+        if (v instanceof java.sql.Date d) return d.toLocalDate();
+        return LocalDate.parse(v.toString());
     }
 
     /** tinyint(1) datang sebagai Boolean dari MySQL Connector/J. */

@@ -78,7 +78,10 @@ class DocumentNumberService {
                 .setParameter("mula", t.mula())
                 .setParameter("pad", t.saiz())
                 .executeUpdate();
-            return next(spCode, seqType);
+            // Rekursi mesti membawa Tetapan yang SAMA. Memanggil varian
+            // dua-parameter di sini mencari tetapan semula dan modul luar
+            // mendapat lalai "DOC" — prefix yang dihantar masuk hilang.
+            return next(spCode, seqType, t);
         }
 
         Long id = ((Number) row[0]).longValue();

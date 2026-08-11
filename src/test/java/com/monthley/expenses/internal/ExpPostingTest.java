@@ -225,6 +225,45 @@ class ExpPostingTest {
         assertThat(l).noneMatch(x -> GlAccounts.ACCOUNTS_PAYABLE.equals(x.gl()));
     }
 
+    /**
+     * Prefix dari exp_setting mesti sampai ke nombor yang dijana.
+     *
+     * Ujian asal tidak menyemak nombor langsung, jadi pepijat ini lolos:
+     * DocumentNumberService mencipta baris turutan bila ia belum wujud,
+     * kemudian memanggil dirinya semula — tetapi melalui varian
+     * dua-parameter yang MENCARI tetapan semula. Modul luar mendapat lalai
+     * "DOC" dan PV pertama setiap SP keluar sebagai DOC000001.
+     *
+     * Ia hanya berlaku pada panggilan PERTAMA (bila turutan dicipta), jadi
+     * ia kelihatan bekerja sebaik sahaja seorang menguji kali kedua.
+     */
+    @Test
+    @DisplayName("nombor PV guna prefix dari tetapan modul, bukan lalai DOC")
+    void prefixPvDariTetapan() {
+        em.createNativeQuery("""
+            INSERT INTO exp_setting (sp_code, sst_enabled, sst_rate, pv_prefix, pv_no_size,
+                                     created_at, version)
+            VALUES ('SPX1', 0, 0.00, 'BV', 4, NOW(), 0)
+            """).executeUpdate();
+        em.flush();
+
+        Long invId = invoiceService.create(new ExpInvoiceService.NewInvoice(
+                supplierId, "TNB-PREFIX", LocalDate.now(), null, null,
+                List.of(new ExpInvoiceService.NewItem(catgUtiliti, "X", new BigDecimal("50.00")))));
+        em.flush();
+
+        Long pvId = paymentService.payInvoice(new ExpPaymentService.NewPv(
+                invId, LocalDate.now(), new BigDecimal("10.00"), "TUNAI", null, null));
+        em.flush();
+
+        String pvNo = (String) em.createNativeQuery(
+                "SELECT pv_no FROM exp_payment WHERE id = :i")
+                .setParameter("i", pvId).getSingleResult();
+
+        // Panggilan PERTAMA — turutan dicipta di sini, iaitu laluan yang pecah.
+        assertThat(pvNo).isEqualTo("BV0001");
+    }
+
     @Test
     @DisplayName("SP tanpa hak modul ditolak oleh ModuleGuard")
     void tanpaHakModul() {

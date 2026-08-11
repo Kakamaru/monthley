@@ -246,8 +246,16 @@ class ExpPaymentController {
         return Long.valueOf(auth.getName());
     }
 
+    /**
+     * MySQL Connector/J 9 memulangkan LocalDate untuk lajur DATE, bukan
+     * java.sql.Date. Kedua-duanya dikendalikan supaya penukaran pemacu
+     * tidak memecahkan senarai.
+     */
     private static LocalDate toDate(Object v) {
-        return v == null ? null : ((java.sql.Date) v).toLocalDate();
+        if (v == null) return null;
+        if (v instanceof LocalDate d) return d;
+        if (v instanceof java.sql.Date d) return d.toLocalDate();
+        return LocalDate.parse(v.toString());
     }
 
     private String sp() {
