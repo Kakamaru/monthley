@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V69 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V70 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -88,6 +88,7 @@ Terkini:
 | V67 | Skema modul Perbelanjaan: `exp_category`, `exp_supplier`, `exp_invoice`+item, `exp_payment`, `exp_cash_entry`, `exp_setting` + VIEW `exp_invoice_balance` |
 | V68 | `source_type` ENUM diperluas: `EXP_INVOICE`, `EXP_PAYMENT`, `EXP_CASH` |
 | V69 | `fk_journal_doc` digugurkan — `source_document_id` kini polimorfik, dijaga oleh `JournalSourceInvariantTest` |
+| V70 | Kategori perbelanjaan lalai (18 induk, 92 jenis) + akaun GL 5110–5990 sepadan |
 
 ### Siap
 

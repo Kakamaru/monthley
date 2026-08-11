@@ -3,6 +3,8 @@ package com.monthley.expenses.internal;
 import com.monthley.shared.Access;
 import com.monthley.shared.ModuleGuard;
 import com.monthley.shared.TenantContext;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,9 @@ class ExpCategoryController {
 
     private final ExpCategoryRepository categories;
     private final ModuleGuard modules;
+
+    @PersistenceContext
+    private EntityManager em;
 
     ExpCategoryController(ExpCategoryRepository categories, ModuleGuard modules) {
         this.categories = categories;
@@ -78,6 +83,34 @@ class ExpCategoryController {
                     && semua.stream().noneMatch(p -> p.getId().equals(c.getParentId()))) {
                 out.add(CategoryDto.from(c));
             }
+        }
+        return out;
+    }
+
+    record GlOption(Long id, String code, String name) {}
+
+    /**
+     * Akaun GL yang sah untuk kategori perbelanjaan — jenis EXPENSE sahaja.
+     *
+     * Memaparkan carta akaun penuh bermakna seseorang boleh memetakan
+     * kategori kepada Bank atau Accounts Receivable, dan posting akan
+     * kelihatan seimbang sambil merosakkan penyata. Penapisan di sini
+     * menjadikan kesilapan itu mustahil dan bukan sekadar tidak digalakkan.
+     */
+    @GetMapping("/gl-accounts")
+    @SuppressWarnings("unchecked")
+    List<GlOption> glAccounts() {
+        Access.requireAnyRole("melihat carta akaun", "SP_ADMIN", "CLERK");
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT id, code, name FROM chart_of_accounts
+                WHERE  sp_code = :sp AND account_type = 'EXPENSE' AND status = 'ACTIVE'
+                ORDER  BY code
+                """).setParameter("sp", sp()).getResultList();
+
+        List<GlOption> out = new java.util.ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new GlOption(((Number) r[0]).longValue(), (String) r[1], (String) r[2]));
         }
         return out;
     }
