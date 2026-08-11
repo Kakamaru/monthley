@@ -36,3 +36,8 @@ interface ExpCashEntryRepository extends JpaRepository<ExpCashEntry, Long> {
 
 interface ExpSettingRepository extends JpaRepository<ExpSetting, String> {
 }
+
+interface ExpPaymentMethodRepository extends JpaRepository<ExpPaymentMethod, Long> {
+    List<ExpPaymentMethod> findBySpCodeOrderBySortOrderAscNameAsc(String spCode);
+    Optional<ExpPaymentMethod> findByIdAndSpCode(Long id, String spCode);
+}
