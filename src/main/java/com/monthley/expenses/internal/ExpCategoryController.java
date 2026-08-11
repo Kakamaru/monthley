@@ -47,11 +47,39 @@ class ExpCategoryController {
     record SaveRequest(@NotBlank String name, Long parentId, Long glAccountId,
                        Integer sortOrder, Boolean active) {}
 
+    /**
+     * Senarai kategori dalam susunan POKOK: setiap induk diikuti anaknya.
+     *
+     * Susunan rata (sortOrder, name) menghasilkan 'Elektrik, Gaji & Upah,
+     * Utiliti...' — anak bercampur dengan induk dan skrin tidak boleh
+     * memaparkan hierarki tanpa menyusun semula sendiri.
+     */
     @GetMapping
     List<CategoryDto> list() {
         Access.requireAnyRole("melihat kategori perbelanjaan", "SP_ADMIN", "CLERK");
-        return categories.findBySpCodeOrderBySortOrderAscNameAsc(sp())
-                .stream().map(CategoryDto::from).toList();
+
+        List<ExpCategory> semua = categories.findBySpCodeOrderBySortOrderAscNameAsc(sp());
+
+        List<CategoryDto> out = new java.util.ArrayList<>();
+        for (ExpCategory induk : semua) {
+            if (induk.getParentId() != null) continue;
+            out.add(CategoryDto.from(induk));
+            for (ExpCategory anak : semua) {
+                if (induk.getId().equals(anak.getParentId())) {
+                    out.add(CategoryDto.from(anak));
+                }
+            }
+        }
+        // Anak yatim (induk dinyahaktif atau dipadam) tetap disenaraikan —
+        // menyembunyikannya bermakna kategori yang masih dirujuk oleh invois
+        // hilang dari skrin tanpa penjelasan.
+        for (ExpCategory c : semua) {
+            if (c.getParentId() != null
+                    && semua.stream().noneMatch(p -> p.getId().equals(c.getParentId()))) {
+                out.add(CategoryDto.from(c));
+            }
+        }
+        return out;
     }
 
     @PostMapping
