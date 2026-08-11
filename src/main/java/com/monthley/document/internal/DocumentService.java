@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 @Service
-class DocumentService implements DocumentPort {
+class DocumentService implements DocumentPort, DocumentNumberPort {
 
     private final FinancialDocumentRepository documents;
     private final DocumentLineRepository lines;
@@ -23,6 +23,17 @@ class DocumentService implements DocumentPort {
         this.lines = lines;
         this.numbers = numbers;
         this.access = access;
+    }
+
+    /**
+     * Penomboran untuk modul luar. Tetapan datang dari pemanggil; keunikan
+     * ialah tanggungjawab pemanggil (semakan dalaman hanya melihat
+     * financial_document). Lihat DocumentNumberPort.
+     */
+    @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public String next(String spCode, String seqType, String prefix, int padding, long start) {
+        return numbers.next(spCode, seqType, prefix, padding, start);
     }
 
     @Override

@@ -32,7 +32,28 @@ class DocumentNumberService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     String next(String spCode, String seqType) {
-        Tetapan t = tetapan(spCode, seqType);
+        return next(spCode, seqType, tetapan(spCode, seqType));
+    }
+
+    /**
+     * Varian untuk modul luar: tetapan dihantar masuk, bukan dicari.
+     *
+     * Modul `document` tidak sepatutnya tahu modul mana yang memanggilnya.
+     * Tanpa ini, tetapan() memerlukan cabang baharu bagi setiap modul yang
+     * ditambah, dan SP yang tidak melanggan modul terpaksa membawa lajur
+     * tetapannya dalam sp_document_setting.
+     *
+     * Kaunter dan kunci baris SAMA — hanya sumber tetapan yang berbeza.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    String next(String spCode, String seqType, String prefix, int padding, long start) {
+        int saiz = (padding < 1 || padding > 18) ? 6 : padding;
+        long mula = start < 0 ? 1L : start;
+        String p = (prefix == null || prefix.isBlank()) ? "DOC" : prefix.trim();
+        return next(spCode, seqType, new Tetapan(p, saiz, mula));
+    }
+
+    private String next(String spCode, String seqType, Tetapan t) {
 
         Object[] row;
         try {
