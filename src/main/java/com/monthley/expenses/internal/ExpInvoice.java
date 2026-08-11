@@ -19,6 +19,19 @@ import java.time.LocalDateTime;
  * cached_balance yang baru digugurkan: ia menyimpang sebaik ada satu
  * laluan tulis yang terlepas.
  *
+ * sst_rate/sst_amount di sini ialah SST BELIAN — apa yang SP bayar kepada
+ * pembekal. Ia disimpan untuk PADANAN DOKUMEN, bukan untuk cukai: SST
+ * Malaysia tiada tuntutan input, jadi tiada apa untuk dilaporkan atau
+ * dituntut balik. Ia wujud supaya pengguna boleh memasukkan angka persis
+ * seperti tertera pada invois pembekal (Subtotal 1000, SST 80, Jumlah
+ * 1080) dan bukan mengira sendiri lalu menaip 1080 — kemasukan yang
+ * sepadan dengan kertas di tangan kurang silap.
+ *
+ * JANGAN kelirukan dengan financial_document.tax_amount, iaitu SST JUALAN
+ * yang SP kutip daripada pelanggan dan mesti diserahkan kepada Kastam.
+ * Yang itu dikredit ke 2100 SST Payable sebagai liabiliti; yang ini
+ * didebit ke akaun belanja sebagai kos.
+ *
  * sst_rate ialah snapshot kadar pada tarikh invois; kadar berubah dan
  * invois lama mesti kekal menunjukkan apa yang sebenarnya dicaj.
  */

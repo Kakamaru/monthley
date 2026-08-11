@@ -1,9 +1,9 @@
 package com.monthley.expenses.internal;
 
+import com.monthley.shared.BaseEntity;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 /**
  * Tetapan modul — satu baris per SP, sp_code sebagai kunci utama.
@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "exp_setting")
-public class ExpSetting {
+public class ExpSetting extends BaseEntity {
 
     @Id
     @Column(name = "sp_code", length = 20)
@@ -47,13 +47,6 @@ public class ExpSetting {
     /** NULL = jatuh ke 1000 Bank / Tunai. */
     @Column(name = "bank_gl_account_id")
     private Long bankGlAccountId;
-
-    @Column(name = "updated_at")  private LocalDateTime updatedAt;
-    @Column(name = "updated_by")  private String updatedBy;
-
-    @Version
-    @Column(name = "version")
-    private Long version;
 
     protected ExpSetting() {}
 
