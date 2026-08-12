@@ -249,8 +249,6 @@ Pada 18 Julai, Claude TIDAK berbuat begini. Claude hantar kod dan berkata
 "ini betulkan chart of accounts" — sedangkan ia sebenarnya memecahkannya,
 dan tiada ujian yang akan menangkapnya. Kama yang segar menemuinya.
 
-Penjaga 1-3 struktur; penjaga 4 kejujuran. Keduanya perlu.
-
 ### 5. Dokumen status dikemas kini dalam commit yang SAMA
 
 Ditambah 23 Julai 2026 selepas tiga kes dokumen lapuk dalam satu sesi.
@@ -260,6 +258,8 @@ Ditambah 23 Julai 2026 selepas tiga kes dokumen lapuk dalam satu sesi.
 | README "V1-V20 dipakai" | Ya | 10 migration kemudian |
 | README "BillingContext MENYEKAT tab exclude" | Ya | V22 menyelesaikannya |
 | ADR 0006 "tidak dibetulkan sekarang" | Ya | **satu commit** kemudian (P4.5) |
+| ADR 0005 "DITANGGUH — technical debt" | Ya | ADR 0006 melaksanakannya, hari sama |
+| ADR 0006 "lubang invariant sisi kredit" | Ya | `checkAndLockCredit` menutupnya |
 
 Kes ketiga paling merbahaya: jaraknya sejam. Kalau nota boleh jadi lapuk
 dalam masa sejam, apa lagi yang ditulis berminggu lepas.
@@ -271,6 +271,18 @@ Kerja jadi dua tiga kali, dan risiko naik setiap kali.
 
 Puncanya: kita catat keputusan, tapi tidak catat bila keputusan itu
 BERUBAH. Menulis mudah; mengemas kini terlupa.
+
+**12 Ogos 2026 — peraturan ini wujud, dan kita tetap gagal.** Semasa
+menyemak ADR untuk mencari kerja yang belum siap, dua daripadanya berbohong:
+0005 masih "DITANGGUH" walaupun 0006 melaksanakannya, dan 0006 masih
+menyenaraikan lubang invariant sisi kredit yang sudah ditutup.
+
+Akibatnya tepat seperti yang diramalkan di atas: Claude membaca ADR 0006,
+mengumumkan lubang keselamatan kewangan, dan hampir membina guard yang sudah
+wujud, dipanggil, dan diuji. Hanya membaca kod sebenar yang menghentikannya.
+
+Pengajarannya bukan "tambah peraturan" — peraturan sudah ada sejak 23 Julai.
+Pengajarannya ialah pemicu di bawah mesti diperiksa, bukan diingat.
 
 Peraturan: bila commit menukar status sesuatu yang bertulis — ADR
 (ditangguh -> selesai, dicadang -> diterima), item README (belum hidup ->

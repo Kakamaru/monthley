@@ -1,6 +1,9 @@
 # ADR 0006 — Alokasi Peringkat Line (rancangan pelaksanaan)
 
 - **Status:** Dilaksana — P1-P6 selesai 23 Julai 2026
+- **Kemas kini 12 Ogos 2026:** lubang invariant sisi kredit (nota susulan #2)
+  telah ditutup oleh `checkAndLockCredit`. Isu #1 (baki negatif) diselesaikan
+  oleh ADR 0009.
 - **Tarikh:** 23 Julai 2026
 - **Menggantikan:** ADR 0005 (yang hanya mencatat isu)
 
@@ -149,10 +152,18 @@ negatif** apabila advance melebihi invois.
 
 1. Baki mesti boleh negatif. Query semasa (`SUM(invois) - SUM(alokasi)`)
    tidak tolak advance yang belum dipakai — perlu diputuskan.
-2. **Lubang invariant sisi kredit**: `AllocationGuard` hanya semak sisi debit
-   (invois tidak boleh over-allocate). Tiada semakan bahawa jumlah alokasi
-   dari satu resit <= nilai resit. Bila advance di-knock guna resit asal
-   sebagai `credit_document_id`, lubang ini jadi berisiko. Perlu invariant
+2. ~~**Lubang invariant sisi kredit**~~ — **DITUTUP** (12 Ogos 2026).
+
+   `AllocationGuard.checkAndLockCredit()` menyemak jumlah alokasi dari satu
+   dokumen kredit <= nilai dokumen itu, dengan kunci pesimis. Dipanggil oleh
+   `LineAllocationWriter`; diuji oleh `CreditInvariantTest`.
+
+   Urutan kunci ditetapkan **debit dahulu, kemudian kredit** — tanpa urutan
+   tetap, dua alokasi yang menyentuh pasangan dokumen yang sama dalam arah
+   bertentangan akan deadlock.
+
+   Teks asal dikekalkan di bawah kerana ia menerangkan RISIKO yang guard itu
+   wujud untuk menghalang:
    sisi kredit.
 3. Alokasi yang dicipta oleh laluan guna-advance mesti **peringkat line**
    juga — sebab itu line-level (ADR 0006) didahulukan.

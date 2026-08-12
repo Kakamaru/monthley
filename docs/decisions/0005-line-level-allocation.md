@@ -1,7 +1,13 @@
-# ADR 0005 — Alokasi Peringkat Line (belum dilaksana)
+# ADR 0005 — Alokasi Peringkat Line (masalah)
 
-- **Status:** DITANGGUH (technical debt — perlu dirancang)
+- **Status:** DIGANTIKAN oleh ADR 0006 — dilaksana 23 Julai 2026
 - **Tarikh dicatat:** 23 Julai 2026
+- **Dikemas kini:** 12 Ogos 2026
+
+> **Baca ADR 0006 untuk keadaan semasa.** Dokumen ini mencatat MASALAH;
+> penyelesaian dan pelaksanaannya ada dalam 0006. Ia dikekalkan kerana
+> huraian masalah masih berguna untuk memahami sebab reka bentuk semasa
+> begitu.
 
 ---
 
@@ -26,7 +32,7 @@ line.document_id menggandakan satu alokasi dengan setiap line invois
 
 ---
 
-## Keputusan dicadangkan (belum dilaksana)
+## Keputusan dicadangkan (DILAKSANA — lihat ADR 0006)
 
 Alokasi ke peringkat LINE, bukan dokumen:
 
