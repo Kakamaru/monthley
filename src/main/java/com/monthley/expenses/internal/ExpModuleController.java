@@ -95,8 +95,14 @@ class ExpModuleController {
         return out;
     }
 
-    /** Semakan pantas untuk satu modul. */
-    @GetMapping("/{code}")
+    /**
+     * Semakan pantas untuk satu modul.
+     *
+     * Laluan disempitkan kepada /has/{code}: sebagai /{code} ia menangkap
+     * /requests dan /request juga, dan POST /request menjadi 405 kerana
+     * laluan pembolehubah hanya menerima GET.
+     */
+    @GetMapping("/has/{code}")
     Map<String, Boolean> has(@org.springframework.web.bind.annotation.PathVariable String code) {
         Access.requireAnyRole("melihat modul", "SP_ADMIN", "CLERK", "VIEWER");
         return Map.of("active", modules.has(code));
