@@ -114,6 +114,38 @@ class MemoTest {
         assertThat(lama.intValue()).isEqualTo(1);
     }
 
+    /**
+     * Tamatkan lebih awal — memo ke 'Memo Lama', BUKAN kembali ke draf.
+     *
+     * Perbezaan yang penting: menariknya balik menjadikan memo yang sudah
+     * dibaca selama dua minggu kelihatan seolah-olah tidak pernah wujud.
+     * Menamatkannya mengekalkan rekod bahawa ia PERNAH dihebahkan.
+     */
+    @Test
+    @DisplayName("tamatkan sekarang — status kekal terbit, memo jadi lama")
+    void tamatkanSekarang() {
+        MemoNotice m = cipta("Kerja siap lebih awal", LocalDate.now().plusDays(30));
+        m.publish();
+        em.flush();
+
+        LocalDateTime tarikhTerbit = m.getPublishedAt();
+
+        m.endNow();
+        em.flush();
+
+        assertThat(m.getStatus()).isEqualTo(MemoNotice.Status.PUBLISHED);
+        assertThat(m.getPublishedAt()).isEqualTo(tarikhTerbit);
+        assertThat(m.getExpiresOn()).isBefore(LocalDate.now());
+
+        // Semalam dan bukan hari ini: sempadan aktif ialah '>= CURDATE()',
+        // jadi tarikh hari ini bermakna ia masih kelihatan.
+        Number aktif = (Number) em.createNativeQuery("""
+                SELECT COUNT(*) FROM memo_notice
+                WHERE  id = :id AND (expires_on IS NULL OR expires_on >= CURDATE())
+                """).setParameter("id", m.getId()).getSingleResult();
+        assertThat(aktif.intValue()).isZero();
+    }
+
     @Test
     @DisplayName("memo hari luput terakhir masih aktif")
     void hariLuputMasihAktif() {

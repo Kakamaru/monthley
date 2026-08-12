@@ -79,4 +79,20 @@ class MemoNotice extends BaseEntity {
     void unpublish() {
         this.status = Status.DRAFT;
     }
+
+    /**
+     * Tamatkan lebih awal — memo masuk ke 'Memo Lama' pelanggan.
+     *
+     * Berbeza daripada unpublish(): status kekal PUBLISHED dan tarikh
+     * terbit kekal, jadi rekod menunjukkan memo ini PERNAH dihebahkan.
+     * Menariknya balik menjadikan memo yang sudah dibaca selama dua minggu
+     * kelihatan seolah-olah tidak pernah wujud.
+     *
+     * Semalam dan bukan hari ini: sempadan aktif ialah
+     * 'expires_on >= CURDATE()', jadi tarikh hari ini bermakna ia masih
+     * kelihatan sehingga tengah malam.
+     */
+    void endNow() {
+        this.expiresOn = LocalDate.now().minusDays(1);
+    }
 }

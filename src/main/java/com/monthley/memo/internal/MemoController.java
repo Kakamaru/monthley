@@ -121,6 +121,28 @@ class MemoController {
         return ResponseEntity.ok(Map.of("message", "Memo diterbitkan."));
     }
 
+    /**
+     * Tamatkan sekarang — memo berpindah ke 'Memo Lama' pelanggan.
+     *
+     * Untuk memo yang sudah dihebahkan tetapi tidak lagi berkenaan: kerja
+     * penyelenggaraan siap lebih awal, atau mesyuarat dibatalkan. Rekod
+     * kekal menunjukkan ia pernah dihebahkan.
+     */
+    @PostMapping("/{id}/end")
+    @Transactional
+    ResponseEntity<?> endNow(@PathVariable Long id) {
+        Access.requireRole("SP_ADMIN", "menamatkan memo");
+        modules.require(ModuleGuard.MEMO, "menamatkan memo");
+
+        MemoNotice m = ambil(id);
+        if (m.getStatus() != MemoNotice.Status.PUBLISHED) {
+            throw new IllegalStateException(
+                    "Hanya memo yang diterbitkan boleh ditamatkan.");
+        }
+        m.endNow();
+        return ResponseEntity.ok(Map.of("message", "Memo ditamatkan."));
+    }
+
     /** Tarik balik — memo hilang dari portal pelanggan tetapi tidak dipadam. */
     @PostMapping("/{id}/unpublish")
     @Transactional
