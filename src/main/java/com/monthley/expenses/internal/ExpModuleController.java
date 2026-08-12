@@ -40,11 +40,26 @@ class ExpModuleController {
                         String description, String videoUrl) {}
 
     /**
-     * Semua modul dalam katalog, dengan status langganan SP semasa.
+     * Modul yang BERKENAAN untuk sektor SP, dengan status langganannya.
      *
-     * Modul yang TIDAK dilanggan turut dipulangkan — itulah yang
-     * membolehkan UI memaparkannya sebagai tawaran dan bukan
-     * menyembunyikannya.
+     * Dua penapis berbeza, dan penting bezakan:
+     *
+     *   SEKTOR     — modul ini masuk akal untuk jenis SP ini?
+     *                Menapis KATALOG. JMB tidak pernah melihat modul
+     *                sekolah, walaupun sebagai tawaran.
+     *
+     *   LANGGANAN  — SP ini sudah membayar untuknya?
+     *                Menapis AKSES. JMB melihat Aduan sebagai tawaran,
+     *                tetapi tidak boleh menggunakannya sehingga melanggan.
+     *
+     * Modul yang tidak dilanggan TETAP dipulangkan — itulah yang
+     * membolehkan UI memaparkannya sebagai tawaran (ADR 0016). Yang
+     * ditapis di sini ialah modul yang mengarut untuk sektor itu.
+     *
+     * business_types kosong bermakna SEMUA sektor. SP tanpa
+     * business_type juga melihat semuanya: menyembunyikan segalanya
+     * daripada SP yang tidak lengkap profilnya lebih teruk daripada
+     * menunjukkan satu modul yang tidak berkenaan.
      */
     @GetMapping
     @SuppressWarnings("unchecked")
@@ -60,7 +75,11 @@ class ExpModuleController {
                                  AND s.start_date <= CURDATE()
                                  AND (s.end_date IS NULL OR s.end_date >= CURDATE())) AS aktif
                 FROM   ref_module m
+                JOIN   service_provider sp ON sp.sp_code = :sp
                 WHERE  m.status = 'ACTIVE'
+                  AND (m.business_types IS NULL OR m.business_types = ''
+                       OR sp.business_type IS NULL
+                       OR FIND_IN_SET(sp.business_type, m.business_types) > 0)
                 ORDER  BY m.sort_order
                 """).setParameter("sp", sp).getResultList();
 
