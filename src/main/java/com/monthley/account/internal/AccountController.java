@@ -1051,7 +1051,7 @@ class AccountController {
     // ── Sejarah resit/invois pelanggan (rentas akaun + SP) ──
     // Toggle type (RECEIPT/INVOICE), filter tarikh (from/to), carian (doc_no / SP).
     // Descending by doc_date. Pagination.
-    record HistoryRow(java.time.LocalDate date, String docType, String spName,
+    record HistoryRow(Long id, java.time.LocalDate date, String docType, String spName,
                       String accountNo, String docNo, java.math.BigDecimal amount) {}
 
     @GetMapping("/my/history")
@@ -1088,7 +1088,7 @@ class AccountController {
         countQ.setParameter("q", qq);
         long total = ((Number) countQ.getSingleResult()).longValue();
 
-        String sql = "SELECT d.doc_date, d.doc_type, sp.name, a.account_no, d.doc_no, "
+        String sql = "SELECT d.id, d.doc_date, d.doc_type, sp.name, a.account_no, d.doc_no, "
                 + "(d.amount + d.tax_amount) AS amt "
                 + base
                 + " ORDER BY d.doc_date DESC, d.id DESC LIMIT :lim OFFSET :off";
@@ -1105,8 +1105,9 @@ class AccountController {
         List<HistoryRow> items = new ArrayList<>();
         for (Object[] r : rows) {
             items.add(new HistoryRow(
-                    (java.time.LocalDate) r[0], (String) r[1], (String) r[2],
-                    (String) r[3], (String) r[4], (java.math.BigDecimal) r[5]));
+                    ((Number) r[0]).longValue(),
+                    (java.time.LocalDate) r[1], (String) r[2], (String) r[3],
+                    (String) r[4], (String) r[5], (java.math.BigDecimal) r[6]));
         }
         return new PageResponse<>(items, total, page, size);
     }
@@ -1178,6 +1179,43 @@ class AccountController {
 
         var m = statements.receipt(spCode, receiptId);
         var f = statementRenderer.renderReceiptPdfFile(m);
+
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename(f.filename(), java.nio.charset.StandardCharsets.UTF_8)
+                                .build().toString())
+                .body(f.content());
+    }
+
+    /**
+     * Invois pelanggan sebagai PDF.
+     *
+     * Cerminan endpoint resit: pemilikan disemak melalui DOKUMEN dan bukan
+     * akaun, dalam satu query. 404 dan bukan 403 — 403 membenarkan
+     * penyerang membilang ID invois dengan membezakan 'tiada' daripada
+     * 'bukan milik anda'.
+     */
+    @GetMapping(value = "/my/invoices/{invoiceId}",
+                produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    ResponseEntity<byte[]> myInvoice(@PathVariable Long invoiceId) {
+        Long uid = currentUserId();
+        List<?> owned = em.createNativeQuery(
+                "SELECT d.sp_code FROM financial_document d "
+                + "JOIN account a ON a.id = d.account_id "
+                + "WHERE d.id = :id AND d.doc_type = 'INVOICE' "
+                + "  AND a.payer_user_id = :uid AND a.status = 'ACTIVE'")
+                .setParameter("id", invoiceId)
+                .setParameter("uid", uid)
+                .getResultList();
+        if (owned.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        String spCode = (String) owned.get(0);
+
+        var m = statements.invoice(spCode, invoiceId);
+        var f = statementRenderer.renderInvoicePdfFile(m);
 
         return ResponseEntity.ok()
                 .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
