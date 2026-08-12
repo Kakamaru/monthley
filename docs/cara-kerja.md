@@ -210,7 +210,9 @@ ujian hanya semak laluan yang datanya cetuskan.
 | income_gl id-sebagai-kod | String.valueOf(Long) sah | Produk ujian income_gl = NULL |
 | anchor_month TINYINT vs Integer | Kedua jenis wujud | Tiada ujian semak jenis lajur |
 
-Empat penjaga, dari paling murah:
+Sembilan penjaga. Empat yang pertama disusun dari paling murah (maklum
+balas paling cepat); selebihnya ditambah mengikut kegagalan yang
+melahirkannya.
 
 ### 1. ddl-auto: validate (AKTIF)
 
