@@ -5,9 +5,13 @@ import com.monthley.shared.ModuleGuard;
 import com.monthley.shared.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.Map;
@@ -96,6 +100,123 @@ class ExpModuleController {
     Map<String, Boolean> has(@org.springframework.web.bind.annotation.PathVariable String code) {
         Access.requireAnyRole("melihat modul", "SP_ADMIN", "CLERK", "VIEWER");
         return Map.of("active", modules.has(code));
+    }
+
+    // ---------- Permohonan ----------
+
+    record RequestRow(Long id, String type, String moduleCode, String moduleName,
+                      Long planProductId, String planName, String status,
+                      LocalDateTime requestedAt, LocalDateTime decidedAt,
+                      String decisionNote) {}
+
+    record NewRequest(String type, String moduleCode, Long planProductId) {}
+
+    /**
+     * SP memohon perubahan — tambah modul, henti modul, atau tukar pelan.
+     *
+     * SP_ADMIN sahaja: ia komitmen kewangan (ADR 0016). CLERK boleh
+     * merekod bayaran tetapi tidak boleh menambah kos bulanan.
+     */
+    @PostMapping("/request")
+    @Transactional
+    ResponseEntity<?> request(@RequestBody NewRequest r) {
+        Access.requireRole("SP_ADMIN", "memohon perubahan modul atau pelan");
+        String sp = sp();
+
+        String jenis = r.type() == null ? "" : r.type().trim().toUpperCase();
+        if (!List.of("MODULE_ADD", "MODULE_END", "PLAN_CHANGE").contains(jenis)) {
+            throw new IllegalStateException("Jenis permohonan tidak sah: " + jenis);
+        }
+
+        // Satu permohonan MENUNGGU sahaja per perkara. Tanpa semakan ini,
+        // SP yang menekan butang dua kali menghasilkan dua permohonan, dan
+        // superadmin meluluskan kedua-duanya — modul diberi dua kali.
+        Number menunggu = (Number) em.createNativeQuery("""
+                SELECT COUNT(*) FROM sp_change_request
+                WHERE  sp_code = :sp AND status = 'PENDING'
+                  AND  request_type = :t
+                  AND (module_code <=> :m)
+                """).setParameter("sp", sp).setParameter("t", jenis)
+                .setParameter("m", r.moduleCode())
+                .getSingleResult();
+        if (menunggu.intValue() > 0) {
+            throw new IllegalStateException(
+                    "Permohonan serupa sedang menunggu kelulusan.");
+        }
+
+        if ("MODULE_ADD".equals(jenis) || "MODULE_END".equals(jenis)) {
+            if (r.moduleCode() == null || r.moduleCode().isBlank()) {
+                throw new IllegalStateException("Kod modul diperlukan.");
+            }
+            boolean ada = modules.has(r.moduleCode());
+            if ("MODULE_ADD".equals(jenis) && ada) {
+                throw new IllegalStateException("Modul ini sudah aktif.");
+            }
+            if ("MODULE_END".equals(jenis) && !ada) {
+                throw new IllegalStateException("Modul ini tidak aktif.");
+            }
+        } else if (r.planProductId() == null) {
+            throw new IllegalStateException("Pelan diperlukan.");
+        }
+
+        em.createNativeQuery("""
+                INSERT INTO sp_change_request
+                  (sp_code, request_type, module_code, plan_product_id, status,
+                   requested_by, requested_at, created_at, updated_at, version)
+                VALUES (:sp, :t, :m, :plan, 'PENDING', :by, NOW(), NOW(), NOW(), 0)
+                """)
+                .setParameter("sp", sp).setParameter("t", jenis)
+                .setParameter("m", r.moduleCode())
+                .setParameter("plan", r.planProductId())
+                .setParameter("by", currentUserId())
+                .executeUpdate();
+
+        return ResponseEntity.ok(Map.of("message",
+                "Permohonan dihantar. Superadmin akan menilai dan memaklumkan keputusan."));
+    }
+
+    /** Permohonan SP semasa — status dan sebab penolakan. */
+    @GetMapping("/requests")
+    @SuppressWarnings("unchecked")
+    List<RequestRow> requests() {
+        Access.requireAnyRole("melihat permohonan", "SP_ADMIN", "CLERK");
+
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT r.id, r.request_type, r.module_code, m.name,
+                       r.plan_product_id, p.name, r.status,
+                       r.requested_at, r.decided_at, r.decision_note
+                FROM   sp_change_request r
+                LEFT   JOIN ref_module m ON m.code = r.module_code
+                LEFT   JOIN product p ON p.id = r.plan_product_id
+                WHERE  r.sp_code = :sp
+                ORDER  BY r.requested_at DESC
+                """).setParameter("sp", sp()).getResultList();
+
+        List<RequestRow> out = new java.util.ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new RequestRow(
+                    ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
+                    (String) r[3],
+                    r[4] == null ? null : ((Number) r[4]).longValue(),
+                    (String) r[5], (String) r[6],
+                    toDt(r[7]), toDt(r[8]), (String) r[9]));
+        }
+        return out;
+    }
+
+    private static LocalDateTime toDt(Object v) {
+        if (v == null) return null;
+        if (v instanceof LocalDateTime d) return d;
+        if (v instanceof java.sql.Timestamp t) return t.toLocalDateTime();
+        return null;
+    }
+
+    private Long currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new IllegalStateException("Tiada pengguna dalam konteks.");
+        }
+        return Long.valueOf(auth.getName());
     }
 
     private static boolean bool(Object v) {
