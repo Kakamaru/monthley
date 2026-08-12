@@ -40,7 +40,7 @@ Backend: `./mb restart` (skrip dalam folder projek, bukan PATH).
 
 ### Migrasi
 
-V1–V70 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
+V1–V74 dipakai. Flyway berjalan automatik via spring-boot-starter-flyway.
 `ddl-auto=validate` — migration & entity mesti selaras atau backend gagal start.
 
 Flyway memiliki skema pada KEDUA-DUA pangkalan data. `monthley_new`
@@ -89,6 +89,10 @@ Terkini:
 | V68 | `source_type` ENUM diperluas: `EXP_INVOICE`, `EXP_PAYMENT`, `EXP_CASH` |
 | V69 | `fk_journal_doc` digugurkan — `source_document_id` kini polimorfik, dijaga oleh `JournalSourceInvariantTest` |
 | V70 | Kategori perbelanjaan lalai (18 induk, 92 jenis) + akaun GL 5110–5990 sepadan |
+| V71 | `exp_payment_method` — kaedah bayaran per SP; transaksi simpan NAMA (snapshot), bukan FK |
+| V72 | Akaun bil untuk SP yang didaftar sebelum onboarding satu transaksi (kes yatim ADR 0016) |
+| V73 | Skema Aduan: `adu_category`, `adu_complaint`, `adu_reply`, `adu_setting` |
+| V74 | Skema Memo: `memo_notice` — satu jadual, tarikh luput per memo |
 
 ### Siap
 
@@ -163,6 +167,21 @@ Semuanya dengan PDF berkepala SP; kebanyakannya dengan eksport Excel.
 
 Ujian: **404**, regresi penuh hijau dari `monthley_test` kosong.
 
+#### Modul tambahan (ADR 0016, ADR 0017)
+
+| Modul | Skrin | Nota |
+|---|---|---|
+| **Perbelanjaan** | 8 (Dashboard, Buku Tunai, Pembekal, Invois, Bayaran/PV, Laporan, Kategori, Tetapan) | Posting ledger tiga arah; SST belian masuk akaun belanja (tiada tuntutan input) |
+| **Aduan** | 4 (Dashboard, Senarai, Tetapan, Aduan Saya) | Thread balasan; pengadu yang membalas aduan selesai membukanya semula automatik |
+| **Memo** | 2 (Memo SP, Memo pelanggan) | Hebahan sehala; tarikh luput per memo, bukan tetapan global |
+| **Sumbangan** | — | Belum dibina — bergantung pada gerbang bayaran |
+
+Ketiga-tiganya berkongsi rangka yang sama: katalog `ref_module` ditapis
+mengikut sektor SP (`business_types`), hak `sp_module` dipisahkan daripada
+bil `account_subscription`, dan aliran permohonan melalui
+`sp_change_request`. Menambah modul keempat tidak memerlukan kerja rangka
+baharu.
+
 ### Sedang berjalan
 
 **Dashboard v2 SIAP** — kedua-dua portal pelanggan dan Panel Utama SP.
@@ -182,20 +201,19 @@ itu sendiri:
 
 | Kerja | Nota |
 |---|---|
-| **Payment gateway (online)** | **BELUM DIBINA.** Guard reka bentuk sudah diputuskan — [ADR 0007](decisions/0007-online-payment-guards.md). Bina ikut guard tersebut, bukan tampal kemudian. |
+| **Payment gateway (online)** | **BELUM DIBINA.** Reka bentuk SUDAH SIAP — [ADR 0007](decisions/0007-online-payment-guards.md) memutuskan lima daripada enam perkara (amaun dari gateway, handler stateless, idempotency `gateway_txn_ref`, reconciliation harian, model yuran). Yang keenam (jenis `Money`) sengaja ditangguh sehingga kerja bermula. Tiada 'ADR 0015' — rujukan itu salah dan telah dibuang. |
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
-| Laporan: Expenses | Menunggu modul Perbelanjaan |
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
 | Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
-| Payment gateway | ADR 0015 dirangka; enam soalan terbuka |
-| Modul Perbelanjaan | Kod rujukan wujud sebagai aplikasi standalone (`monthley-expenses`). Reka bentuk domain diguna semula; kod DIBINA SEMULA mengikut konvensyen Monthley — `sp_code` bukan `oid`, `document_number_sequence` bukan `exp_running_no`, `DECIMAL(15,2)` bukan sen. Satu database ([ADR 0017](decisions/0017-satu-database-untuk-semua-modul.md)) |
 | Edit SP di portal superadmin | Butang ✎ wujud tetapi tiada `(click)`, tiada handler, tiada endpoint — hiasan semata. Hanya tukar status yang berfungsi. Perlu dipecahkan kepada DUA: profil (skrin biasa) dan pelan/modul (melalui `sp_change_request`, ADR 0016) — satu skrin untuk kedua-duanya bermakna dua laluan menukar pelan |
 | `account_limit` paparan sahaja | Kuota akaun dipaparkan pada tiga skrin (Settings, senarai SP, onboarding) tetapi TIDAK dikuatkuasakan di mana-mana — tiada apa yang menghalang akaun ke-301 pada Pakej 300. Ditemui semasa ADR 0016 peringkat B1 |
-| `merchant_id` kosong pada semua SP | `/generate-key` menjana nilai, tetapi UI onboarding menghantar borang tanpa menekannya dan backend menerima kosong. Tiada kesan sehingga gerbang bayaran wujud (ADR 0015) — dan pada hari itu puncanya akan kelihatan seperti masalah gerbang, bukan masalah onboarding. Corak CASE-008 |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
-| Sekatan modul ikut pakej | Reka bentuk penuh: [ADR 0016](decisions/0016-modul-tambahan-dan-langganan-sp.md). Corak kekal: benarkan masuk, sekat transaksi (soalan 28). Skema belum dibina |
+| Auto-jana bil ikut `invoice_gen_day` | Penjadual tiada — jana manual (Alat -> Jana Bil) dan invois tunggal berfungsi. Gate hari dilaksana BERSAMA penjadual, bukan sebelum ([ADR 0008](decisions/0008-split-invoice-and-gen-day.md) pencetus #1) |
+| UI tukar pelan | Backend siap (`sp_change_request` PLAN_CHANGE + `ModuleEntitlementService.changePlan`), UI belum. Tempatnya ialah skrin Edit SP |
+| Storan fail | Monthley tiada storan fail langsung — CSV caj penggunaan dihurai lalu dibuang. Gambar sokongan aduan ditangguh sehingga keputusan dibuat (cakera VPS vs storan objek); ia menjejaskan modul lain juga |
+| `FifoAllocator` label "deposit" | Lebihan selepas semua invois dilunaskan dinamakan `deposit`; istilah sistem ialah **advance**. Deposit ialah wang jaminan yang dipulangkan — perkara berbeza sepenuhnya. Menamakan semula sahaja, tiada perubahan logik |
 
 ---
 
@@ -236,12 +254,20 @@ line) menyasar keluarga-keluarga ini.
 | [0004](decisions/0004-manual-payment-idempotency.md) | Idempotency bayaran manual | Dilaksana |
 | [0005](decisions/0005-line-level-allocation.md) | Alokasi peringkat line — catatan isu | Digantikan 0006 |
 | [0006](decisions/0006-line-level-allocation-plan.md) | Alokasi peringkat line — rancangan | P1–P6 dilaksana |
-| [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Kekangan; modul belum dibina |
+| [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Kekangan; modul belum dibina. 5/6 keputusan muktamad |
 | [0008](decisions/0008-split-invoice-and-gen-day.md) | Split invois ialah binari | Digantikan sebahagian oleh 0011 |
 | [0009](decisions/0009-baki-tunggal-dan-advance.md) | Satu takrifan baki + guna advance | P1–P3 dilaksana |
 | [0010](decisions/0010-penyata-akaun.md) | Penyata akaun | P1–P5 siap; P6 ditangguh selepas diukur |
 | [0011](decisions/0011-split-ikut-tempoh.md) | Split ikut TEMPOH, bukan produk sahaja | Dilaksana |
 | [0012](decisions/0012-penomboran-dokumen.md) | Penomboran baca tetapan SP | Dilaksana |
+| [0013](decisions/0013-anjakan-mod-aras-kasar.md) | Anjakan mod aras kasar | Dilaksana |
+| [0014](decisions/0014-penghantaran-emel-pukal.md) | Penghantaran emel pukal | Dilaksana (`email_outbox` + dispatcher) |
+| [0016](decisions/0016-modul-tambahan-dan-langganan-sp.md) | Modul tambahan &amp; langganan SP | Dilaksana — katalog, penapis sektor, hak/bil dipisahkan, aliran permohonan |
+| [0017](decisions/0017-satu-database-untuk-semua-modul.md) | Satu database untuk semua modul | Dilaksana — Perbelanjaan, Aduan, Memo |
+
+Tiada ADR 0015. Nombor itu pernah dirujuk untuk gerbang bayaran, tetapi
+keputusannya sebenarnya ada dalam ADR 0007 — rujukan yang salah telah
+dibuang.
 
 ---
 
