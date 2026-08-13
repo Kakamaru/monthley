@@ -45,6 +45,21 @@ logging:
 # ====================== MONTHLEY ======================
 monthley:
   app-url: ${MONTHLEY_APP_URL:http://localhost:4200}
+  secret:
+    # Kunci induk AES-256 untuk kelayakan gerbang (base64, 32 bait).
+    # Jana: openssl rand -base64 32
+    # PENGELUARAN: tetapkan MONTHLEY_MASTER_KEY — lalai di bawah untuk
+    # pembangunan sahaja, dan menukarnya menjadikan kunci sedia ada tidak
+    # boleh dibaca.
+    master-key: ${MONTHLEY_MASTER_KEY:wANY2glLQzwg5dHr/HQIYjhl6LcDR7OhIKii2H9Hf7M=}
+
+  gateway:
+    toyyibpay:
+      # Sandbox dan pengeluaran ialah HOST berbeza dengan kunci berbeza.
+      # Bendera sandbox pada sp_payment_setting menentukan mana digunakan.
+      sandbox-url: ${TOYYIBPAY_SANDBOX_URL:https://dev.toyyibpay.com}
+      live-url: ${TOYYIBPAY_LIVE_URL:https://toyyibpay.com}
+
   jwt:
     secret: ${MONTHLEY_JWT_SECRET:monthley-dev-secret-key-change-in-production-min-32-chars}
     ttl-hours: 12
