@@ -210,6 +210,8 @@ itu sendiri:
 | `account_limit` paparan sahaja | Kuota akaun dipaparkan pada tiga skrin (Settings, senarai SP, onboarding) tetapi TIDAK dikuatkuasakan di mana-mana — tiada apa yang menghalang akaun ke-301 pada Pakej 300. Ditemui semasa ADR 0016 peringkat B1 |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
+| **Late penalty — enjin** | Tetapan LENGKAP wujud (`sp_penalty_setting`: jenis FIXED/PERCENT, amaun, `penalty_after_day`, taxable, compounded) dan skrin Settings menyimpannya. Tetapi TIADA pengiraan di mana-mana — grep penalty dalam modul billing = kosong, dan `PENALTY` bukan jenis dokumen. SP boleh mengisi tetapan dan menekan Simpan, dan tiada apa berlaku. Perlu kajian aliran dahulu: bila penalti dikira (jana bil? kerja harian?), ia dokumen berasingan atau baris pada invois, dan `compounded` bermakna atas baki atau atas penalti sebelumnya |
+| Access card | Fasa 2 — aliran belum dikaji |
 | Auto-jana bil ikut `invoice_gen_day` | Penjadual tiada — jana manual (Alat -> Jana Bil) dan invois tunggal berfungsi. Gate hari dilaksana BERSAMA penjadual, bukan sebelum ([ADR 0008](decisions/0008-split-invoice-and-gen-day.md) pencetus #1) |
 | UI tukar pelan | Backend siap (`sp_change_request` PLAN_CHANGE + `ModuleEntitlementService.changePlan`), UI belum. Tempatnya ialah skrin Edit SP |
 | Storan fail | Monthley tiada storan fail langsung — CSV caj penggunaan dihurai lalu dibuang. Gambar sokongan aduan ditangguh sehingga keputusan dibuat (cakera VPS vs storan objek); ia menjejaskan modul lain juga |
