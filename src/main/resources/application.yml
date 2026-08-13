@@ -45,6 +45,11 @@ logging:
 # ====================== MONTHLEY ======================
 monthley:
   app-url: ${MONTHLEY_APP_URL:http://localhost:4200}
+
+  # Asal-usul CORS, dipisah koma. Pelayar menghantar Origin; curl tidak —
+  # jadi CORS yang salah kelihatan seperti masalah pengesahan.
+  cors:
+    origins: ${MONTHLEY_CORS_ORIGINS:http://localhost:4200}
   secret:
     # Kunci induk AES-256 untuk kelayakan gerbang (base64, 32 bait).
     # Jana: openssl rand -base64 32

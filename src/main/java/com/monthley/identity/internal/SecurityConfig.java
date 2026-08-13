@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -76,10 +77,26 @@ class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Asal-usul yang dibenarkan.
+     *
+     * Keras kepada localhost:4200 selama frontend hanya berjalan dari
+     * `ng serve`. Selepas deploy, pelayar menghantar Origin sebenar dan
+     * Spring menolaknya dengan 403 — yang kelihatan seperti masalah
+     * pengesahan, bukan CORS, kerana curl (yang tidak menghantar Origin)
+     * berfungsi dengan sempurna.
+     *
+     * Senarai dipisah koma supaya satu pemasangan boleh melayan
+     * pembangunan dan domainnya sendiri.
+     */
+    @Value("${monthley.cors.origins:http://localhost:4200}")
+    private String corsOrigins;
+
     @Bean
     CorsConfigurationSource corsSource() {
         CorsConfiguration c = new CorsConfiguration();
-        c.setAllowedOrigins(List.of("http://localhost:4200"));   // Angular dev
+        c.setAllowedOrigins(java.util.Arrays.stream(corsOrigins.split(","))
+                .map(String::trim).filter(v -> !v.isEmpty()).toList());
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         c.setAllowCredentials(true);
