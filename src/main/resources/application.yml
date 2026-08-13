@@ -92,7 +92,11 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:mariadb://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}
+    # Pemacu MySQL, bukan MariaDB — pembangunan dan ujian berjalan pada
+    # MySQL, dan pemacu berbeza mempunyai perbezaan halus dalam
+    # pengendalian jenis dan zon masa. Menggunakan pemacu lain di
+    # pengeluaran bermakna perbezaan itu hanya muncul di sana.
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Kuala_Lumpur
     username: ${DB_USER}
     password: ${DB_PASSWORD}
-    driver-class-name: org.mariadb.jdbc.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
