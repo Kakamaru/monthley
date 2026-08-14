@@ -38,32 +38,31 @@ class ModuleEntitlementTest {
 
     @BeforeEach
     void setup() {
-        // SP platform + SP pelanggan
-        em.createNativeQuery("""
-            INSERT IGNORE INTO service_provider (sp_code, name, status, is_platform_owner,
-                                                 created_at, updated_at, version)
-            VALUES ('SPE0', 'Platform Ujian', 'ACTIVE', 1, NOW(), NOW(), 0)
-            """).executeUpdate();
+        // SP platform diseed oleh V77 dan platform_owner_flag adalah UNIK —
+        // hanya SATU SP boleh menjadi pemilik platform. Ujian yang mencipta
+        // pemiliknya sendiri akan dilangkau senyap oleh INSERT IGNORE,
+        // kemudian gagal pada FK ketika menyisip produk untuk SP yang tidak
+        // wujud.
 
         em.createNativeQuery("""
             INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
                                  main_product, mandatory, prorated, late_penalty,
                                  status, created_at, updated_at, version)
-            VALUES ('SPE0', 'MODX', 'Modul Ujian', 'MONTHLY', 25.00,
+            VALUES ('SP0000', 'MODX', 'Modul Ujian', 'MONTHLY', 25.00,
                     0,0,0,0, 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         produkModul = ((Number) em.createNativeQuery(
-                "SELECT id FROM product WHERE sp_code='SPE0' AND code='MODX'")
+                "SELECT id FROM product WHERE sp_code='SP0000' AND code='MODX'")
                 .getSingleResult()).longValue();
 
         em.createNativeQuery("""
             INSERT INTO account (sp_code, account_no, account_name, charge_frequency,
                                  start_date, status, created_at, updated_at, version)
-            VALUES ('SPE0', 'ACC-E1', 'SP Pelanggan Ujian', 'MONTHLY',
+            VALUES ('SP0000', 'ACC-E1', 'SP Pelanggan Ujian', 'MONTHLY',
                     CURDATE(), 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         akaunBil = ((Number) em.createNativeQuery(
-                "SELECT id FROM account WHERE sp_code='SPE0' AND account_no='ACC-E1'")
+                "SELECT id FROM account WHERE sp_code='SP0000' AND account_no='ACC-E1'")
                 .getSingleResult()).longValue();
 
         em.createNativeQuery("""

@@ -43,21 +43,17 @@ class PlanSourceTest {
     @BeforeEach
     void setup() {
         // SP platform + produk pelan (macam SP0000 dalam monthley_new)
-        em.createNativeQuery("""
-            INSERT IGNORE INTO service_provider (sp_code, name, status, is_platform_owner,
-                                                 created_at, updated_at, version)
-            VALUES ('SPQ0', 'Platform Test', 'ACTIVE', 1, NOW(), NOW(), 0)
-            """).executeUpdate();
+        // SP platform diseed oleh V77 — lihat nota dalam ModuleEntitlementTest.
 
         em.createNativeQuery("""
             INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
                                  main_product, mandatory, prorated, late_penalty,
                                  account_limit, status, created_at, updated_at, version)
-            VALUES ('SPQ0', 'PQ300', 'Pakej Ujian 300', 'MONTHLY', 80.00,
+            VALUES ('SP0000', 'PQ300', 'Pakej Ujian 300', 'MONTHLY', 80.00,
                     0,0,0,0, 300, 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         Long planProductId = ((Number) em.createNativeQuery(
-                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
+                "SELECT id FROM product WHERE sp_code='SP0000' AND code='PQ300'")
                 .getSingleResult()).longValue();
 
         // SP pelanggan yang menggunakan pelan itu, dipaut kepada KEDUA-DUA sumber
@@ -113,7 +109,7 @@ class PlanSourceTest {
     @DisplayName("onboard — id produk pelan disimpan ke plan_product_id, bukan service_plan_id")
     void onboardSimpanProdukPelan() {
         Long planProductId = ((Number) em.createNativeQuery(
-                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
+                "SELECT id FROM product WHERE sp_code='SP0000' AND code='PQ300'")
                 .getSingleResult()).longValue();
 
         // Admin mesti wujud dahulu — syarat onboarding.
@@ -174,7 +170,7 @@ class PlanSourceTest {
     @DisplayName("onboard — SP, akaun bil, dan langganan tercipta serentak dan terpaut")
     void onboardCiptaAkaunBilTerpaut() {
         Long planProductId = ((Number) em.createNativeQuery(
-                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQ300'")
+                "SELECT id FROM product WHERE sp_code='SP0000' AND code='PQ300'")
                 .getSingleResult()).longValue();
 
         // Item sekali sahaja, macam Onboarding/Migrasi
@@ -182,11 +178,11 @@ class PlanSourceTest {
             INSERT INTO product (sp_code, code, name, charge_frequency, unit_rate,
                                  main_product, mandatory, prorated, late_penalty,
                                  status, created_at, updated_at, version)
-            VALUES ('SPQ0', 'PQOB', 'Onboarding Ujian', 'ONE_TIME', 300.00,
+            VALUES ('SP0000', 'PQOB', 'Onboarding Ujian', 'ONE_TIME', 300.00,
                     0,0,0,0, 'ACTIVE', NOW(), NOW(), 0)
             """).executeUpdate();
         Long obId = ((Number) em.createNativeQuery(
-                "SELECT id FROM product WHERE sp_code='SPQ0' AND code='PQOB'")
+                "SELECT id FROM product WHERE sp_code='SP0000' AND code='PQOB'")
                 .getSingleResult()).longValue();
 
         em.createNativeQuery("""
@@ -217,7 +213,7 @@ class PlanSourceTest {
 
         assertThat((String) sp[2]).isEqualTo("ACC-TIGA");
         // Akaun duduk di bawah SP PLATFORM, bukan SP baharu itu sendiri.
-        assertThat((String) sp[3]).isEqualTo("SPQ0");
+        assertThat((String) sp[3]).isEqualTo("SP0000");
         assertThat((String) sp[0]).isNotEqualTo((String) sp[3]);
 
         // 2. Dua langganan: pelan + item sekali sahaja
