@@ -49,3 +49,22 @@ spring:
     # Kesannya: `mvn test` hijau lawan skema yang tiada siapa sahkan
     # datang dari migrasi. Rujuk cara-kerja.md sec 2.
     enabled: true
+
+# ---------------------------------------------------------------------------
+# E-mel DIMATIKAN dalam ujian.
+#
+# MONTHLEY_RESEND_KEY ditetapkan dalam persekitaran shell pembangunan, dan
+# tanpa penetapan di sini setiap `mvn test` menghantar e-mel SEBENAR melalui
+# akaun Resend produksi — resit kepada satu@contoh.com, jemputan kepada
+# baba@test.com. Kuota dibakar dan log penghantaran dipenuhi alamat palsu.
+#
+# Ditemui 14 Ogos 2026 selepas melihat 20+ e-mel ujian dalam papan pemuka
+# Resend, yang pada pandangan pertama kelihatan seperti cubaan pencerobohan.
+#
+# Rentetan kosong bermakna ResendEmailService melangkau penghantaran dan
+# mencetak pautan ke log — laluan sama seperti pemasangan tanpa kunci.
+# ---------------------------------------------------------------------------
+monthley:
+  email:
+    resend-key: ""
+    from: "Monthley Test <ujian@example.invalid>"
