@@ -54,6 +54,15 @@ class SecurityConfig {
                 // entropi token (256 bit, V42), bukan pada sesi.
                 .requestMatchers("/api/v1/pub/**").permitAll()
 
+
+                // Callback gerbang — server ke server, gerbang tidak boleh
+                // log masuk. Endpoint ini TIDAK mempercayai muatannya:
+                // ToyyibPay tidak menandatangani callback, jadi sesiapa
+                // boleh menghantar POST ke sini. Muatan hanya digunakan
+                // untuk mencari transaksi; sama ada bayaran berlaku
+                // ditentukan dengan memanggil BALIK gerbang.
+                .requestMatchers(HttpMethod.POST, "/api/v1/payments/online/callback").permitAll()
+
                 // platform — superadmin sahaja
                 .requestMatchers("/api/v1/platform/**").hasRole("SUPERADMIN")
 
