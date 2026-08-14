@@ -46,7 +46,8 @@ class PaymentGatewayController {
                        LocalDate dueDate, BigDecimal total, BigDecimal balance,
                        boolean overdue) {}
 
-    record StartBody(Long accountId, List<Long> documentIds) {}
+    /** Bentuk sama seperti ManualPaymentRequest — invois dipilih + amaun. */
+    record StartBody(Long accountId, List<Long> documentIds, BigDecimal amount) {}
 
     /** Bil tertunggak bagi akaun pelanggan sendiri. */
     @GetMapping("/outstanding")
@@ -101,7 +102,8 @@ class PaymentGatewayController {
         String spCode = (String) r.get(0);
 
         var hasil = service.start(spCode,
-                new GatewayService.StartRequest(body.accountId(), body.documentIds()), uid);
+                new GatewayService.StartRequest(
+                        body.accountId(), body.documentIds(), body.amount()), uid);
 
         return ResponseEntity.ok(Map.of(
                 "ourRef", hasil.ourRef(),

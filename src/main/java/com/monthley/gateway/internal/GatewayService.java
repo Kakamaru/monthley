@@ -61,7 +61,19 @@ class GatewayService {
         this.appUrl = appUrl;
     }
 
-    record StartRequest(Long accountId, List<Long> documentIds) {}
+    /**
+     * @param amount amaun yang PELANGGAN pilih untuk bayar.
+     *
+     *               Skrin bayaran online mengikut Manual Payment: pelanggan
+     *               menanda invois, dan amaun boleh kurang daripada jumlah
+     *               baki — bayaran sebahagian dibenarkan, sama seperti
+     *               kerani merekod bayaran separa di kaunter.
+     *
+     *               Jumlah baki dikira hanya sebagai HAD ATAS. Membenarkan
+     *               lebih bermakna mencipta advance melalui gerbang, dan
+     *               itu keputusan berasingan yang belum dibuat.
+     */
+    record StartRequest(Long accountId, List<Long> documentIds, BigDecimal amount) {}
     record StartResult(String ourRef, String billCode, String paymentUrl, BigDecimal amount) {}
 
     /**
@@ -135,6 +147,35 @@ class GatewayService {
         if (jumlah.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalStateException("Tiada amaun untuk dibayar.");
         }
+
+        // Amaun yang PELANGGAN pilih. Lalai kepada jumlah penuh bila tidak
+        // dinyatakan.
+        BigDecimal bayar = req.amount() == null ? jumlah
+                : req.amount().setScale(2, java.math.RoundingMode.HALF_UP);
+
+        if (bayar.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Amaun bayaran mesti lebih daripada sifar.");
+        }
+        if (bayar.compareTo(jumlah) > 0) {
+            throw new IllegalStateException(
+                    "Amaun melebihi baki bil yang dipilih (RM" + jumlah + ").");
+        }
+
+        // Minimum SP, jika ditetapkan. Gerbang mengenakan yuran tetap pada
+        // setiap transaksi, jadi bayaran yang terlalu kecil kos lebih
+        // daripada nilainya.
+        List<?> minRows = em.createNativeQuery(
+                "SELECT min_pymt_amount FROM service_provider WHERE sp_code = :sp")
+                .setParameter("sp", spCode).getResultList();
+        if (!minRows.isEmpty() && minRows.get(0) != null) {
+            BigDecimal min = (BigDecimal) minRows.get(0);
+            if (min.compareTo(BigDecimal.ZERO) > 0 && bayar.compareTo(min) < 0) {
+                throw new IllegalStateException(
+                        "Bayaran minimum ialah RM" + min + ".");
+            }
+        }
+
+        jumlah = bayar;
 
         // Rujukan kita — kunci idempotency bila callback diulang.
         String ourRef = "MT" + UUID.randomUUID().toString().replace("-", "")
