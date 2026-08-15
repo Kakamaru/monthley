@@ -1,6 +1,8 @@
 package com.monthley.gateway.internal;
 
 import com.monthley.gateway.api.GatewayPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -29,6 +31,8 @@ import java.util.Map;
  */
 @Component
 class ToyyibPayClient implements GatewayPort {
+
+    private static final Logger log = LoggerFactory.getLogger(ToyyibPayClient.class);
 
     private final GatewayCredentials creds;
     private final RestClient http = RestClient.create();
@@ -86,27 +90,44 @@ class ToyyibPayClient implements GatewayPort {
 
         // ToyyibPay memulangkan ARRAY pada kejayaan, OBJEK pada ralat —
         // jadi respons dibaca sebagai teks dahulu dan bentuknya diperiksa.
-        List<Map<String, Object>> resp;
+        // Dibaca sebagai TEKS dahulu. ToyyibPay memulangkan ARRAY pada
+        // kejayaan dan OBJEK pada ralat — membaca terus sebagai List<Map>
+        // melemparkan pengecualian penukaran yang MENYEMBUNYIKAN mesej
+        // ralat sebenar, dan tanpa mesej itu kita meneka.
+        String raw;
         try {
-            resp = http.post()
+            raw = http.post()
                     .uri(base(r.spCode()) + "/index.php/api/createBill")
                     .body(form)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+                    .body(String.class);
         } catch (Exception e) {
-            // Respons berbentuk objek bermakna ToyyibPay menolak permintaan.
-            throw new IllegalStateException(
-                    "ToyyibPay menolak permintaan bil. Semak kunci dan kod kategori.", e);
+            throw new IllegalStateException("Gagal menghubungi ToyyibPay.", e);
         }
 
-        if (resp == null || resp.isEmpty()) {
-            throw new IllegalStateException("ToyyibPay tidak memulangkan bil.");
+        log.info("ToyyibPay createBill [{}] respons: {}", r.spCode(), raw);
+
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalStateException("ToyyibPay tidak memulangkan apa-apa.");
         }
-        Object kod = resp.get(0).get("BillCode");
-        if (kod == null || kod.toString().isBlank()) {
-            throw new IllegalStateException("ToyyibPay tidak memulangkan BillCode.");
+
+        // Array bermula dengan '['. Apa-apa yang lain ialah ralat.
+        String trimmed = raw.trim();
+        if (!trimmed.startsWith("[")) {
+            throw new IllegalStateException("ToyyibPay menolak: " + potong(trimmed, 300));
         }
-        return new BillCreated(kod.toString(), base(r.spCode()) + "/" + kod);
+
+        // BillCode diekstrak tanpa penghurai JSON — Jackson tiada dalam
+        // classpath, dan respons ini cukup mudah untuk dipadankan.
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\"BillCode\"\\s*:\\s*\"([^\"]+)\"")
+                .matcher(trimmed);
+        if (!m.find()) {
+            throw new IllegalStateException(
+                    "ToyyibPay tidak memulangkan BillCode: " + potong(trimmed, 300));
+        }
+        String kod = m.group(1);
+        return new BillCreated(kod, base(r.spCode()) + "/" + kod);
     }
 
     @Override

@@ -55,20 +55,26 @@ class PaymentGatewayController {
     List<Outstanding> outstanding(@RequestParam Long accountId) {
         Long uid = uid();
 
+        // Subquery, bukan HAVING: MySQL 8 berjalan dengan ONLY_FULL_GROUP_BY,
+        // yang menolak HAVING tanpa GROUP BY. Ini juga lebih jelas —
+        // penapis pada baki ialah penapis, bukan syarat kumpulan.
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT d.id, d.doc_no, d.period, d.due_date,
-                       (d.amount + d.tax_amount) AS total,
-                       (d.amount + d.tax_amount)
-                         - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
-                                     WHERE al.debit_document_id = d.id
-                                       AND al.status = 'ACTIVE'), 0) AS baki
-                FROM   financial_document d
-                JOIN   account a ON a.id = d.account_id
-                WHERE  a.id = :acc AND a.payer_user_id = :uid
-                  AND  d.status <> 'CANCELLED'
-                  AND  d.doc_type IN ('INVOICE','DEBIT_NOTE')
-                HAVING baki > 0
-                ORDER  BY d.due_date, d.id
+                SELECT x.id, x.doc_no, x.period, x.due_date, x.total, x.baki
+                FROM (
+                    SELECT d.id, d.doc_no, d.period, d.due_date,
+                           (d.amount + d.tax_amount) AS total,
+                           (d.amount + d.tax_amount)
+                             - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
+                                         WHERE al.debit_document_id = d.id
+                                           AND al.status = 'ACTIVE'), 0) AS baki
+                    FROM   financial_document d
+                    JOIN   account a ON a.id = d.account_id
+                    WHERE  a.id = :acc AND a.payer_user_id = :uid
+                      AND  d.status <> 'CANCELLED'
+                      AND  d.doc_type IN ('INVOICE','DEBIT_NOTE')
+                ) x
+                WHERE  x.baki > 0
+                ORDER  BY x.due_date, x.id
                 """)
                 .setParameter("acc", accountId)
                 .setParameter("uid", uid)
