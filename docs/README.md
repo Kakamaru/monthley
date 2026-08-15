@@ -167,6 +167,20 @@ Semuanya dengan PDF berkepala SP; kebanyakannya dengan eksport Excel.
 
 Ujian: **404**, regresi penuh hijau dari `monthley_test` kosong.
 
+#### Bayaran dalam talian (ADR 0007)
+
+Disahkan hujung ke hujung pada ToyyibPay pengeluaran, 15 Ogos 2026:
+bil dicipta, dibayar melalui FPX, callback tiba dalam satu saat, resit
+dijana automatik, dan baki invois dikemas kini.
+
+| Bahagian | Nota |
+|---|---|
+| `GatewayPort` | Kontrak, bukan pelaksanaan — menukar gerbang bermakna satu kelas baharu |
+| Kelayakan per SP | AES-GCM, kunci induk dalam persekitaran. Legacy menyimpannya sebagai teks biasa |
+| `gateway_txn` | BERASINGAN daripada `payment` — 12% transaksi legacy tidak pernah selesai, dan itu bukan bayaran |
+| Callback | Muatan TIDAK dipercayai; kebenaran datang daripada memanggil balik gerbang. ToyyibPay tidak menandatangani callbacknya |
+| Skrin pelanggan | Pilih bil, tetapkan amaun (separa atau lebih), bayar, kembali dengan pengesahan |
+
 #### Modul tambahan (ADR 0016, ADR 0017)
 
 | Modul | Skrin | Nota |
@@ -201,12 +215,10 @@ itu sendiri:
 
 | Kerja | Nota |
 |---|---|
-| **Payment gateway (online)** | **BELUM DIBINA.** Reka bentuk SUDAH SIAP — [ADR 0007](decisions/0007-online-payment-guards.md) memutuskan lima daripada enam perkara (amaun dari gateway, handler stateless, idempotency `gateway_txn_ref`, reconciliation harian, model yuran). Yang keenam (jenis `Money`) sengaja ditangguh sehingga kerja bermula. Tiada 'ADR 0015' — rujukan itu salah dan telah dibuang. |
 | Model yuran (gross/fee/net) | Murah sekarang, mahal selepas ada data online |
 | DocumentService semua-atau-tiada | Satu baris wujud gugurkan seluruh invois |
 | Laporan: Daily Collection & Bank Recon | Menunggu penyatuan bank |
 | Laporan: Tax Summary (SST) | Menunggu keputusan cukai |
-| Edit SP di portal superadmin | Butang ✎ wujud tetapi tiada `(click)`, tiada handler, tiada endpoint — hiasan semata. Hanya tukar status yang berfungsi. Perlu dipecahkan kepada DUA: profil (skrin biasa) dan pelan/modul (melalui `sp_change_request`, ADR 0016) — satu skrin untuk kedua-duanya bermakna dua laluan menukar pelan |
 | `account_limit` paparan sahaja | Kuota akaun dipaparkan pada tiga skrin (Settings, senarai SP, onboarding) tetapi TIDAK dikuatkuasakan di mana-mana — tiada apa yang menghalang akaun ke-301 pada Pakej 300. Ditemui semasa ADR 0016 peringkat B1 |
 | Sahkan bayaran adhoc hujung-ke-hujung | Tab Search Invoice belum diuji dengan data sebenar |
 | i18n | Label UI bercampur BM dan Inggeris (soalan 25) |
@@ -215,6 +227,10 @@ itu sendiri:
 | Auto-jana bil ikut `invoice_gen_day` | Penjadual tiada — jana manual (Alat -> Jana Bil) dan invois tunggal berfungsi. Gate hari dilaksana BERSAMA penjadual, bukan sebelum ([ADR 0008](decisions/0008-split-invoice-and-gen-day.md) pencetus #1) |
 | UI tukar pelan | Backend siap (`sp_change_request` PLAN_CHANGE + `ModuleEntitlementService.changePlan`), UI belum. Tempatnya ialah skrin Edit SP |
 | Storan fail | Monthley tiada storan fail langsung — CSV caj penggunaan dihurai lalu dibuang. Gambar sokongan aduan ditangguh sehingga keputusan dibuat (cakera VPS vs storan objek); ia menjejaskan modul lain juga |
+| Notifikasi bayaran kepada SP | Legacy menghantar e-mel kepada SP setiap kali bayaran online diterima. Belum ada dalam sistem baharu. Perlu diputuskan: ke `contact_email`, `helpdesk_email`, atau kedua-dua; dan sama ada SP boleh mematikannya (sepuluh bayaran sehari bermakna sepuluh e-mel) |
+| Reconciliation harian gerbang | ADR 0007 #4 — banding setiap bayaran gerbang berjaya dengan resit, dan beri amaran bila ada bayaran tanpa resit, resit tanpa bayaran, atau amaun tak padan. Dalam legacy, 12% transaksi tidak pernah selesai; tanpa reconciliation, tiada cara membezakan 'pengguna batal' daripada 'bayaran berjaya tetapi callback gagal' |
+| MonthleyPay sebagai gerbang | `GatewayPort` ialah kontrak; ToyyibPay pelaksanaan pertama. MonthleyPay memerlukan algoritma checksumnya, yang hanya diketahui oleh pasukan yang menyelenggaranya |
+| Sahkan domain monthley.my dalam Resend | E-mel kini dihantar dari `monthley@perantau.org.my` kerana `monthley.my` belum disahkan. Berfungsi, tetapi domain sendiri lebih betul |
 | `FifoAllocator` label "deposit" | Lebihan selepas semua invois dilunaskan dinamakan `deposit`; istilah sistem ialah **advance**. Deposit ialah wang jaminan yang dipulangkan — perkara berbeza sepenuhnya. Menamakan semula sahaja, tiada perubahan logik |
 
 ---
@@ -256,7 +272,7 @@ line) menyasar keluarga-keluarga ini.
 | [0004](decisions/0004-manual-payment-idempotency.md) | Idempotency bayaran manual | Dilaksana |
 | [0005](decisions/0005-line-level-allocation.md) | Alokasi peringkat line — catatan isu | Digantikan 0006 |
 | [0006](decisions/0006-line-level-allocation-plan.md) | Alokasi peringkat line — rancangan | P1–P6 dilaksana |
-| [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Kekangan; modul belum dibina. 5/6 keputusan muktamad |
+| [0007](decisions/0007-online-payment-guards.md) | Guard payment online | Dilaksana — disahkan pada ToyyibPay pengeluaran. Reconciliation harian belum |
 | [0008](decisions/0008-split-invoice-and-gen-day.md) | Split invois ialah binari | Digantikan sebahagian oleh 0011 |
 | [0009](decisions/0009-baki-tunggal-dan-advance.md) | Satu takrifan baki + guna advance | P1–P3 dilaksana |
 | [0010](decisions/0010-penyata-akaun.md) | Penyata akaun | P1–P5 siap; P6 ditangguh selepas diukur |

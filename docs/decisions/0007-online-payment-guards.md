@@ -1,6 +1,9 @@
 # ADR 0007 — Guard Payment Online (kekangan reka bentuk)
 
-- **Status:** Diterima sebagai kekangan; modul belum dibina
+- **Status:** DILAKSANA — 15 Ogos 2026
+- **Disahkan:** hujung ke hujung pada ToyyibPay pengeluaran (bil dicipta,
+  dibayar melalui FPX, callback tiba dalam satu saat, resit dijana,
+  baki dikemas kini)
 - **Tarikh:** 23 Julai 2026
 - **Sumber:** `evidence/CASE-003-online-payment-integration.md`
 
@@ -25,7 +28,10 @@ kerja pembaikan. Kosnya hampir sifar sekarang; mahal kalau ditangguh.
 
 ## Keputusan
 
-### Diterima — dilaksana bersama modul
+### Diterima — DILAKSANA
+
+Kelima-lima dilaksana dalam modul `gateway` (V75, Ogos 2026). Nota
+pelaksanaan ditambah di bawah setiap satu.
 
 1. **Amaun resit MESTI diambil dari gateway, jangan dikira.**
    `receipt.amount := gateway.netAmount`. Bayaran ialah fakta luaran (bank
@@ -39,9 +45,17 @@ kerja pembaikan. Kosnya hampir sifar sekarang; mahal kalau ditangguh.
 3. **Idempotency pada `gateway_txn_ref`** (UNIQUE). Gateway retry callback
    jika tiada 200 OK. Corak sama ADR 0004.
 
+   *Dilaksana sebagai `gateway_txn.our_ref` — rujukan KITA, dihantar ke
+   gerbang sebagai `billExternalReferenceNo` dan kembali dalam callback.
+   Callback yang tiba untuk transaksi berstatus SUCCESS keluar awal.*
+
 4. **Reconciliation harian** — banding setiap bayaran gateway berjaya
    dengan resit. Alert bila: bayaran tanpa resit, resit tanpa bayaran,
    atau amaun tak padan.
+
+   *BELUM DILAKSANA. Data untuknya wujud (`gateway_txn` menyimpan setiap
+   percubaan dengan respons penuh), tetapi kerja perbandingan berjadual
+   belum ditulis.*
 
 ### Murah sekarang, mahal nanti
 
@@ -88,3 +102,46 @@ saat yang sama. Jika betul, punca berkurang dari tiga kepada dua.
 - `evidence/CASE-003-online-payment-integration.md`
 - `0004-manual-payment-idempotency.md` (corak idempotency)
 - `evidence/CASE-001-balance-mismatch-A0124.md`
+
+
+---
+
+## Nota pelaksanaan (15 Ogos 2026)
+
+### ToyyibPay tidak menandatangani callbacknya
+
+Tiada HMAC, tiada rahsia dikongsi dalam muatan. Sesiapa yang tahu URL
+callback boleh menghantar POST yang kelihatan seperti bayaran berjaya.
+
+Maka muatan callback DIABAIKAN kecuali untuk mencari transaksi. Sama ada
+bayaran benar-benar berlaku ditentukan dengan memanggil BALIK gerbang
+(`getBillTransactions`), dan amaun diambil dari respons itu.
+
+Ini menjadikan peraturan #1 lebih kuat daripada yang dirancang: amaun
+bukan sahaja tidak dikira daripada baki invois, ia juga tidak diambil
+daripada callback.
+
+### Kelayakan disulitkan
+
+Legacy menyimpan `pymt_gateway_key` sebagai teks biasa. Untuk MonthleyPay
+itu risiko dalaman kerana gerbangnya milik sendiri; untuk gerbang pihak
+ketiga, kunci itu memberi akses kepada akaun bayaran SP.
+
+AES-GCM dan bukan CBC: GCM mengesahkan ciphertext, jadi nilai yang diubah
+dalam DB ditolak dan bukan didekripsi menjadi sampah yang dihantar ke
+gerbang sebagai kunci.
+
+### `gateway_txn` berasingan daripada `payment`
+
+Dalam legacy, 18,614 daripada 150,580 transaksi (12%) tidak pernah
+selesai. Transaksi yang gagal, dibatalkan, atau ditinggalkan bukan
+bayaran — mencampurkannya bermakna setiap laporan perlu menapis status
+dahulu.
+
+### Yang keenam masih ditangguh
+
+Jenis `Money` tidak dilaksana. Sempadan penukaran yang ADR ini sebut
+sebagai bahaya sebenar memang wujud (ToyyibPay menerima SEN, kita simpan
+ringgit), tetapi ia terkumpul di satu tempat — `ToyyibPayClient` — dan
+bukan tersebar merentas 46 fail. Diputuskan semula apabila gerbang kedua
+ditambah.

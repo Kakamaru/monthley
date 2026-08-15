@@ -15,5 +15,6 @@
 @org.springframework.modulith.ApplicationModule(
         displayName = "Gateway",
         allowedDependencies = { "shared", "document :: api", "account :: api",
-                                "payment :: api" })
+                                "payment :: api", "statement :: api",
+                                "notification :: api" })
 package com.monthley.gateway;

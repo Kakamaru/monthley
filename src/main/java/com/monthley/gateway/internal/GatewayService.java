@@ -49,15 +49,24 @@ class GatewayService {
 
     private final GatewayPort gateway;
     private final PaymentPort payments;
+    private final com.monthley.statement.api.StatementPort statements;
+    private final com.monthley.document.api.DocumentAccessPort access;
+    private final com.monthley.notification.api.EmailPort email;
     private final String appUrl;
 
     @PersistenceContext
     private EntityManager em;
 
     GatewayService(GatewayPort gateway, PaymentPort payments,
+                   com.monthley.statement.api.StatementPort statements,
+                   com.monthley.document.api.DocumentAccessPort access,
+                   com.monthley.notification.api.EmailPort email,
                    @Value("${monthley.app-url}") String appUrl) {
         this.gateway = gateway;
         this.payments = payments;
+        this.statements = statements;
+        this.access = access;
+        this.email = email;
         this.appUrl = appUrl;
     }
 
@@ -333,6 +342,50 @@ class GatewayService {
                 .executeUpdate();
 
         log.info("Bayaran {} berjaya: RM{} → payment {}", ourRef, dibayar, hasil.paymentId());
+
+        // Resit dihantar SELEPAS semua tulisan selesai. Bayaran sudah
+        // selamat pada titik ini; e-mel yang gagal tidak boleh
+        // membatalkannya.
+        hantarResit(spCode, hasil.receiptDocumentId());
+    }
+
+    /**
+     * Hantar resit kepada pelanggan.
+     *
+     * Corak sama seperti bayaran manual: PAUTAN, bukan lampiran. PDF
+     * menjadikan e-mel berat, dan resit yang dibatalkan kekal dalam peti
+     * masuk selama-lamanya — pautan berhenti berfungsi apabila token
+     * dibatalkan.
+     *
+     * Senyap jika pelanggan tiada e-mel: akaun boleh dipaut tanpa alamat,
+     * dan itu bukan ralat.
+     */
+    private void hantarResit(String spCode, Long receiptDocumentId) {
+        try {
+            var m = statements.receipt(spCode, receiptDocumentId);
+            String to = m.header().billtoEmail();
+            if (to == null || to.isBlank()) return;
+
+            String token = access.tokenFor(spCode, receiptDocumentId,
+                    com.monthley.document.api.DocumentType.RECEIPT);
+
+            email.sendReceipt(
+                    to,
+                    m.header().billtoName() == null
+                            ? m.header().accountName() : m.header().billtoName(),
+                    m.header().spName(),
+                    m.receiptNo(),
+                    m.header().currency() + " " + m.amountPaid().toPlainString(),
+                    m.receiptDate().toString(),
+                    appUrl + "/api/v1/pub/receipts/" + token);
+
+        } catch (RuntimeException e) {
+            // Duit sudah diterima dan resit sudah wujud. E-mel yang gagal
+            // TIDAK boleh menggagalkan callback — gerbang akan mengulangnya
+            // dan kita akan cuba memproses bayaran yang sama sekali lagi.
+            log.error("Gagal hantar e-mel resit untuk dokumen {}: {}",
+                    receiptDocumentId, e.getMessage());
+        }
     }
 
     private static String potong(String v, int max) {
