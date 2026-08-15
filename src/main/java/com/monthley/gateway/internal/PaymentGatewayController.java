@@ -61,7 +61,7 @@ class PaymentGatewayController {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT x.id, x.doc_no, x.period, x.due_date, x.total, x.baki
                 FROM (
-                    SELECT d.id, d.doc_no, d.period, d.due_date,
+                    SELECT d.id, d.doc_no, p.name_ AS period, d.due_date,
                            (d.amount + d.tax_amount) AS total,
                            (d.amount + d.tax_amount)
                              - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
@@ -69,6 +69,9 @@ class PaymentGatewayController {
                                            AND al.status = 'ACTIVE'), 0) AS baki
                     FROM   financial_document d
                     JOIN   account a ON a.id = d.account_id
+                    -- period_id ialah FK ke fi_period; name_ memberi label
+                    -- yang boleh dibaca ('Ogos 2026'), bukan nombor id.
+                    LEFT   JOIN fi_period p ON p.period_id = d.period_id
                     WHERE  a.id = :acc AND a.payer_user_id = :uid
                       AND  d.status <> 'CANCELLED'
                       AND  d.doc_type IN ('INVOICE','DEBIT_NOTE')

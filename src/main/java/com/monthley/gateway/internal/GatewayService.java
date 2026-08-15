@@ -156,9 +156,18 @@ class GatewayService {
         if (bayar.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalStateException("Amaun bayaran mesti lebih daripada sifar.");
         }
-        if (bayar.compareTo(jumlah) > 0) {
+        // Bayaran MELEBIHI baki dibenarkan — lebihan menjadi advance dan
+        // di-knock pada penjanaan bil seterusnya (ADR 0009). Pelanggan yang
+        // membayar setahun sekali tidak sepatutnya dipaksa membayar tepat
+        // baki semasa.
+        //
+        // Had atas kekal, tetapi longgar: sepuluh kali baki. Tanpa sebarang
+        // had, satu digit tersalah taip menjadi bayaran RM80,000 yang perlu
+        // dipulangkan melalui bank.
+        BigDecimal had = jumlah.multiply(BigDecimal.TEN);
+        if (bayar.compareTo(had) > 0) {
             throw new IllegalStateException(
-                    "Amaun melebihi baki bil yang dipilih (RM" + jumlah + ").");
+                    "Amaun terlalu besar berbanding baki bil (maksimum RM" + had + ").");
         }
 
         // Minimum SP, jika ditetapkan. Gerbang mengenakan yuran tetap pada
