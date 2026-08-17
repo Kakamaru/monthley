@@ -114,11 +114,16 @@ class PaymentGatewayController {
                 new GatewayService.StartRequest(
                         body.accountId(), body.documentIds(), body.amount()), uid);
 
+        // amount, fee, dan charged dipulangkan BERASINGAN supaya skrin
+        // boleh menunjukkan pecahan kepada pelanggan sebelum mereka
+        // meneruskan — 'RM100.00 + RM1.50 yuran = RM101.50'.
         return ResponseEntity.ok(Map.of(
                 "ourRef", hasil.ourRef(),
                 "billCode", hasil.billCode(),
                 "paymentUrl", hasil.paymentUrl(),
-                "amount", hasil.amount()));
+                "amount", hasil.amount(),
+                "fee", hasil.fee(),
+                "charged", hasil.charged()));
     }
 
     /**

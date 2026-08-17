@@ -17,7 +17,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Bayaran dalam talian — mula, dan proses callback.
@@ -49,6 +48,7 @@ class GatewayService {
 
     private final GatewayPort gateway;
     private final PaymentPort payments;
+    private final com.monthley.document.api.DocumentNumberPort numbers;
     private final com.monthley.statement.api.StatementPort statements;
     private final com.monthley.document.api.DocumentAccessPort access;
     private final com.monthley.notification.api.EmailPort email;
@@ -58,12 +58,14 @@ class GatewayService {
     private EntityManager em;
 
     GatewayService(GatewayPort gateway, PaymentPort payments,
+                   com.monthley.document.api.DocumentNumberPort numbers,
                    com.monthley.statement.api.StatementPort statements,
                    com.monthley.document.api.DocumentAccessPort access,
                    com.monthley.notification.api.EmailPort email,
                    @Value("${monthley.app-url}") String appUrl) {
         this.gateway = gateway;
         this.payments = payments;
+        this.numbers = numbers;
         this.statements = statements;
         this.access = access;
         this.email = email;
@@ -83,7 +85,14 @@ class GatewayService {
      *               itu keputusan berasingan yang belum dibuat.
      */
     record StartRequest(Long accountId, List<Long> documentIds, BigDecimal amount) {}
-    record StartResult(String ourRef, String billCode, String paymentUrl, BigDecimal amount) {}
+    /**
+     * @param amount  amaun terhadap invois — ini yang menjadi resit
+     * @param fee     yuran gerbang
+     * @param charged jumlah yang pelanggan hantar ke gerbang
+     *                (amount + fee bila SP tidak menyerap)
+     */
+    record StartResult(String ourRef, String billCode, String paymentUrl,
+                       BigDecimal amount, BigDecimal fee, BigDecimal charged) {}
 
     /**
      * Mulakan bayaran.
@@ -195,15 +204,60 @@ class GatewayService {
 
         jumlah = bayar;
 
-        // Rujukan kita — kunci idempotency bila callback diulang.
-        String ourRef = "MT" + UUID.randomUUID().toString().replace("-", "")
-                                  .substring(0, 18).toUpperCase();
+        // ---- Yuran gerbang (ADR 0007 #5) ----
+        //
+        // Kadar bergantung bilangan invois yang dipilih: rate_single untuk
+        // satu, rate_multi untuk pelbagai. Ini corak legacy — bayaran
+        // pelbagai invois memerlukan lebih kerja pada gerbang.
+        //
+        // absorb menentukan SIAPA membayarnya:
+        //
+        //   absorb = 0  yuran DITAMBAH kepada bayaran. Pelanggan hantar
+        //               RM101.50 ke gerbang; SP terima RM100 penuh.
+        //
+        //   absorb = 1  SP menyerap. Pelanggan hantar RM100; gerbang
+        //               memotong RM1.50; SP terima RM98.50.
+        //
+        // Dalam KEDUA-DUA kes, resit ialah RM100 — itulah yang dibayar
+        // terhadap invois. Yuran ialah kos urusan, bukan sebahagian
+        // bayaran. Legacy mengaburkan perbezaan ini dan yuran wujud
+        // sebagai 'beza yang kita jangka', menjadikan anomali sukar
+        // dikesan (CASE-003).
+        BigDecimal yuran = kiraYuran(spCode, req.documentIds().size());
+        boolean serap = spSerapYuran(spCode);
 
+        // Amaun yang dihantar ke gerbang.
+        BigDecimal dicaj = serap ? jumlah : jumlah.add(yuran);
+
+        // Rujukan kita — kunci idempotency bila callback diulang, DAN
+        // pengenal SP dalam penyata bank.
+        //
+        // Bentuknya: sp_code + kaunter base36, mengikut corak legacy
+        // (001T3B6H). Rujukan ini muncul dalam penyata bank gerbang, dan
+        // prefix SP bermakna wang boleh diagihkan kepada SP yang betul
+        // TANPA menyoal pangkalan data — penting apabila satu akaun
+        // gerbang melayan banyak SP.
+        //
+        // UUID rawak yang digunakan sebelum ini unik, tetapi tidak
+        // memberitahu apa-apa: setiap baris penyata bank memerlukan
+        // pertanyaan untuk mengetahui pemiliknya.
+        //
+        // Kaunter adalah PER SP, bukan global seperti legacy. SP sudah
+        // ada dalam prefix, jadi turutan global hanya mencipta perbalahan
+        // kunci antara SP yang tidak berkaitan.
+        String ourRef = spCode + base36(
+                numbers.nextValue(spCode, "GATEWAY_REF"));
+
+        // amount ialah amaun terhadap INVOIS (yang menjadi resit).
+        // fee_amount direkod berasingan supaya penyimpangan kelihatan —
+        // ADR 0007 #5 menuntut gross/fee/net eksplisit.
         em.createNativeQuery("""
                 INSERT INTO gateway_txn
-                  (sp_code, account_id, our_ref, gateway, amount, status, created_at, created_by)
-                VALUES (:sp, :acc, :ref, :gw, :amt, 'NEW', NOW(), :by)
+                  (sp_code, account_id, our_ref, gateway, amount, fee_amount,
+                   status, created_at, created_by)
+                VALUES (:sp, :acc, :ref, :gw, :amt, :fee, 'NEW', NOW(), :by)
                 """)
+                .setParameter("fee", yuran)
                 .setParameter("sp", spCode)
                 .setParameter("acc", req.accountId())
                 .setParameter("ref", ourRef)
@@ -233,7 +287,7 @@ class GatewayService {
         String tel = (String) akaun[5];
 
         var bill = gateway.createBill(new GatewayPort.NewBill(
-                spCode, ourRef, nama, emel, tel, jumlah,
+                spCode, ourRef, nama, emel, tel, dicaj,
                 "Bayaran " + akaun[1],
                 appUrl + "/portal/my-accounts?bayar=" + ourRef,
                 appUrl.replaceAll("/$", "") + "/api/v1/payments/online/callback"));
@@ -246,7 +300,8 @@ class GatewayService {
                 .setParameter("id", txnId)
                 .executeUpdate();
 
-        return new StartResult(ourRef, bill.billCode(), bill.paymentUrl(), jumlah);
+        return new StartResult(ourRef, bill.billCode(), bill.paymentUrl(),
+                               jumlah, yuran, dicaj);
     }
 
     /**
@@ -267,7 +322,7 @@ class GatewayService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     void handleCallback(String ourRef, String rawPayload) {
         List<?> rows = em.createNativeQuery("""
-                SELECT id, sp_code, account_id, bill_code, status, amount
+                SELECT id, sp_code, account_id, bill_code, status, amount, fee_amount
                 FROM   gateway_txn WHERE our_ref = :ref
                 """).setParameter("ref", ourRef).getResultList();
 
@@ -319,7 +374,33 @@ class GatewayService {
                 .setParameter("t", txnId).getResultList();
 
         // ADR 0007 #1: amaun daripada GERBANG, bukan daripada baki invois.
-        BigDecimal dibayar = txn.paidAmount();
+        BigDecimal diterima = txn.paidAmount();
+
+        // Yuran DITOLAK sebelum resit dicipta.
+        //
+        // Bila SP tidak menyerap, pelanggan menghantar RM101.50 ke gerbang
+        // untuk invois RM100. Menggunakan RM101.50 sebagai amaun resit
+        // bermakna invois kelihatan terlebih bayar RM1.50, dan lebihan itu
+        // menjadi advance yang tidak pernah wujud.
+        //
+        // Yuran ialah kos urusan antara pelanggan dan gerbang; ia tidak
+        // pernah menjadi sebahagian bayaran terhadap invois.
+        //
+        // Bila SP MENYERAP, pelanggan menghantar RM100 tepat, jadi tiada
+        // apa untuk ditolak — yuran dipotong di pihak gerbang.
+        BigDecimal yuran = (BigDecimal) t[6];
+        if (yuran == null) yuran = BigDecimal.ZERO;
+
+        BigDecimal dibayar = spSerapYuran(spCode)
+                ? diterima
+                : diterima.subtract(yuran);
+
+        if (dibayar.compareTo(BigDecimal.ZERO) <= 0) {
+            log.error("Bayaran {} : amaun selepas yuran bukan positif "
+                      + "(diterima {}, yuran {}). Tidak diproses.",
+                      ourRef, diterima, yuran);
+            return;
+        }
 
         var hasil = payments.receivePayment(new NewPayment(
                 spCode, accountId, dibayar, PaymentMethod.FPX,
@@ -335,13 +416,17 @@ class GatewayService {
                        payment_id = :pid, paid_at = NOW(), updated_at = NOW()
                 WHERE  id = :id
                 """)
-                .setParameter("amt", dibayar)
+                // paid_amount menyimpan amaun DITERIMA daripada gerbang
+                // (termasuk yuran) — itulah yang muncul dalam penyata bank.
+                // Amaun resit ialah nilai selepas yuran ditolak.
+                .setParameter("amt", diterima)
                 .setParameter("ref", txn.gatewayRef())
                 .setParameter("pid", hasil.paymentId())
                 .setParameter("id", txnId)
                 .executeUpdate();
 
-        log.info("Bayaran {} berjaya: RM{} → payment {}", ourRef, dibayar, hasil.paymentId());
+        log.info("Bayaran {} berjaya: diterima RM{}, yuran RM{}, resit RM{} → payment {}",
+                 ourRef, diterima, yuran, dibayar, hasil.paymentId());
 
         // Resit dihantar SELEPAS semua tulisan selesai. Bayaran sudah
         // selamat pada titik ini; e-mel yang gagal tidak boleh
@@ -386,6 +471,45 @@ class GatewayService {
             log.error("Gagal hantar e-mel resit untuk dokumen {}: {}",
                     receiptDocumentId, e.getMessage());
         }
+    }
+
+    /**
+     * Base36 huruf besar — 0-9 kemudian A-Z.
+     *
+     * Legacy menggunakannya untuk memendekkan rujukan: 1,000,000 menjadi
+     * LFLS dalam empat aksara berbanding tujuh. Ruang rujukan gerbang
+     * terhad, dan prefix SP sudah memakan sebahagiannya.
+     */
+    /**
+     * Yuran mengikut bilangan invois.
+     *
+     * Sifar bila tetapan tiada — pemasangan yang salah konfigurasi patut
+     * gagal ke arah TIDAK mengenakan caj kepada pelanggan.
+     */
+    private BigDecimal kiraYuran(String spCode, int bilInvois) {
+        List<?> r = em.createNativeQuery(
+                "SELECT rate_single, rate_multi FROM sp_payment_setting WHERE sp_code = :sp")
+                .setParameter("sp", spCode).getResultList();
+        if (r.isEmpty()) return BigDecimal.ZERO;
+
+        Object[] row = (Object[]) r.get(0);
+        BigDecimal kadar = (bilInvois > 1) ? (BigDecimal) row[1] : (BigDecimal) row[0];
+        return kadar == null ? BigDecimal.ZERO : kadar;
+    }
+
+    private boolean spSerapYuran(String spCode) {
+        List<?> r = em.createNativeQuery(
+                "SELECT absorb FROM sp_payment_setting WHERE sp_code = :sp")
+                .setParameter("sp", spCode).getResultList();
+        if (r.isEmpty()) return false;
+        Object v = r.get(0);
+        if (v == null) return false;
+        if (v instanceof Boolean b) return b;
+        return ((Number) v).intValue() != 0;
+    }
+
+    private static String base36(long v) {
+        return Long.toString(v, 36).toUpperCase();
     }
 
     private static String potong(String v, int max) {

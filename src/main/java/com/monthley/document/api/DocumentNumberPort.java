@@ -37,4 +37,16 @@ public interface DocumentNumberPort {
      * @param start   nombor mula bila turutan dicipta atau prefix berubah
      */
     String next(String spCode, String seqType, String prefix, int padding, long start);
+
+    /**
+     * Nilai kaunter MENTAH — tanpa prefix atau padding.
+     *
+     * Untuk pemanggil yang membina formatnya sendiri. Rujukan gerbang
+     * menggunakan base36 supaya rujukan kekal pendek: ruang rujukan pada
+     * penyata bank terhad, dan prefix SP sudah memakan sebahagiannya.
+     *
+     * Kunci baris yang sama dengan next(); mesti dipanggil dalam transaksi
+     * sedia ada.
+     */
+    long nextValue(String spCode, String seqType);
 }

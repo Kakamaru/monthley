@@ -37,6 +37,11 @@ class DocumentService implements DocumentPort, DocumentNumberPort {
     }
 
     @Override
+    public long nextValue(String spCode, String seqType) {
+        return numbers.nextValue(spCode, seqType);
+    }
+
+    @Override
     @Transactional
     public Optional<Long> createInvoice(NewInvoice inv) {
         // Semua-atau-tiada: satu baris sudah wujud -> gugurkan seluruh invois.

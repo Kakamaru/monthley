@@ -30,6 +30,53 @@ class DocumentNumberService {
     @PersistenceContext
     private EntityManager em;
 
+    /**
+     * Kaunter MENTAH — tanpa prefix, padding, atau semakan langkau.
+     *
+     * Rujukan gerbang membina formatnya sendiri (sp_code + base36), jadi
+     * ia perlukan nombor dan bukan rentetan berformat. Semakan langkau
+     * dalam next() memeriksa financial_document, yang tidak berkaitan
+     * dengan rujukan gerbang.
+     *
+     * Kunci baris yang SAMA: dua kaedah pada turutan yang sama disiri.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    long nextValue(String spCode, String seqType) {
+        Object[] row;
+        try {
+            row = (Object[]) em.createNativeQuery("""
+                SELECT id, next_value
+                FROM document_number_sequence
+                WHERE sp_code = :sp AND seq_type = :type
+                FOR UPDATE
+                """)
+                .setParameter("sp", spCode)
+                .setParameter("type", seqType)
+                .getSingleResult();
+        } catch (jakarta.persistence.NoResultException e) {
+            em.createNativeQuery("""
+                INSERT INTO document_number_sequence
+                  (sp_code, seq_type, prefix, last_prefix, next_value, padding, version)
+                VALUES (:sp, :type, '', '', 1, 6, 0)
+                """)
+                .setParameter("sp", spCode)
+                .setParameter("type", seqType)
+                .executeUpdate();
+            return nextValue(spCode, seqType);
+        }
+
+        Long id = ((Number) row[0]).longValue();
+        long value = ((Number) row[1]).longValue();
+
+        em.createNativeQuery(
+                "UPDATE document_number_sequence SET next_value = :v WHERE id = :id")
+                .setParameter("v", value + 1)
+                .setParameter("id", id)
+                .executeUpdate();
+
+        return value;
+    }
+
     @Transactional(propagation = Propagation.MANDATORY)
     String next(String spCode, String seqType) {
         return next(spCode, seqType, tetapan(spCode, seqType));
