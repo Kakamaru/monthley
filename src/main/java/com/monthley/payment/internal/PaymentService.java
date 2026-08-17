@@ -138,14 +138,45 @@ class PaymentService implements PaymentPort {
 
         // Calon invois (hormati selective gate)
         List<OutstandingInvoice> candidates = outstandingFor(req.payerAccountId());
-        // Untuk akaun adhoc penapis WAJIB, tanpa mengira allow_selective:
-        // tetapan itu tentang keselesaan kerani, bukan tentang duit
-        // berpindah antara orang asing.
-        if ((adhoc || allowSelective(req.spCode()))
-                && req.targetDocumentIds() != null && !req.targetDocumentIds().isEmpty()) {
-            candidates = candidates.stream()
-                    .filter(i -> req.targetDocumentIds().contains(i.documentId()))
-                    .toList();
+
+        if (req.targetDocumentIds() != null && !req.targetDocumentIds().isEmpty()) {
+            if (adhoc) {
+                // Akaun adhoc: penapis WAJIB, tanpa mengira allow_selective.
+                // Akaun ADHOC-SALES dikongsi antara pembeli yang tidak
+                // berkaitan, jadi limpahan bermakna duit seorang menjelaskan
+                // invois orang lain.
+                candidates = candidates.stream()
+                        .filter(i -> req.targetDocumentIds().contains(i.documentId()))
+                        .toList();
+
+            } else if (allowSelective(req.spCode())) {
+                // Invois yang dipilih menetapkan KEUTAMAAN, bukan HAD.
+                //
+                // FIFO mengalir melalui invois yang ditanda dahulu; jika
+                // amaun masih berbaki, ia meneruskan melalui invois
+                // tertunggak yang lain.
+                //
+                // Menapis kepada yang ditanda sahaja bermakna pelanggan yang
+                // menanda satu invois RM80 dan membayar RM100 mendapat
+                // advance RM20 — sedangkan invois lain masih tertunggak.
+                // Advance yang wujud bersama tunggakan mengelirukan: baki
+                // akaun menunjukkan hutang, dan pada masa sama sistem
+                // memegang kredit yang tidak digunakan.
+                //
+                // Advance hanya sah apabila SEMUA invois telah dijelaskan.
+                List<Long> dipilih = req.targetDocumentIds();
+                List<OutstandingInvoice> ditanda = candidates.stream()
+                        .filter(i -> dipilih.contains(i.documentId()))
+                        .toList();
+                List<OutstandingInvoice> selebihnya = candidates.stream()
+                        .filter(i -> !dipilih.contains(i.documentId()))
+                        .toList();
+
+                List<OutstandingInvoice> tersusun =
+                        new java.util.ArrayList<>(ditanda);
+                tersusun.addAll(selebihnya);
+                candidates = tersusun;
+            }
         }
 
         // FIFO

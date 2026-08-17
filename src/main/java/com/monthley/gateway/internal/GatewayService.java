@@ -94,6 +94,29 @@ class GatewayService {
     record StartResult(String ourRef, String billCode, String paymentUrl,
                        BigDecimal amount, BigDecimal fee, BigDecimal charged) {}
 
+    record FeePreview(BigDecimal amount, BigDecimal fee,
+                      BigDecimal charged, boolean absorb) {}
+
+    /**
+     * Kira caj transaksi TANPA mencipta bil.
+     *
+     * Modal bayaran perlu menunjukkan pecahan sebelum pelanggan
+     * meneruskan. Melompat ke gerbang dan melihat jumlah berbeza daripada
+     * yang dipilih kelihatan seperti sistem menambah caj secara senyap.
+     *
+     * Bil TIDAK dicipta di sini: pelanggan yang membuka modal dan menutup
+     * semula tidak sepatutnya meninggalkan bil terbengkalai pada gerbang.
+     */
+    @Transactional(readOnly = true)
+    FeePreview previewFee(String spCode, Long accountId,
+                          List<Long> documentIds, BigDecimal amaun) {
+        int disentuh = bilInvoisDisentuh(documentIds, accountId, spCode, amaun);
+        BigDecimal yuran = kiraYuran(spCode, disentuh);
+        boolean serap = spSerapYuran(spCode);
+        BigDecimal dicaj = serap ? amaun : amaun.add(yuran);
+        return new FeePreview(amaun, yuran, dicaj, serap);
+    }
+
     /**
      * Mulakan bayaran.
      *
@@ -223,7 +246,10 @@ class GatewayService {
         // bayaran. Legacy mengaburkan perbezaan ini dan yuran wujud
         // sebagai 'beza yang kita jangka', menjadikan anomali sukar
         // dikesan (CASE-003).
-        BigDecimal yuran = kiraYuran(spCode, req.documentIds().size());
+        // Kadar mengikut invois yang DISENTUH, bukan yang ditanda —
+        // lihat bilInvoisDisentuh().
+        BigDecimal yuran = kiraYuran(spCode,
+                bilInvoisDisentuh(req.documentIds(), req.accountId(), spCode, bayar));
         boolean serap = spSerapYuran(spCode);
 
         // Amaun yang dihantar ke gerbang.
@@ -481,7 +507,58 @@ class GatewayService {
      * terhad, dan prefix SP sudah memakan sebahagiannya.
      */
     /**
-     * Yuran mengikut bilangan invois.
+     * Berapa invois yang amaun ini benar-benar SENTUH.
+     *
+     * Bukan bilangan yang ditanda. Pelanggan boleh menanda tiga invois dan
+     * membayar RM6 — jumlah itu tidak cukup pun untuk yang pertama, jadi
+     * satu invois sahaja disentuh dan kadar tunggal terpakai.
+     *
+     * Sebaliknya, menanda satu invois RM80 dan membayar RM100
+     * menyelesaikan invois itu dengan RM20 menjadi advance — masih satu
+     * invois.
+     *
+     * Kiraan ini mencerminkan kerja sebenar pada gerbang, dan itulah yang
+     * kadar berbeza wujud untuk mewakilinya.
+     *
+     * Minimum satu: bayaran yang menyentuh sifar invois tidak pernah
+     * sampai ke sini (guard amaun menolaknya lebih awal).
+     */
+    private int bilInvoisDisentuh(List<Long> documentIds, Long accountId,
+                                  String spCode, BigDecimal amaun) {
+        if (documentIds == null || documentIds.isEmpty()) return 1;
+
+        BigDecimal baki = amaun;
+        int disentuh = 0;
+
+        for (Long docId : documentIds) {
+            if (baki.compareTo(BigDecimal.ZERO) <= 0) break;
+
+            List<?> r = em.createNativeQuery("""
+                    SELECT (d.amount + d.tax_amount)
+                             - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
+                                         WHERE al.debit_document_id = d.id
+                                           AND al.status = 'ACTIVE'), 0)
+                    FROM   financial_document d
+                    WHERE  d.id = :doc AND d.account_id = :acc AND d.sp_code = :sp
+                    """)
+                    .setParameter("doc", docId)
+                    .setParameter("acc", accountId)
+                    .setParameter("sp", spCode)
+                    .getResultList();
+
+            if (r.isEmpty() || r.get(0) == null) continue;
+            BigDecimal bakiInvois = (BigDecimal) r.get(0);
+            if (bakiInvois.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            disentuh++;
+            baki = baki.subtract(bakiInvois);
+        }
+
+        return Math.max(1, disentuh);
+    }
+
+    /**
+     * Yuran mengikut bilangan invois yang DISENTUH.
      *
      * Sifar bila tetapan tiada — pemasangan yang salah konfigurasi patut
      * gagal ke arah TIDAK mengenakan caj kepada pelanggan.

@@ -95,6 +95,37 @@ class PaymentGatewayController {
         return out;
     }
 
+    /**
+     * Pratonton caj transaksi.
+     *
+     * Pemilikan akaun disemak sama seperti /start — pratonton mendedahkan
+     * tetapan yuran SP, dan itu bukan maklumat untuk sesiapa yang bukan
+     * pelanggan SP tersebut.
+     */
+    @PostMapping("/preview")
+    ResponseEntity<?> preview(@RequestBody StartBody body) {
+        Long uid = uid();
+
+        List<?> r = em.createNativeQuery(
+                "SELECT sp_code FROM account WHERE id = :a AND payer_user_id = :uid")
+                .setParameter("a", body.accountId()).setParameter("uid", uid)
+                .getResultList();
+        if (r.isEmpty()) {
+            throw new IllegalStateException("Akaun bukan milik anda.");
+        }
+        String spCode = (String) r.get(0);
+
+        BigDecimal amaun = body.amount() == null ? BigDecimal.ZERO : body.amount();
+
+        var p = service.previewFee(spCode, body.accountId(),
+                                   body.documentIds(), amaun);
+        return ResponseEntity.ok(Map.of(
+                "amount", p.amount(),
+                "fee", p.fee(),
+                "charged", p.charged(),
+                "absorb", p.absorb()));
+    }
+
     @PostMapping("/start")
     ResponseEntity<?> start(@RequestBody StartBody body) {
         Long uid = uid();

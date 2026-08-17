@@ -7,6 +7,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,6 +61,19 @@ class AuthController {
     record RegisterRequest(
             @NotBlank String fullName,
             @Email @NotBlank String email,
+            /**
+             * Nombor telefon Malaysia — PILIHAN, tetapi mesti sah jika diisi.
+             *
+             * Menerima 0123456789, +60123456789, dan variasi dengan
+             * pemisah. Rentetan kosong dibenarkan kerana medan ini pilihan.
+             *
+             * Pengesahan sisi klien sahaja tidak memadai: sesiapa boleh
+             * memanggil endpoint ini terus. Nombor rosak seperti
+             * '0189898jhjgu7878' hanya ditemui apabila penghantaran SMS
+             * gagal berbulan kemudian.
+             */
+            @Pattern(regexp = "^$|^[+]?6?0[0-9\\s()-]{8,14}$",
+                     message = "No. telefon tidak sah. Contoh: 0123456789")
             String mobile,
             @NotBlank @Size(min = 6, message = "Kata laluan minimum 6 aksara") String password) {}
 
@@ -96,7 +110,14 @@ class AuthController {
                     .body(new ErrorResponse("E-mel ini sudah didaftarkan."));
         }
 
-        AppUser user = new AppUser(email, r.fullName(), r.mobile(), encoder.encode(r.password()));
+        // Pemisah dibuang sebelum disimpan: '012-345 6789' dan
+        // '0123456789' ialah nombor yang SAMA, dan menyimpan kedua-dua
+        // bentuk bermakna carian mengikut nombor terlepas separuhnya.
+        String mobile = r.mobile() == null ? null
+                : r.mobile().replaceAll("[\\s()-]", "").trim();
+        if (mobile != null && mobile.isEmpty()) mobile = null;
+
+        AppUser user = new AppUser(email, r.fullName(), mobile, encoder.encode(r.password()));
         users.save(user);
         users.flush();
 
