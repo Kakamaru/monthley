@@ -43,7 +43,19 @@ class PaymentGatewayController {
         this.service = service;
     }
 
+    /**
+     * @param description  keterangan baris invois — 'YURAN BELAJAR',
+     *                     'MAINTENANCE FEE'. Nombor dokumen sahaja tidak
+     *                     memberitahu pelanggan apa yang mereka bayar;
+     *                     Manual Payment sudah memaparkannya, dan dua skrin
+     *                     bayaran yang menunjukkan perkara berbeza untuk
+     *                     invois yang sama mengelirukan.
+     *
+     *                     Invois berbilang baris menunjukkan baris PERTAMA;
+     *                     senarai penuh ada pada invois itu sendiri.
+     */
     record Outstanding(Long documentId, String docNo, String period,
+                       String description,
                        LocalDate dueDate, BigDecimal total, BigDecimal balance,
                        boolean overdue) {}
 
@@ -73,11 +85,15 @@ class PaymentGatewayController {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT x.account_id, x.account_no, x.account_name,
                        x.sp_code, x.sp_name,
-                       x.id, x.doc_no, x.period, x.due_date, x.total, x.baki
+                       x.id, x.doc_no, x.period, x.keterangan,
+                       x.due_date, x.total, x.baki
                 FROM (
                     SELECT a.id AS account_id, a.account_no, a.account_name,
                            a.sp_code, s.name AS sp_name,
-                           d.id, d.doc_no, p.name_ AS period, d.due_date,
+                           d.id, d.doc_no, p.name_ AS period,
+                           (SELECT l.description FROM financial_document_line l
+                            WHERE l.document_id = d.id ORDER BY l.id LIMIT 1) AS keterangan,
+                           d.due_date,
                            (d.amount + d.tax_amount) AS total,
                            (d.amount + d.tax_amount)
                              - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
@@ -106,11 +122,12 @@ class PaymentGatewayController {
 
         for (Object[] r : rows) {
             Long accId = ((Number) r[0]).longValue();
-            LocalDate due = toDate(r[8]);
+            LocalDate due = toDate(r[9]);
 
             Outstanding bil = new Outstanding(
                     ((Number) r[5]).longValue(), (String) r[6], (String) r[7],
-                    due, (BigDecimal) r[9], (BigDecimal) r[10],
+                    (String) r[8],
+                    due, (BigDecimal) r[10], (BigDecimal) r[11],
                     due != null && due.isBefore(hariIni));
 
             OutAcct akaun = ikutAkaun.get(accId);
@@ -142,9 +159,13 @@ class PaymentGatewayController {
         // yang menolak HAVING tanpa GROUP BY. Ini juga lebih jelas —
         // penapis pada baki ialah penapis, bukan syarat kumpulan.
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT x.id, x.doc_no, x.period, x.due_date, x.total, x.baki
+                SELECT x.id, x.doc_no, x.period, x.keterangan,
+                       x.due_date, x.total, x.baki
                 FROM (
-                    SELECT d.id, d.doc_no, p.name_ AS period, d.due_date,
+                    SELECT d.id, d.doc_no, p.name_ AS period,
+                           (SELECT l.description FROM financial_document_line l
+                            WHERE l.document_id = d.id ORDER BY l.id LIMIT 1) AS keterangan,
+                           d.due_date,
                            (d.amount + d.tax_amount) AS total,
                            (d.amount + d.tax_amount)
                              - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
@@ -169,10 +190,11 @@ class PaymentGatewayController {
         LocalDate hariIni = LocalDate.now();
         List<Outstanding> out = new ArrayList<>();
         for (Object[] r : rows) {
-            LocalDate due = toDate(r[3]);
+            LocalDate due = toDate(r[4]);
             out.add(new Outstanding(
                     ((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    due, (BigDecimal) r[4], (BigDecimal) r[5],
+                    (String) r[3],
+                    due, (BigDecimal) r[5], (BigDecimal) r[6],
                     due != null && due.isBefore(hariIni)));
         }
         return out;
