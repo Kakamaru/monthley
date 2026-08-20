@@ -111,10 +111,208 @@ class GatewayService {
     FeePreview previewFee(String spCode, Long accountId,
                           List<Long> documentIds, BigDecimal amaun) {
         int disentuh = bilInvoisDisentuh(documentIds, accountId, spCode, amaun);
-        BigDecimal yuran = kiraYuran(spCode, disentuh);
+        BigDecimal yuran = kiraYuran(spCode, disentuh, 1);
         boolean serap = spSerapYuran(spCode);
         BigDecimal dicaj = serap ? amaun : amaun.add(yuran);
         return new FeePreview(amaun, yuran, dicaj, serap);
+    }
+
+    /**
+     * Pratonton caj bagi bayaran merentas akaun.
+     *
+     * Tiada bil dicipta. Skrin perlu menunjukkan pecahan sebelum pelanggan
+     * meneruskan, dan kadar bergantung pada bilangan AKAUN — yang hanya
+     * diketahui selepas invois dipilih.
+     */
+    @Transactional(readOnly = true)
+    FeePreview previewMulti(Long payerUserId, List<Long> documentIds, BigDecimal amaun) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return new FeePreview(BigDecimal.ZERO, BigDecimal.ZERO,
+                                  BigDecimal.ZERO, false);
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT DISTINCT a.sp_code, a.id
+                FROM   financial_document d
+                JOIN   account a ON a.id = d.account_id
+                WHERE  d.id IN (:docs) AND a.payer_user_id = :uid
+                """)
+                .setParameter("docs", documentIds)
+                .setParameter("uid", payerUserId)
+                .getResultList();
+
+        if (rows.isEmpty()) {
+            return new FeePreview(amaun, BigDecimal.ZERO, amaun, false);
+        }
+
+        java.util.Set<String> spSet = new java.util.LinkedHashSet<>();
+        java.util.Set<Long> akaunSet = new java.util.LinkedHashSet<>();
+        for (Object[] r : rows) {
+            spSet.add((String) r[0]);
+            akaunSet.add(((Number) r[1]).longValue());
+        }
+
+        // Merentas SP: pratonton memulangkan sifar dan bukan melemparkan.
+        // Skrin sudah mengunci pilihan kepada satu SP; pengecualian di sini
+        // hanya menghasilkan mesej ralat semasa pelanggan menanda kotak.
+        if (spSet.size() > 1) {
+            return new FeePreview(amaun, BigDecimal.ZERO, amaun, false);
+        }
+
+        String spCode = spSet.iterator().next();
+        BigDecimal yuran = kiraYuran(spCode, documentIds.size(), akaunSet.size());
+        boolean serap = spSerapYuran(spCode);
+        return new FeePreview(amaun, yuran,
+                              serap ? amaun : amaun.add(yuran), serap);
+    }
+
+    /**
+     * Bayaran merentas beberapa akaun (ADR 0019).
+     *
+     * Invois dari beberapa akaun, satu transaksi gerbang. SP mesti sama —
+     * absorb dan kadar yuran berbeza antara SP, dan rujukan bank membawa
+     * satu sp_code (ADR 0018).
+     *
+     * TIADA ADVANCE apabila lebih daripada satu akaun terlibat: lebihan
+     * pada dua akaun tidak mempunyai jawapan yang betul untuk 'akaun mana'.
+     *
+     * Pecahan berlaku semasa callback: satu receivePayment bagi setiap
+     * akaun, setiap satu menghasilkan resitnya sendiri. Resit terikat
+     * kepada akaun dalam skema — satu resit merentas dua akaun tidak
+     * mempunyai nombor akaun untuk dicetak.
+     */
+    @Transactional
+    StartResult startMulti(Long payerUserId, List<Long> documentIds, BigDecimal bayar) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            throw new IllegalStateException("Pilih sekurang-kurangnya satu bil.");
+        }
+
+        // Pemilikan disahkan dalam pertanyaan yang sama: baris yang bukan
+        // milik pengguna tidak pernah dipulangkan, jadi kiraan yang tidak
+        // sepadan sudah cukup untuk menolak.
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT d.id, d.account_id, a.sp_code,
+                       (d.amount + d.tax_amount)
+                         - COALESCE((SELECT SUM(al.amount) FROM fi_allocation al
+                                     WHERE al.debit_document_id = d.id
+                                       AND al.status = 'ACTIVE'), 0) AS baki
+                FROM   financial_document d
+                JOIN   account a ON a.id = d.account_id
+                WHERE  d.id IN (:docs) AND a.payer_user_id = :uid
+                  AND  a.status = 'ACTIVE'
+                  AND  d.status <> 'CANCELLED'
+                """)
+                .setParameter("docs", documentIds)
+                .setParameter("uid", payerUserId)
+                .getResultList();
+
+        if (rows.size() != documentIds.size()) {
+            throw new IllegalStateException("Sebahagian bil tidak sah atau bukan milik anda.");
+        }
+
+        java.util.Set<String> spSet = new java.util.LinkedHashSet<>();
+        java.util.Set<Long> akaunSet = new java.util.LinkedHashSet<>();
+        BigDecimal jumlah = BigDecimal.ZERO;
+
+        for (Object[] r : rows) {
+            spSet.add((String) r[2]);
+            akaunSet.add(((Number) r[1]).longValue());
+            jumlah = jumlah.add((BigDecimal) r[3]);
+        }
+
+        if (spSet.size() > 1) {
+            throw new IllegalStateException(
+                    "Bayaran tidak boleh merentas beberapa organisasi. "
+                    + "Sila bayar setiap organisasi secara berasingan.");
+        }
+        String spCode = spSet.iterator().next();
+        int bilAkaun = akaunSet.size();
+
+        // Satu akaun: laluan sedia ada sudah mengendalikannya, termasuk
+        // advance. Menduplikasi logiknya di sini bermakna dua tempat
+        // memutuskan perkara yang sama.
+        if (bilAkaun == 1) {
+            return start(spCode, new StartRequest(
+                    akaunSet.iterator().next(), documentIds, bayar), payerUserId);
+        }
+
+        if (bayar.compareTo(jumlah) != 0) {
+            throw new IllegalStateException(
+                    "Bayaran merentas beberapa akaun mesti tepat RM"
+                    + jumlah.toPlainString() + ".");
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> pRows = em.createNativeQuery(
+                "SELECT full_name, email, mobile FROM app_user WHERE id = :uid")
+                .setParameter("uid", payerUserId).getResultList();
+        if (pRows.isEmpty()) throw new IllegalStateException("Pengguna tidak dijumpai.");
+        Object[] pengguna = pRows.get(0);
+
+        BigDecimal yuran = kiraYuran(spCode, documentIds.size(), bilAkaun);
+        boolean serap = spSerapYuran(spCode);
+        BigDecimal dicaj = serap ? bayar : bayar.add(yuran);
+
+        String ourRef = spCode + base36(numbers.nextValue(spCode, "GATEWAY_REF"));
+
+        // account_id menyimpan akaun PERTAMA — lajur itu tidak boleh
+        // membawa beberapa. Pecahan sebenar hidup dalam gateway_txn_line,
+        // dan callback membacanya dari situ.
+        Long akaunPertama = akaunSet.iterator().next();
+
+        em.createNativeQuery("""
+                INSERT INTO gateway_txn
+                  (sp_code, account_id, our_ref, gateway, amount, fee_amount,
+                   status, created_at, created_by)
+                VALUES (:sp, :acc, :ref, :gw, :amt, :fee, 'NEW', NOW(), :by)
+                """)
+                .setParameter("sp", spCode)
+                .setParameter("acc", akaunPertama)
+                .setParameter("ref", ourRef)
+                .setParameter("gw", gateway.code())
+                .setParameter("amt", bayar)
+                .setParameter("fee", yuran)
+                .setParameter("by", String.valueOf(payerUserId))
+                .executeUpdate();
+
+        Long txnId = ((Number) em.createNativeQuery(
+                "SELECT id FROM gateway_txn WHERE our_ref = :ref")
+                .setParameter("ref", ourRef).getSingleResult()).longValue();
+
+        for (Object[] r : rows) {
+            em.createNativeQuery("""
+                    INSERT INTO gateway_txn_line
+                      (txn_id, account_id, document_id, amount)
+                    VALUES (:txn, :acc, :doc, :amt)
+                    """)
+                    .setParameter("txn", txnId)
+                    .setParameter("acc", r[1])
+                    .setParameter("doc", r[0])
+                    .setParameter("amt", r[3])
+                    .executeUpdate();
+        }
+        em.flush();
+
+        var bill = gateway.createBill(new GatewayPort.NewBill(
+                spCode, ourRef,
+                (String) pengguna[0], (String) pengguna[1], (String) pengguna[2],
+                dicaj,
+                "Bayaran " + bilAkaun + " akaun",
+                appUrl + "/portal/my-accounts?bayar=" + ourRef,
+                appUrl.replaceAll("/$", "") + "/api/v1/payments/online/callback"));
+
+        em.createNativeQuery("""
+                UPDATE gateway_txn SET bill_code = :bc, status = 'PENDING', updated_at = NOW()
+                WHERE  id = :id
+                """)
+                .setParameter("bc", bill.billCode())
+                .setParameter("id", txnId)
+                .executeUpdate();
+
+        return new StartResult(ourRef, bill.billCode(), bill.paymentUrl(),
+                               bayar, yuran, dicaj);
     }
 
     /**
@@ -249,7 +447,7 @@ class GatewayService {
         // Kadar mengikut invois yang DISENTUH, bukan yang ditanda —
         // lihat bilInvoisDisentuh().
         BigDecimal yuran = kiraYuran(spCode,
-                bilInvoisDisentuh(req.documentIds(), req.accountId(), spCode, bayar));
+                bilInvoisDisentuh(req.documentIds(), req.accountId(), spCode, bayar), 1);
         boolean serap = spSerapYuran(spCode);
 
         // Amaun yang dihantar ke gerbang.
@@ -298,10 +496,14 @@ class GatewayService {
 
         for (Object[] b : baris) {
             em.createNativeQuery("""
-                    INSERT INTO gateway_txn_line (txn_id, document_id, amount)
-                    VALUES (:txn, :doc, :amt)
+                    INSERT INTO gateway_txn_line
+                      (txn_id, account_id, document_id, amount)
+                    VALUES (:txn, :acc, :doc, :amt)
                     """)
                     .setParameter("txn", txnId)
+                    // Diisi walaupun bayaran satu akaun: callback membaca
+                    // lajur ini tanpa membezakan dua bentuk baris.
+                    .setParameter("acc", req.accountId())
                     .setParameter("doc", b[0])
                     .setParameter("amt", b[1])
                     .executeUpdate();
@@ -393,10 +595,16 @@ class GatewayService {
             return;
         }
 
-        // Invois yang pelanggan PILIH, mengikut urutan asal.
+        // Invois yang pelanggan PILIH, dengan akaunnya, mengikut urutan asal.
+        //
+        // account_id dibaca daripada baris transaksi dan BUKAN daripada
+        // dokumen: invois yang dipindahkan antara akaun selepas bayaran
+        // akan memecahkan pengiraan kalau kita menyoal semula.
         @SuppressWarnings("unchecked")
-        List<Number> docIds = em.createNativeQuery(
-                "SELECT document_id FROM gateway_txn_line WHERE txn_id = :t ORDER BY id")
+        List<Object[]> baris = em.createNativeQuery("""
+                SELECT account_id, document_id, amount
+                FROM   gateway_txn_line WHERE txn_id = :t ORDER BY id
+                """)
                 .setParameter("t", txnId).getResultList();
 
         // ADR 0007 #1: amaun daripada GERBANG, bukan daripada baki invois.
@@ -428,13 +636,73 @@ class GatewayService {
             return;
         }
 
-        var hasil = payments.receivePayment(new NewPayment(
-                spCode, accountId, dibayar, PaymentMethod.FPX,
-                txn.gatewayRef(),
-                docIds.stream().map(Number::longValue).toList(),
-                ourRef,                       // idempotency (ADR 0004)
-                LocalDate.now(),
-                "Bayaran dalam talian"));
+        // Invois dikumpulkan mengikut akaun, susunan dikekalkan.
+        java.util.Map<Long, List<Long>> ikutAkaun = new java.util.LinkedHashMap<>();
+        for (Object[] b : baris) {
+            ikutAkaun.computeIfAbsent(((Number) b[0]).longValue(),
+                                      k -> new java.util.ArrayList<>())
+                     .add(((Number) b[1]).longValue());
+        }
+
+        // Satu bayaran BAGI SETIAP akaun (ADR 0019).
+        //
+        // Amaun setiap bayaran ialah jumlah invois akaun itu, bukan
+        // pecahan nisbah: pelanggan memilih invois tertentu, dan setiap
+        // invois hanya wujud dalam satu akaun.
+        //
+        // Idempotency key membawa akaun kerana ADR 0004 menguatkuasakan
+        // keunikan pada kunci itu — ourRef tunggal bermakna bayaran kedua
+        // dan seterusnya ditolak sebagai pendua.
+        Long paymentPertama = null;
+        Long resitPertama = null;
+        BigDecimal bakiUntukDiagih = dibayar;
+
+        var senaraiAkaun = List.copyOf(ikutAkaun.keySet());
+        for (int i = 0; i < senaraiAkaun.size(); i++) {
+            Long accId = senaraiAkaun.get(i);
+            List<Long> docs = ikutAkaun.get(accId);
+
+            BigDecimal amaunAkaun;
+            if (i == senaraiAkaun.size() - 1) {
+                // Akaun terakhir mengambil baki. Pembundaran sen tidak
+                // boleh menyebabkan jumlah bayaran tidak sepadan dengan
+                // amaun yang diterima.
+                amaunAkaun = bakiUntukDiagih;
+            } else {
+                amaunAkaun = jumlahBaris(baris, accId);
+                if (amaunAkaun.compareTo(bakiUntukDiagih) > 0) {
+                    amaunAkaun = bakiUntukDiagih;
+                }
+            }
+            bakiUntukDiagih = bakiUntukDiagih.subtract(amaunAkaun);
+
+            if (amaunAkaun.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            var h = payments.receivePayment(new NewPayment(
+                    spCode, accId, amaunAkaun, PaymentMethod.FPX,
+                    txn.gatewayRef(),
+                    docs,
+                    senaraiAkaun.size() > 1 ? ourRef + "#" + accId : ourRef,
+                    LocalDate.now(),
+                    "Bayaran dalam talian"));
+
+            if (paymentPertama == null) {
+                paymentPertama = h.paymentId();
+                resitPertama = h.receiptDocumentId();
+            } else {
+                // Resit kedua dan seterusnya dihantar terus; hanya yang
+                // pertama disimpan pada gateway_txn kerana lajur itu
+                // tunggal.
+                hantarResit(spCode, h.receiptDocumentId());
+            }
+        }
+
+        if (paymentPertama == null) {
+            log.error("Bayaran {} : tiada bayaran tercipta. Tidak diproses.", ourRef);
+            return;
+        }
+
+        var hasil = new HasilRingkas(paymentPertama, resitPertama);
 
         em.createNativeQuery("""
                 UPDATE gateway_txn
@@ -458,6 +726,19 @@ class GatewayService {
         // selamat pada titik ini; e-mel yang gagal tidak boleh
         // membatalkannya.
         hantarResit(spCode, hasil.receiptDocumentId());
+    }
+
+    /** Payment dan resit pertama — gateway_txn hanya boleh menyimpan satu. */
+    private record HasilRingkas(Long paymentId, Long receiptDocumentId) {}
+
+    private static BigDecimal jumlahBaris(List<Object[]> baris, Long accId) {
+        BigDecimal t = BigDecimal.ZERO;
+        for (Object[] b : baris) {
+            if (((Number) b[0]).longValue() == accId) {
+                t = t.add((BigDecimal) b[2]);
+            }
+        }
+        return t;
     }
 
     /**
@@ -558,19 +839,33 @@ class GatewayService {
     }
 
     /**
-     * Yuran mengikut bilangan invois yang DISENTUH.
+     * Yuran mengikut bentuk bayaran.
+     *
+     *   rate_single      satu invois, satu akaun
+     *   rate_multi       beberapa invois, satu akaun
+     *   rate_multi_acct  beberapa akaun (ADR 0019)
+     *
+     * Bilangan AKAUN mengatasi bilangan invois: bayaran dua akaun dengan
+     * lima invois menggunakan rate_multi_acct, bukan rate_multi. Merentas
+     * akaun menghasilkan beberapa resit daripada satu transaksi, dan itu
+     * kerja yang lebih besar daripada beberapa invois pada satu akaun.
      *
      * Sifar bila tetapan tiada — pemasangan yang salah konfigurasi patut
      * gagal ke arah TIDAK mengenakan caj kepada pelanggan.
      */
-    private BigDecimal kiraYuran(String spCode, int bilInvois) {
-        List<?> r = em.createNativeQuery(
-                "SELECT rate_single, rate_multi FROM sp_payment_setting WHERE sp_code = :sp")
-                .setParameter("sp", spCode).getResultList();
+    private BigDecimal kiraYuran(String spCode, int bilInvois, int bilAkaun) {
+        List<?> r = em.createNativeQuery("""
+                SELECT rate_single, rate_multi, rate_multi_acct
+                FROM   sp_payment_setting WHERE sp_code = :sp
+                """).setParameter("sp", spCode).getResultList();
         if (r.isEmpty()) return BigDecimal.ZERO;
 
         Object[] row = (Object[]) r.get(0);
-        BigDecimal kadar = (bilInvois > 1) ? (BigDecimal) row[1] : (BigDecimal) row[0];
+        BigDecimal kadar;
+        if (bilAkaun > 1)       kadar = (BigDecimal) row[2];
+        else if (bilInvois > 1) kadar = (BigDecimal) row[1];
+        else                    kadar = (BigDecimal) row[0];
+
         return kadar == null ? BigDecimal.ZERO : kadar;
     }
 
