@@ -88,6 +88,22 @@ class ProductController {
 
     @PostMapping
     ProductDto create(@Valid @RequestBody SaveProductRequest r) {
+        // Kod disemak SEBELUM menulis.
+        //
+        // uk_product (sp_code, code) melemparkan kekangan yang menjadi HTTP
+        // 500 — skrin memaparkan 'Gagal menyimpan produk' dan pengguna
+        // tidak tahu kod itu sudah digunakan. Semakan di sini memberi
+        // mesej yang menyebut kod berkenaan.
+        //
+        // Kekangan DB kekal: ia yang menghalang perlumbaan antara dua
+        // permintaan serentak. Semakan ini untuk MESEJ, bukan untuk
+        // keselamatan.
+        String kod = r.code() == null ? "" : r.code().trim();
+        if (!kod.isEmpty() && products.existsBySpCodeAndCode(sp(), kod)) {
+            throw new IllegalStateException(
+                    "Kod produk '" + kod + "' sudah digunakan. Sila guna kod lain.");
+        }
+
         Product p = new Product(sp(), r.code(), r.name(),
                 com.monthley.shared.ChargeFrequency.valueOf(r.chargeFrequency()),
                 r.rate() == null ? BigDecimal.ZERO : r.rate());

@@ -92,7 +92,7 @@ class MultiAccountCallbackTest {
             INSERT IGNORE INTO service_provider
               (sp_code, name, status, allow_selective, min_pymt_amount,
                created_at, updated_at, version)
-            VALUES ('SPC1', 'Ujian Callback', 'ACTIVE', 1, 1.00, NOW(), NOW(), 0)
+            VALUES ('SPC1', 'Ujian Callback', 'ACTIVE', 1, 100.00, NOW(), NOW(), 0)
             """).executeUpdate();
         seeder.seedFor("SPC1");
 
@@ -270,6 +270,55 @@ class MultiAccountCallbackTest {
         // Kedua-dua invois dijelaskan PENUH: yuran tidak memakan bayaran.
         assertThat(baki(invA)).isEqualByComparingTo("0.00");
         assertThat(baki(invB)).isEqualByComparingTo("0.00");
+    }
+
+    /**
+     * Minimum SP TIDAK memecahkan pecahan per akaun.
+     *
+     * SP ini mempunyai minimum RM100. Bayaran RM130 merentas dua akaun
+     * memenuhi minimum pada JUMLAH, tetapi pecahannya (RM80 dan RM50)
+     * tidak — dan menyemak minimum pada setiap pecahan menyebabkan
+     * callback gagal SELEPAS wang diterima.
+     *
+     * Ditemui pada pengeluaran: pelanggan membayar RM2 untuk dua akaun,
+     * gerbang menerima wang, callback melemparkan 'Bayaran RM1.00 kurang
+     * daripada minimum RM80.00', dan tiada resit tercipta.
+     */
+    @Test
+    @DisplayName("minimum SP disemak pada jumlah, bukan pada setiap pecahan akaun")
+    void minimumTidakMemecahkanPecahan() {
+        var hasil = tx.execute(st ->
+                gateway.startMulti(uid, List.of(invA, invB), new BigDecimal("130.00")));
+        gateway.handleCallback(hasil.ourRef(), "{}");
+
+        // Kedua-dua pecahan (RM80, RM50) di bawah minimum RM100, tetapi
+        // kedua-dua invois mesti dijelaskan.
+        assertThat(baki(invA)).isEqualByComparingTo("0.00");
+        assertThat(baki(invB)).isEqualByComparingTo("0.00");
+
+        Number bilResit = (Number) tx.execute(st -> em.createNativeQuery("""
+                SELECT COUNT(*) FROM financial_document
+                WHERE  sp_code = 'SPC1' AND doc_type = 'RECEIPT' AND status = 'ACTIVE'
+                """).getSingleResult());
+        assertThat(bilResit.longValue()).isEqualTo(2L);
+    }
+
+    /**
+     * Bayaran di bawah minimum ditolak SEBELUM bil dicipta.
+     *
+     * Pelanggan mendapat mesej semasa masih di skrin. Menolaknya semasa
+     * callback bermakna wang sudah diterima.
+     */
+    @Test
+    @DisplayName("bayaran di bawah minimum ditolak sebelum bil dicipta")
+    void bawahMinimumDitolakAwal() {
+        Long kecilA = tx.execute(st -> invois(akaunA, "CB-KECIL-A", new BigDecimal("1.00")));
+        Long kecilB = tx.execute(st -> invois(akaunB, "CB-KECIL-B", new BigDecimal("1.00")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                tx.execute(st -> gateway.startMulti(
+                        uid, List.of(kecilA, kecilB), new BigDecimal("2.00"))))
+                .hasMessageContaining("minimum");
     }
 
     @Test

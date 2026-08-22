@@ -43,7 +43,8 @@ class GatewaySettingController {
                        String categoryCode, boolean sandbox,
                        boolean onlinePayment, boolean keySet,
                        boolean absorb, BigDecimal rateSingle,
-                       BigDecimal rateMulti, BigDecimal minAmount) {}
+                       BigDecimal rateMulti, BigDecimal rateMultiAcct,
+                       BigDecimal minAmount) {}
 
     /**
      * secretKey adalah PILIHAN semasa mengemas kini.
@@ -56,7 +57,8 @@ class GatewaySettingController {
     record SaveBody(String gateway, String secretKey, String categoryCode,
                     Boolean sandbox, Boolean onlinePayment,
                     Boolean absorb, BigDecimal rateSingle,
-                    BigDecimal rateMulti, BigDecimal minAmount) {}
+                    BigDecimal rateMulti, BigDecimal rateMultiAcct,
+                    BigDecimal minAmount) {}
 
     @GetMapping
     @SuppressWarnings("unchecked")
@@ -65,7 +67,8 @@ class GatewaySettingController {
                 SELECT s.sp_code, sp.name, s.gateway, s.category_code, s.sandbox,
                        s.online_payment,
                        (s.gateway_key_enc IS NOT NULL AND s.gateway_key_enc <> ''),
-                       s.absorb, s.rate_single, s.rate_multi, sp.min_pymt_amount
+                       s.absorb, s.rate_single, s.rate_multi, s.rate_multi_acct,
+                       sp.min_pymt_amount
                 FROM   sp_payment_setting s
                 JOIN   service_provider sp ON sp.sp_code = s.sp_code
                 ORDER  BY s.sp_code
@@ -75,7 +78,7 @@ class GatewaySettingController {
                 (String) r[0], (String) r[1], (String) r[2], (String) r[3],
                 bool(r[4]), bool(r[5]), bool(r[6]),
                 bool(r[7]), (BigDecimal) r[8], (BigDecimal) r[9],
-                (BigDecimal) r[10])).toList();
+                (BigDecimal) r[10], (BigDecimal) r[11])).toList();
     }
 
     @PutMapping("/{spCode}")
@@ -105,6 +108,9 @@ class GatewaySettingController {
         if (b.rateMulti() != null && b.rateMulti().signum() < 0) {
             throw new IllegalStateException("Kadar yuran tidak boleh negatif.");
         }
+        if (b.rateMultiAcct() != null && b.rateMultiAcct().signum() < 0) {
+            throw new IllegalStateException("Kadar yuran tidak boleh negatif.");
+        }
 
         em.createNativeQuery("""
                 UPDATE sp_payment_setting
@@ -112,6 +118,7 @@ class GatewaySettingController {
                        absorb         = COALESCE(:absorb, absorb),
                        rate_single    = COALESCE(:single, rate_single),
                        rate_multi     = COALESCE(:multi, rate_multi),
+                       rate_multi_acct = COALESCE(:multiAcct, rate_multi_acct),
                        sandbox        = COALESCE(:sandbox, sandbox),
                        gateway        = COALESCE(:gw, gateway)
                 WHERE  sp_code = :sp
@@ -122,6 +129,7 @@ class GatewaySettingController {
                         : (b.absorb() ? 1 : 0))
                 .setParameter("single", b.rateSingle())
                 .setParameter("multi", b.rateMulti())
+                .setParameter("multiAcct", b.rateMultiAcct())
                 .setParameter("sandbox", b.sandbox() == null ? null
                         : (b.sandbox() ? 1 : 0))
                 .setParameter("gw", (b.gateway() == null || b.gateway().isBlank())

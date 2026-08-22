@@ -244,6 +244,13 @@ class GatewayService {
                     + jumlah.toPlainString() + ".");
         }
 
+        // Minimum disemak SEKALI, pada jumlah transaksi.
+        //
+        // receivePayment melangkaunya untuk FPX kerana pecahan per akaun
+        // akan gagal secara palsu — dan kegagalan itu berlaku SELEPAS wang
+        // diterima.
+        semakMinimum(spCode, bayar);
+
         @SuppressWarnings("unchecked")
         List<Object[]> pRows = em.createNativeQuery(
                 "SELECT full_name, email, mobile FROM app_user WHERE id = :uid")
@@ -412,16 +419,7 @@ class GatewayService {
         // Minimum SP, jika ditetapkan. Gerbang mengenakan yuran tetap pada
         // setiap transaksi, jadi bayaran yang terlalu kecil kos lebih
         // daripada nilainya.
-        List<?> minRows = em.createNativeQuery(
-                "SELECT min_pymt_amount FROM service_provider WHERE sp_code = :sp")
-                .setParameter("sp", spCode).getResultList();
-        if (!minRows.isEmpty() && minRows.get(0) != null) {
-            BigDecimal min = (BigDecimal) minRows.get(0);
-            if (min.compareTo(BigDecimal.ZERO) > 0 && bayar.compareTo(min) < 0) {
-                throw new IllegalStateException(
-                        "Bayaran minimum ialah RM" + min + ".");
-            }
-        }
+        semakMinimum(spCode, bayar);
 
         jumlah = bayar;
 
@@ -878,6 +876,25 @@ class GatewayService {
         if (v == null) return false;
         if (v instanceof Boolean b) return b;
         return ((Number) v).intValue() != 0;
+    }
+
+    /**
+     * Amaun memenuhi minimum SP?
+     *
+     * Disemak sebelum bil dicipta supaya pelanggan mendapat mesej semasa
+     * masih di skrin — bukan selepas membayar.
+     */
+    private void semakMinimum(String spCode, BigDecimal amaun) {
+        List<?> r = em.createNativeQuery(
+                "SELECT min_pymt_amount FROM service_provider WHERE sp_code = :sp")
+                .setParameter("sp", spCode).getResultList();
+        if (r.isEmpty() || r.get(0) == null) return;
+
+        BigDecimal min = new BigDecimal(r.get(0).toString());
+        if (min.signum() > 0 && amaun.compareTo(min) < 0) {
+            throw new IllegalStateException(
+                    "Bayaran minimum ialah RM" + min.toPlainString() + ".");
+        }
     }
 
     private static String base36(long v) {

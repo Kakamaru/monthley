@@ -92,9 +92,26 @@ class PaymentService implements PaymentPort {
     @Override
     @Transactional
     public PaymentResult receivePayment(NewPayment req) {
-        BigDecimal min = minPaymentAmount(req.spCode());
-        if (min.signum() > 0 && req.amount().compareTo(min) < 0) {
-            throw new PaymentBelowMinimumException(req.amount(), min);
+        // Minimum TIDAK terpakai pada bayaran gerbang.
+        //
+        // Bayaran online sudah menyemaknya sebelum bil dicipta — pada
+        // JUMLAH transaksi, bukan pada setiap akaun. Menyemak semula di
+        // sini memecahkan bayaran merentas akaun: pelanggan membayar RM2
+        // untuk dua akaun (RM1 setiap satu), dan setiap pecahan gagal
+        // terhadap minimum RM80.
+        //
+        // Akibatnya paling teruk yang mungkin: wang SUDAH diterima oleh
+        // gerbang, callback gagal, dan tiada resit tercipta. Pelanggan
+        // membayar dan invois kekal terbuka.
+        //
+        // Minimum ialah tentang kos transaksi gerbang, dan gerbang
+        // mengenakan yuran sekali pada transaksi — bukan sekali setiap
+        // akaun.
+        if (req.method() != PaymentMethod.FPX) {
+            BigDecimal min = minPaymentAmount(req.spCode());
+            if (min.signum() > 0 && req.amount().compareTo(min) < 0) {
+                throw new PaymentBelowMinimumException(req.amount(), min);
+            }
         }
 
         // Idempotency (ADR 0004): kalau key ni sudah diproses, pulang resit sedia

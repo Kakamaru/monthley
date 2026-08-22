@@ -10,6 +10,15 @@ import java.util.List;
 
 interface ProductRepository extends JpaRepository<Product, Long> {
 
+    /**
+     * Kod sudah digunakan oleh SP ini?
+     *
+     * Untuk MESEJ ralat, bukan keselamatan — uk_product (sp_code, code)
+     * yang menghalang perlumbaan. Tanpa semakan ini, kekangan melemparkan
+     * dan skrin memaparkan 'Gagal menyimpan produk' tanpa menyebut sebab.
+     */
+    boolean existsBySpCodeAndCode(String spCode, String code);
+
     List<Product> findBySpCodeAndStatus(String spCode, Product.Status status);
 
     /** Carian skrin Products: tab (status) + kategori + q (nama/kod). */
