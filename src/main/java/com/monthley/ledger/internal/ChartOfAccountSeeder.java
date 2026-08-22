@@ -37,6 +37,7 @@ public class ChartOfAccountSeeder {
             acc(spCode, GlAccounts.OPENING_EQUITY,     "Opening Balance Equity",  AccountType.EQUITY,    NormalSide.CREDIT, false, null),
             acc(spCode, GlAccounts.SERVICE_INCOME,     "Service Income",          AccountType.INCOME,    NormalSide.CREDIT, false, null),
             acc(spCode, GlAccounts.PENALTY_INCOME,     "Late Penalty Income",     AccountType.INCOME,    NormalSide.CREDIT, false, null),
+            acc(spCode, GlAccounts.DONATION_INCOME,    "Donation Income",         AccountType.INCOME,    NormalSide.CREDIT, false, null),
             acc(spCode, GlAccounts.BAD_DEBT_EXPENSE,   "Bad Debt Expense",        AccountType.EXPENSE,   NormalSide.DEBIT,  false, null),
 
             // Perbelanjaan (modul Expenses, ADR 0017). GL diletak pada kategori

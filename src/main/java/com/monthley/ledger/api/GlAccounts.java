@@ -15,6 +15,9 @@ public final class GlAccounts {
     public static final String CUSTOMER_DEPOSIT  = "2200";     // control, sub-ledger = DEPOSIT
     public static final String SERVICE_INCOME    = "4000";
     public static final String PENALTY_INCOME    = "4100";
+    /** Hasil derma — berasingan daripada 4000 supaya penyata
+     *  pendapatan boleh menjawab 'berapa daripada derma'. */
+    public static final String DONATION_INCOME   = "4200";
     public static final String ACCOUNTS_PAYABLE  = "2000";    // control, invois pembekal
     public static final String BAD_DEBT_EXPENSE  = "5000";
     public static final String EXPENSE_UTILITY   = "5100";

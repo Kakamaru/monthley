@@ -298,6 +298,7 @@ line) menyasar keluarga-keluarga ini.
 | [0017](decisions/0017-satu-database-untuk-semua-modul.md) | Satu database untuk semua modul | Dilaksana — Perbelanjaan, Aduan, Memo |
 | [0018](decisions/0018-bayaran-online-satu-sp.md) | Bayaran online terhad kepada satu SP | Diterima — UI belum dikumpulkan mengikut SP |
 | [0019](decisions/0019-bayaran-merentas-akaun.md) | Bayaran merentas akaun (SP sama) | Diterima — dalam pembinaan |
+| [0020](decisions/0020-modul-sumbangan.md) | Modul Sumbangan — derma awam | Diterima — dalam pembinaan |
 
 Tiada ADR 0015. Nombor itu pernah dirujuk untuk gerbang bayaran, tetapi
 keputusannya sebenarnya ada dalam ADR 0007 — rujukan yang salah telah
