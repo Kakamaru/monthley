@@ -249,6 +249,16 @@ itu sendiri:
 
 ---
 
+## Operasi
+
+| Dokumen | Kandungan |
+|---|---|
+| [Pemasangan VPS](PEMASANGAN-VPS.md) | Langkah pelayan baharu, rujukan konfigurasi penuh, lokasi rahsia |
+| `ops/pasang-minio.sh` | Pemasangan storan objek — idempoten, tidak menggantikan kata laluan sedia ada |
+| `ops/deploy.sh` | Deploy backend. MENGHENTIKAN servis sebelum menukar JAR — menukarnya di bawah proses yang hidup menyebabkan NoClassDefFoundError dengan gejala yang menyesatkan |
+
+---
+
 ## Isu legacy yang kita elak
 
 Setiap kes di bawah ialah **kejadian sebenar dalam production legacy**,
