@@ -45,7 +45,11 @@ class JournalSourceInvariantTest {
             new String[]{"OPENING",      "financial_document"},
             new String[]{"EXP_INVOICE",  "exp_invoice"},
             new String[]{"EXP_PAYMENT",  "exp_payment"},
-            new String[]{"EXP_CASH",     "exp_cash_entry"});
+            new String[]{"EXP_CASH",     "exp_cash_entry"},
+            // Derma mempos terhadap RESIT — dokumen kewangan, sama
+            // seperti bayaran. Yang berbeza ialah kredit pergi ke
+            // hasil derma dan bukan ke akaun belum terima.
+            new String[]{"DONATION",     "financial_document"});
 
     @Test
     @DisplayName("tiada journal_entry menunjuk dokumen sumber yang tidak wujud")
