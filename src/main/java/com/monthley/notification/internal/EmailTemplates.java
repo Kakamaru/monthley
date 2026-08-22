@@ -114,6 +114,7 @@ final class EmailTemplates {
      * bayaran tanpa mengklik. Pautan untuk resit penuh.
      */
     static String receipt(String name, String spName, String receiptNo,
+                          String accountNo, String accountName,
                           String amount, String tarikh, String url) {
         return shell(
             "Resit Bayaran",
@@ -123,6 +124,15 @@ final class EmailTemplates {
             + "<table style=\"font-size:14px;line-height:1.8\">"
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">No. Resit</td>"
             + "<td><strong>" + esc(receiptNo) + "</strong></td></tr>"
+            // Akaun disenaraikan kerana satu bayaran boleh menghasilkan
+            // beberapa resit (ADR 0019). Dua e-mel yang kelihatan serupa
+            // tanpa nombor akaun tidak boleh dibezakan.
+            + (accountNo == null || accountNo.isBlank() ? ""
+                : "<tr><td style=\"padding-right:16px;color:#6b7f86\">Akaun</td>"
+                  + "<td><strong>" + esc(accountNo) + "</strong>"
+                  + (accountName == null || accountName.isBlank() ? ""
+                      : " — " + esc(accountName))
+                  + "</td></tr>")
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tarikh</td>"
             + "<td>" + esc(tarikh) + "</td></tr>"
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Jumlah</td>"
@@ -226,7 +236,8 @@ final class EmailTemplates {
      * invois akan mengelirukan pelanggan sepenuhnya.
      */
     static String document(String name, String spName, String docLabel,
-                           String docNo, String amount, String tarikh, String url) {
+                           String docNo, String accountNo, String accountName,
+                           String amount, String tarikh, String url) {
         boolean resit = docLabel != null
                 && docLabel.toLowerCase().contains("resit");
 
@@ -243,6 +254,14 @@ final class EmailTemplates {
             + "<table style=\"font-size:14px;line-height:1.8\">"
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">No. Dokumen</td>"
             + "<td><strong>" + esc(docNo) + "</strong></td></tr>"
+            // Akaun: satu bayaran boleh menghasilkan beberapa dokumen
+            // (ADR 0019), dan tanpa nombor akaun ia tidak boleh dibezakan.
+            + (accountNo == null || accountNo.isBlank() ? ""
+                : "<tr><td style=\"padding-right:16px;color:#6b7f86\">Akaun</td>"
+                  + "<td><strong>" + esc(accountNo) + "</strong>"
+                  + (accountName == null || accountName.isBlank() ? ""
+                      : " \u2014 " + esc(accountName))
+                  + "</td></tr>")
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Tarikh</td>"
             + "<td>" + esc(tarikh) + "</td></tr>"
             + "<tr><td style=\"padding-right:16px;color:#6b7f86\">Jumlah</td>"

@@ -218,7 +218,7 @@ class StatementController {
                     "Dokumen " + d.docNo() + " telah dibatalkan dan tidak boleh dihantar.");
         }
 
-        String label, docNo, amount, tarikh, nama, spName, laluan;
+        String label, docNo, amount, tarikh, nama, spName, laluan, akaunNo, akaunNama;
         if (d.type() == com.monthley.document.api.DocumentType.RECEIPT) {
             var m = statements.receipt(sp(), id);
             label = "Resit";
@@ -228,6 +228,8 @@ class StatementController {
             nama = pilihNama(m.header());
             spName = m.header().spName();
             laluan = "receipts";
+            akaunNo = m.header().accountNo();
+            akaunNama = m.header().accountName();
         } else {
             var m = statements.invoice(sp(), id);
             label = m.documentTitle();
@@ -237,10 +239,13 @@ class StatementController {
             nama = pilihNama(m.header());
             spName = m.header().spName();
             laluan = "invoices";
+            akaunNo = m.header().accountNo();
+            akaunNama = m.header().accountName();
         }
 
         String token = access.tokenFor(sp(), id, d.type());
-        email.resendDocument(alamat, nama, spName, label, docNo, amount, tarikh,
+        email.resendDocument(alamat, nama, spName, label, docNo,
+                akaunNo, akaunNama, amount, tarikh,
                 appUrl + "/api/v1/pub/" + laluan + "/" + token);
 
         return new ResendResult(alamat.size(), alamat);

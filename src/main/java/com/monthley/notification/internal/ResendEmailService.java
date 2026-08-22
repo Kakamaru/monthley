@@ -86,23 +86,34 @@ class ResendEmailService implements EmailPort {
 
     @Override
     public void sendReceipt(String to, String name, String spName,
-                            String receiptNo, String amount, String tarikh,
+                            String receiptNo, String accountNo, String accountName,
+                            String amount, String tarikh,
                             String receiptUrl) {
-        send(to, "Resit " + receiptNo + " — " + spName,
-                EmailTemplates.receipt(name, spName, receiptNo, amount,
-                        tarikh, receiptUrl));
+        // Subjek membawa akaun: dua resit daripada satu bayaran (ADR 0019)
+        // muncul dalam peti masuk sebagai dua baris, dan subjek yang
+        // identik tidak boleh dibezakan tanpa membukanya.
+        String subjek = "Resit " + receiptNo
+                + (accountNo == null || accountNo.isBlank() ? "" : " · " + accountNo)
+                + " — " + spName;
+
+        send(to, subjek,
+                EmailTemplates.receipt(name, spName, receiptNo,
+                        accountNo, accountName, amount, tarikh, receiptUrl));
     }
 
     @Override
     public void resendDocument(List<String> to, String name, String spName,
-                               String docLabel, String docNo, String amount,
-                               String tarikh, String url) {
+                               String docLabel, String docNo,
+                               String accountNo, String accountName,
+                               String amount, String tarikh, String url) {
         if (to == null || to.isEmpty()) {
             return;
         }
-        String subject = docLabel + " " + docNo + " \u2014 " + spName;
+        String subject = docLabel + " " + docNo
+                + (accountNo == null || accountNo.isBlank() ? "" : " \u00b7 " + accountNo)
+                + " \u2014 " + spName;
         String html = EmailTemplates.document(name, spName, docLabel, docNo,
-                amount, tarikh, url);
+                accountNo, accountName, amount, tarikh, url);
 
         // Satu e-mel setiap penerima, bukan satu dengan senarai 'to'.
         // Penerima tidak sepatutnya melihat alamat satu sama lain —

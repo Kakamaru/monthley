@@ -74,8 +74,18 @@ public interface EmailPort {
      * transaksi menahan kunci baris sepanjang panggilan HTTP ke penyedia
      * e-mel.
      */
+    /**
+     * @param accountNo    nombor akaun yang resit ini menjelaskan
+     * @param accountName  nama akaun
+     *
+     * Akaun disertakan kerana satu bayaran boleh menghasilkan BEBERAPA
+     * resit (ADR 0019) — pelanggan dengan dua akaun menerima dua e-mel
+     * yang kelihatan serupa, dan tanpa nombor akaun mereka tidak tahu
+     * yang mana untuk akaun yang mana.
+     */
     void sendReceipt(String to, String name, String spName,
-                     String receiptNo, String amount, String tarikh,
+                     String receiptNo, String accountNo, String accountName,
+                     String amount, String tarikh,
                      String receiptUrl);
 
     /**
@@ -94,6 +104,7 @@ public interface EmailPort {
      * @param docLabel 'Resit' atau 'Invois' daripada tetapan SP
      */
     void resendDocument(java.util.List<String> to, String name, String spName,
-                        String docLabel, String docNo, String amount,
-                        String tarikh, String url);
+                        String docLabel, String docNo,
+                        String accountNo, String accountName,
+                        String amount, String tarikh, String url);
 }

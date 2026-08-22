@@ -765,6 +765,10 @@ class GatewayService {
                             ? m.header().accountName() : m.header().billtoName(),
                     m.header().spName(),
                     m.receiptNo(),
+                    // Akaun daripada header penyata — sudah dimuatkan,
+                    // jadi tiada pertanyaan tambahan.
+                    m.header().accountNo(),
+                    m.header().accountName(),
                     m.header().currency() + " " + m.amountPaid().toPlainString(),
                     m.receiptDate().toString(),
                     appUrl + "/api/v1/pub/receipts/" + token);

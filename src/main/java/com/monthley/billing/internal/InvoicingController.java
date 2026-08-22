@@ -623,6 +623,8 @@ class InvoicingController {
                     m.header().spName(),
                     m.documentTitle(),
                     m.invoiceNo(),
+                    m.header().accountNo(),
+                    m.header().accountName(),
                     m.header().currency() + " " + m.totalDue().toPlainString(),
                     m.invoiceDate().toString(),
                     appUrl + "/api/v1/pub/invoices/" + token);

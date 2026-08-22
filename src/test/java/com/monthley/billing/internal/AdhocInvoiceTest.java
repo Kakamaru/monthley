@@ -400,8 +400,15 @@ class AdhocInvoiceTest {
         em.flush();
 
         var alamat = org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        // Sembilan argumen: accountNo dan accountName ditambah supaya
+        // dokumen daripada satu bayaran merentas akaun boleh dibezakan.
+        // Satu List + SEMBILAN String: to, name, spName, docLabel,
+        // docNo, accountNo, accountName, amount, tarikh, url.
         org.mockito.Mockito.verify(email).resendDocument(
-                alamat.capture(), org.mockito.ArgumentMatchers.anyString(),
+                alamat.capture(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
