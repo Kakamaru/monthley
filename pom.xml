@@ -38,6 +38,17 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- Storan objek melalui MinIO.
+
+             SDK AWS dan bukan klien MinIO: kedua-duanya bercakap protokol
+             S3, tetapi SDK AWS bermakna beralih ke Cloudflare R2 atau S3
+             sebenar kemudian hanya menukar endpoint dan kunci. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.28.29</version>
+        </dependency>
+
         <!-- ============ Spring Boot ============ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -44,6 +44,12 @@ logging:
 
 # ====================== MONTHLEY ======================
 monthley:
+  storage:
+    endpoint: ${MONTHLEY_STORAGE_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${MONTHLEY_STORAGE_KEY:monthley}
+    # Kosong dalam pembangunan: muat naik gagal dengan jelas dan bukan
+    # menulis ke storan yang salah.
+    secret-key: ${MONTHLEY_STORAGE_SECRET:}
   app-url: ${MONTHLEY_APP_URL:http://localhost:4200}
 
   # Asal-usul CORS, dipisah koma. Pelayar menghantar Origin; curl tidak —

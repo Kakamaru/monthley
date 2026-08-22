@@ -9,5 +9,5 @@
         displayName = "Sumbangan",
         allowedDependencies = { "shared", "document :: api", "payment :: api",
                                 "ledger :: api", "notification :: api",
-                                "gateway :: api" })
+                                "gateway :: api", "storage :: api" })
 package com.monthley.donation;
